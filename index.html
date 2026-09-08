@@ -1680,42 +1680,42 @@ let spinAngle=0;
 function applyPose(dt){
   const k = clamp(10 * dt, 0, 1), t = poseT;
 
-  // 몸을 자키 바로 옆에 세우고, 카메라 쪽으로 3/4만 튼다
-  body.position.x = lerp(body.position.x, -0.10 * t, k);
-  body.position.z = lerp(body.position.z, -0.16 * t, k);
-  body.position.y = lerp(body.position.y, -0.03 * t + stackH * (1 - t), k);
+  // 자키 옆에 자연스럽게 선 자세
+  body.position.x = lerp(body.position.x, -0.04 * t, k);
+  body.position.z = lerp(body.position.z, -0.10 * t, k);
+  body.position.y = lerp(body.position.y, -0.02 * t + stackH * (1 - t), k);
 
-  body.rotation.y = lerp(body.rotation.y, 0.42 * t, k);
-  body.rotation.x = lerp(body.rotation.x, 0.04 * t + 0.16 * (1 - t), k);
+  // 정면에 가깝되 살짝만 틀어서 3/4
+  body.rotation.y = lerp(body.rotation.y, -0.18 * t, k);
+  body.rotation.x = lerp(body.rotation.x, 0.03 * t + 0.16 * (1 - t), k);
 
-  headG.rotation.y = lerp(headG.rotation.y, -0.12 * t, k);
+  headG.rotation.y = lerp(headG.rotation.y, 0.10 * t, k);
   headG.rotation.z = lerp(headG.rotation.z, 0, k);
 
-  // 클립보드는 인트로에서 사용 안 함
   clipboard.visible = false;
 
   if(t > 0.02){
     // 왼발: 자키 포크 위
-    legs[0].rotation.x = lerp(legs[0].rotation.x, -0.88 * t, k);
-    knees[0].rotation.x = lerp(knees[0].rotation.x, 1.18 * t, k);
-    legs[0].rotation.z = lerp(legs[0].rotation.z, -0.04 * t, k);
+    legs[0].rotation.x = lerp(legs[0].rotation.x, -0.86 * t, k);
+    knees[0].rotation.x = lerp(knees[0].rotation.x, 1.14 * t, k);
+    legs[0].rotation.z = lerp(legs[0].rotation.z, -0.03 * t, k);
     legs[0].position.y = lerp(legs[0].position.y, 0.95, k);
     legs[0].position.z = lerp(legs[0].position.z, -0.30, k);
 
     // 오른발: 바닥 지지
-    legs[1].rotation.x = lerp(legs[1].rotation.x, 0.16 * t, k);
-    knees[1].rotation.x = lerp(knees[1].rotation.x, 0.08 * t, k);
-    legs[1].rotation.z = lerp(legs[1].rotation.z, 0.10 * t, k);
+    legs[1].rotation.x = lerp(legs[1].rotation.x, 0.10 * t, k);
+    knees[1].rotation.x = lerp(knees[1].rotation.x, 0.10 * t, k);
+    legs[1].rotation.z = lerp(legs[1].rotation.z, 0.08 * t, k);
     legs[1].position.y = lerp(legs[1].position.y, 0.95, k);
     legs[1].position.z = lerp(legs[1].position.z, -0.40, k);
 
-    // 왼손: 핸들에 자연스럽게
-    arms[0].rotation.x = lerp(arms[0].rotation.x, -1.10 * t + (-1.45) * (1 - t), k);
-    arms[0].rotation.z = lerp(arms[0].rotation.z, 0.22 * t, k);
+    // 왼손: 손잡이
+    arms[0].rotation.x = lerp(arms[0].rotation.x, -1.00 * t + (-1.45) * (1 - t), k);
+    arms[0].rotation.z = lerp(arms[0].rotation.z, 0.18 * t, k);
 
     // 오른손: 몸 옆으로 자연스럽게
-    arms[1].rotation.x = lerp(arms[1].rotation.x, -0.55 * t + (-1.45) * (1 - t), k);
-    arms[1].rotation.z = lerp(arms[1].rotation.z, -0.12 * t, k);
+    arms[1].rotation.x = lerp(arms[1].rotation.x, -0.45 * t + (-1.45) * (1 - t), k);
+    arms[1].rotation.z = lerp(arms[1].rotation.z, -0.08 * t, k);
   }
 }
 
@@ -1899,20 +1899,21 @@ let introT=0;
 function introCamera(dt){
   introT += dt;
 
-  const sx = Math.sin(introT * 0.25) * 0.10;
-  const sy = Math.cos(introT * 0.31) * 0.04;
+  const sx = Math.sin(introT * 0.25) * 0.06;
+  const sy = Math.cos(introT * 0.31) * 0.03;
   const portrait = camera.aspect < 1;
 
   if(portrait){
-    camTmp.set(P.x - 1.85 + sx, P.y + 1.30 + sy, P.z - 4.8);
-    camera.lookAt(P.x + 0.05, P.y + 1.00, P.z + 0.25);
+    // 앞쪽에서 보는 구도
+    camTmp.set(P.x + 1.35 + sx, P.y + 1.22 + sy, P.z + 4.65);
+    camera.lookAt(P.x + 0.00, P.y + 0.96, P.z - 0.05);
   }else{
-    camTmp.set(P.x - 2.15 + sx, P.y + 1.05 + sy, P.z - 3.8);
-    camera.lookAt(P.x + 0.10, P.y + 1.00, P.z + 0.28);
+    camTmp.set(P.x + 1.55 + sx, P.y + 1.02 + sy, P.z + 3.95);
+    camera.lookAt(P.x + 0.02, P.y + 0.98, P.z - 0.08);
   }
 
   camera.position.lerp(camTmp, clamp(4 * dt, 0, 1));
-  camera.lookAt(P.x + 0.08, P.y + (portrait ? 0.98 : 1.00), P.z + 0.25);
+  camera.lookAt(P.x + 0.01, P.y + (portrait ? 0.96 : 0.98), P.z - 0.06);
 
   const fovT = portrait ? 56 : 50;
   if(Math.abs(camera.fov - fovT) > 0.05){
