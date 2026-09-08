@@ -1688,51 +1688,144 @@ function applyPose(dt){
   const k = clamp(10 * dt, 0, 1);
   const t = poseT;
 
-  // 몸통을 캐릭터 기준 왼쪽으로 조금 더 보냄
-  body.position.x = lerp(body.position.x, -0.18 * t, k);
+  // 캐릭터 기준 왼쪽(+X)으로 몸을 빼서
+  // 오른손이 중앙 손잡이에 자연스럽게 닿게 한다.
+  body.position.x = lerp(body.position.x, 0.18 * t, k);
   body.position.z = lerp(body.position.z, -0.10 * t, k);
-  body.position.y = lerp(body.position.y, -0.02 * t + stackH * (1 - t), k);
+  body.position.y = lerp(
+    body.position.y,
+    -0.02 * t + stackH * (1 - t),
+    k
+  );
 
-  // 앞 3/4 구도에서 자연스럽게
-  body.rotation.y = lerp(body.rotation.y, -0.14 * t, k);
-  body.rotation.x = lerp(body.rotation.x,  0.03 * t + 0.16 * (1 - t), k);
+  // 앞 3/4 방향도 반대쪽으로
+  body.rotation.y = lerp(
+    body.rotation.y,
+    0.14 * t,
+    k
+  );
 
-  headG.rotation.y = lerp(headG.rotation.y, 0.08 * t, k);
+  body.rotation.x = lerp(
+    body.rotation.x,
+    0.03 * t + 0.16 * (1 - t),
+    k
+  );
+
+  headG.rotation.y = lerp(
+    headG.rotation.y,
+    -0.06 * t,
+    k
+  );
+
   headG.rotation.z = lerp(headG.rotation.z, 0, k);
 
   clipboard.visible = false;
 
   if(t > 0.02){
 
-    // --------------------------
-    // 왼발 = 바닥
-    // --------------------------
-    legs[0].rotation.x = lerp(legs[0].rotation.x, 0.06 * t, k);
-    knees[0].rotation.x = lerp(knees[0].rotation.x, 0.12 * t, k);
-    legs[0].rotation.z = lerp(legs[0].rotation.z, 0.10 * t, k);
-    legs[0].position.y = lerp(legs[0].position.y, 0.95, k);
-    legs[0].position.z = lerp(legs[0].position.z, -0.40, k);
+    // ─────────────────────────────
+    // 오른발 legs[0]
+    // 자키 포크 위에 올린다
+    // ─────────────────────────────
+    legs[0].rotation.x = lerp(
+      legs[0].rotation.x,
+      -0.88 * t,
+      k
+    );
 
-    // --------------------------
-    // 오른발 = 자키 포크 위
-    // --------------------------
-    legs[1].rotation.x = lerp(legs[1].rotation.x, -0.90 * t, k);
-    knees[1].rotation.x = lerp(knees[1].rotation.x, 1.16 * t, k);
-    legs[1].rotation.z = lerp(legs[1].rotation.z, -0.03 * t, k);
-    legs[1].position.y = lerp(legs[1].position.y, 0.95, k);
-    legs[1].position.z = lerp(legs[1].position.z, -0.28, k);
+    knees[0].rotation.x = lerp(
+      knees[0].rotation.x,
+      1.16 * t,
+      k
+    );
 
-    // --------------------------
-    // 왼팔 = 손잡이 쪽에 얹힘
-    // --------------------------
-    arms[0].rotation.x = lerp(arms[0].rotation.x, -0.92 * t + (-1.45) * (1 - t), k);
-    arms[0].rotation.z = lerp(arms[0].rotation.z,  0.22 * t, k);
+    legs[0].rotation.z = lerp(
+      legs[0].rotation.z,
+      -0.04 * t,
+      k
+    );
 
-    // --------------------------
-    // 오른팔 = 자연스럽게 아래
-    // --------------------------
-    arms[1].rotation.x = lerp(arms[1].rotation.x, -0.28 * t + (-1.45) * (1 - t), k);
-    arms[1].rotation.z = lerp(arms[1].rotation.z, -0.10 * t, k);
+    legs[0].position.y = lerp(
+      legs[0].position.y,
+      0.95,
+      k
+    );
+
+    legs[0].position.z = lerp(
+      legs[0].position.z,
+      -0.28,
+      k
+    );
+
+
+    // ─────────────────────────────
+    // 왼발 legs[1]
+    // 바닥에 두고 몸을 지지한다
+    // ─────────────────────────────
+    legs[1].rotation.x = lerp(
+      legs[1].rotation.x,
+      0.08 * t,
+      k
+    );
+
+    knees[1].rotation.x = lerp(
+      knees[1].rotation.x,
+      0.10 * t,
+      k
+    );
+
+    legs[1].rotation.z = lerp(
+      legs[1].rotation.z,
+      0.08 * t,
+      k
+    );
+
+    legs[1].position.y = lerp(
+      legs[1].position.y,
+      0.95,
+      k
+    );
+
+    legs[1].position.z = lerp(
+      legs[1].position.z,
+      -0.42,
+      k
+    );
+
+
+    // ─────────────────────────────
+    // 오른팔 arms[0]
+    // 손잡이 위에 손을 얹는다.
+    // 이전 -1.1 정도가 아니라 거의 -1.85까지 들어야 한다.
+    // ─────────────────────────────
+    arms[0].rotation.x = lerp(
+      arms[0].rotation.x,
+      -1.85 * t + (-1.45) * (1 - t),
+      k
+    );
+
+    arms[0].rotation.z = lerp(
+      arms[0].rotation.z,
+      0.06 * t,
+      k
+    );
+
+
+    // ─────────────────────────────
+    // 왼팔 arms[1]
+    // 몸 옆으로 편하게
+    // ─────────────────────────────
+    arms[1].rotation.x = lerp(
+      arms[1].rotation.x,
+      -0.42 * t + (-1.45) * (1 - t),
+      k
+    );
+
+    arms[1].rotation.z = lerp(
+      arms[1].rotation.z,
+      -0.12 * t,
+      k
+    );
   }
 }
 
