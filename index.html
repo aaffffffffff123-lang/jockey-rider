@@ -321,10 +321,18 @@
    1. 상수 / 유틸
    ================================================================== */
 const SEG       = 70;     // 한 구간 길이(z): 절반씩 좌/우 차로가 번갈아 가파르다
-const D0=0.8, D1=2.0;     // 구간마다 활성 차로가 추가로 떨어지는 높이 (초반→후반)
-const B0=0.11, B1=0.17;   // 기본 경사 (초반→후반)
-const RAMP_Z    = 600;    // 이 거리까지 경사가 서서히 오른다
-const CURVE_Z   = 700;    // 이 거리까지 도로 굽이가 서서히 심해진다
+
+
+const D0=0.8, D1=2.0;
+
+// 초반은 완만한 내리막 → 후반으로 갈수록 빨라짐
+const B0=0.075, B1=0.17;
+const RAMP_Z=1400;
+
+// 도로 굽이도 천천히 본격화
+const CURVE_Z=1200;
+
+
 const CH_LEN    = 60;     // 청크 z 길이
 const CH_HALF_W = 80;     // 청크 x 반폭
 const GX = 64, GZ = 48;   // 청크 격자 분할
@@ -340,12 +348,25 @@ const RANK_URL  = "https://script.google.com/macros/s/AKfycbzKmIYdOCYXNwXbNzvZWR
 const GAME_ID   = "jockey";
 const VERSION   = 1;
 /* 난이도 손잡이 */
-const LEVEL_M   = 350;    // 이 거리마다 장애물이 한 단계 늘어난다
-const CARS_MIN  = 2;      // 첫 구간 60m당 차량 수 (단계마다 +1, 최대 +3)
-const OBS_GAP   = 11;     // 장애물 사이 최소 z 간격(m): 한 번에 하나씩만 마주친다
-const TIP_RATE  = 0.8;    // 전복 게이지 차는 속도
-const LIVES     = 5;
-const MAXV      = 52;
+
+
+
+// 여기까지는 사실상 튜토리얼 겸 관광 구간
+const EASY_END = 260;
+
+// 여기쯤부터 현재 게임의 풀 난이도
+const HARD_AT = 1250;
+
+// 장애물 간격도 초반 널널 → 후반 촘촘
+const OBS_GAP_EASY = 28;
+const OBS_GAP_HARD = 11;
+
+const TIP_RATE = 0.8;
+const LIVES    = 5;
+const MAXV     = 52;
+
+
+
 
 /* 시드: ?seed=숫자 로 코스를 바꾼다. ?daily=1 이면 날짜(KST) 기준으로 전원 같은 판 */
 const SEED=(function(){ try{ const q=new URLSearchParams(location.search);
@@ -356,14 +377,43 @@ const SP=SEED*1.37;                              // 지형 위상 오프셋
 const clamp=(v,a,b)=>v<a?a:(v>b?b:v);
 const lerp=(a,b,t)=>a+(b-a)*t;
 function smooth(t){t=clamp(t,0,1);return t*t*(3-2*t);}
+
+function difficultyAt(z){
+  return smooth((z-EASY_END)/(HARD_AT-EASY_END));
+}
+
+// 자연지형 울퉁불퉁함
+function roughnessAt(z){
+  return smooth((z-260)/850);
+}
+
+// 좌우 차로별 낙차
+function laneDifficultyAt(z){
+  return smooth((z-340)/850);
+}
+
+// 인공 도약대
+function kickerStrengthAt(z){
+  return smooth((z-500)/650);
+}
+
+
+
 function smoother(t){t=clamp(t,0,1);return t*t*t*(t*(t*6-15)+10);}
 function mulberry(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);
   t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
 function hash1(n){const v=Math.sin(n*127.1+311.7+SEED*0.731)*43758.5453;return v-Math.floor(v);}
 function ihash(n){ n=(n^61)^(n>>>16); n=Math.imul(n,9)>>>0; n=(n^(n>>>4))>>>0; n=Math.imul(n,0x27d4eb2d)>>>0; n=(n^(n>>>15))>>>0; return n/4294967296; }
 
-/* ---- 도로 중심선: 초반엔 거의 직선, 갈수록 굽이친다 ---- */
-function curveAmp(z){ return 0.28+0.72*smooth(z/CURVE_Z); }
+function curveAmp(z){
+  // 초반은 거의 직선.
+  // 180m 이후부터 서서히 현재 수준까지 굽어진다.
+  return 0.04 + 0.96*smooth((z-180)/(CURVE_Z-180));
+}
+
+
+
+
 function cx(z){ return curveAmp(z)*(18*Math.sin(z*0.0060+SP) + 7*Math.sin(z*0.0140+1.7+SP)); }
 function cxSlope(z){ return cx(z+0.5)-cx(z-0.5); }
 /* ---- 기본 경사의 누적 낙차: 경사가 B0→B1 로 서서히 오른다 ---- */
@@ -388,12 +438,24 @@ function cumDrop(z,phase){
   const n=Math.floor(z/SEG), p=(z-n*SEG)/SEG;
   return dropBefore(n) + segDrop(n)*smoother((p-phase)/0.5);
 }
+
+
+
+
 function hills(x,z){
-  return 2.20*Math.sin(z*0.0210+x*0.0060+SP)
-       + 1.40*Math.sin(x*0.0220-z*0.0170+1.3+SP)
-       + 0.75*Math.sin(z*0.0700+x*0.0140+SP*0.5)
-       + 0.40*Math.sin(x*0.0500+z*0.0450+2.1);
+  const a=roughnessAt(z);
+
+  return a*(
+      2.20*Math.sin(z*0.0210+x*0.0060+SP)
+    + 1.40*Math.sin(x*0.0220-z*0.0170+1.3+SP)
+    + 0.75*Math.sin(z*0.0700+x*0.0140+SP*0.5)
+    + 0.40*Math.sin(x*0.0500+z*0.0450+2.1)
+  );
 }
+
+
+
+
 /* 융기: 40m마다 하나, 그때 가파른 차로에 솟은 아스팔트 (도약대) */
 function kickerAt(k){
   const kz=k*40+9+hash1(k)*22;
@@ -403,7 +465,7 @@ function kickerAt(k){
 function kicker(u,z){
   const n=Math.floor(z/40); let s=0;
   for(let k=n-1;k<=n+1;k++){
-    if(k<3) continue;
+    if(k<12) continue;
     const kk=kickerAt(k);
     const du=u-kk.u, dz=z-kk.z;
     const d2=du*du*0.030+dz*dz*0.030;
@@ -413,17 +475,33 @@ function kicker(u,z){
 }
 function nearKicker(u,z){                      // 도약대 앞 8m ~ 뒤 26m, 좌우 5m
   const n=Math.floor(z/40);
-  for(let k=n-1;k<=n;k++){ if(k<3) continue; const kk=kickerAt(k); if(z>kk.z-8&&z<kk.z+26&&Math.abs(u-kk.u)<5.2) return true; }
+  for(let k=n-1;k<=n;k++){ if(k<12) continue; const kk=kickerAt(k); if(z>kk.z-8&&z<kk.z+26&&Math.abs(u-kk.u)<5.2) return true; }
   return false;
 }
 function bank(u){                              // 도로 밖 노반: 올라가는 둔덕
   const a=Math.abs(u);
   return a>ROAD_HALF+1 ? Math.min(9,(a-ROAD_HALF-1)*(a-ROAD_HALF-1)*0.05) : 0;
 }
+
+
+
 function H(x,z){
   const u=x-cx(z), w=laneW(u);
-  return -baseDrop(z) - ((1-w)*cumDrop(z,0)+w*cumDrop(z,0.5)) + hills(x,z) + kicker(u,z) + bank(u);
+
+  const laneDrop =
+    (1-w)*cumDrop(z,0) +
+    w*cumDrop(z,0.5);
+
+  return -baseDrop(z)
+       - laneDrop*laneDifficultyAt(z)
+       + hills(x,z)
+       + kicker(u,z)
+       + bank(u);
 }
+
+
+
+
 function grad(x,z){
   const d=0.6, i=1/(2*d);
   return {x:(H(x+d,z)-H(x-d,z))*i, z:(H(x,z+d)-H(x,z-d))*i};
@@ -883,10 +961,42 @@ function fillObjects(c,z0){
   const rnd=mulberry(Math.floor(z0/CH_LEN)*7919+13+SEED*104729);
   const midZ=z0+CH_LEN*0.5;
   const steep=steepLane(midZ);
-  const placed=[];
-  const tooClose=(x,z,r)=>{ for(const p of placed){ const dx=p.x-x,dz=p.z-z; if(dx*dx+dz*dz<(p.r+r)*(p.r+r)) return true; if(Math.abs(dz)<OBS_GAP) return true; } return false; };
-  const level=clamp(Math.floor(z0/LEVEL_M),0,3);
-  const carBudget=CARS_MIN+level;
+
+
+
+const placed=[];
+
+const d=difficultyAt(midZ);
+const obsGap=lerp(OBS_GAP_EASY,OBS_GAP_HARD,d);
+
+const tooClose=(x,z,r)=>{
+  for(const p of placed){
+    const dx=p.x-x, dz=p.z-z;
+
+    if(dx*dx+dz*dz<(p.r+r)*(p.r+r))
+      return true;
+
+    if(Math.abs(dz)<obsGap)
+      return true;
+  }
+
+  return false;
+};
+
+
+// 거리별 차량 수
+let carBudget;
+
+if(midZ < 260)       carBudget=0;
+else if(midZ < 520)  carBudget=1;
+else if(midZ < 760)  carBudget=2;
+else if(midZ < 1000) carBudget=3;
+else if(midZ < 1250) carBudget=4;
+else                  carBudget=5;
+
+
+
+
   let carsUsed=0;
   // 차량: 가파른 차로에 더 많이
   for(const o of c.carsList){
@@ -914,7 +1024,12 @@ function fillObjects(c,z0){
     if(!ok) o.visible=false;
   }
   // 잔해
-  let debrisBudget=1+Math.min(2,level);
+  let debrisBudget;
+
+if(midZ < 520)       debrisBudget=0;
+else if(midZ < 900)  debrisBudget=1;
+else if(midZ < 1250) debrisBudget=2;
+else                  debrisBudget=3;
   for(const o of c.deco){
     if(!o.userData.hits){ continue; }
     let ok=false;
@@ -1394,7 +1509,14 @@ function physics(dt){
     P.vz += -g.z*G*dt*tuck;
     sp=Math.hypot(P.vx,P.vz);
     if(sp>0.5){
-      const rate=(1.75-0.7*clamp(sp/MAXV,0,1))*steerEff*dt/(1+P.pallets*0.035);
+    const steerEase=lerp(0.78,1.0,difficultyAt(P.z));
+
+const rate=
+  (1.75-0.7*clamp(sp/MAXV,0,1))*
+  steerEff*
+  steerEase*
+  dt/
+  (1+P.pallets*0.035);
       const c=Math.cos(rate),s=Math.sin(rate);
       const nx=P.vx*c-P.vz*s, nz=P.vx*s+P.vz*c; P.vx=nx;P.vz=nz;
     }
@@ -1405,7 +1527,11 @@ function physics(dt){
       const f=Math.max(0,1-drag/Math.max(sp,0.01)); P.vx*=f;P.vz*=f;
     }
     // 전복 게이지: 빠를 때 세게 꺾으면 찬다
-    const risk=st*clamp((sp-13)/30,0,1)*(1+P.pallets*0.09);
+    const risk=
+  st*
+  clamp((sp-13)/30,0,1)*
+  (1+P.pallets*0.09)*
+  difficultyAt(P.z);
     if(risk>0.2) P.tipMeter=Math.min(1,P.tipMeter+dt*risk*TIP_RATE);
     else P.tipMeter=Math.max(0,P.tipMeter-dt*1.1);
     if(P.tipMeter>=1&&P.inv<=0){ crash(true); }
@@ -1502,6 +1628,11 @@ if(P.kickAnim>0){
     kickContact();
   }
 }
+
+if(P.shake>0) P.shake=Math.max(0,P.shake-dt*2.2);
+P.dist=Math.max(P.dist,P.z);
+}
+
 
 /* ---- 모델 애니메이션 ---- */
 let spinAngle=0;
