@@ -1918,6 +1918,32 @@ function fillChunk(c,z0){
     o.position.x=clamp(o.position.x,cc+b[0]+.8,cc+b[1]-.8);
     o.position.y=H(o.position.x,z)+lift;
   }
+
+  // 첫 아이템만 가로 7개. 복제본은 재시작 시에도 재사용.
+  for(const o of [c.pallet,c.baton]){
+    o._introRow=o._introRow||[];
+    for(const q of o._introRow)q.visible=false;
+
+    o._introLine=o.visible&&(
+      o.userData.role==='first-pallet'||o.userData.role==='first-baton'
+    );
+    if(!o._introLine)continue;
+
+    const z=o.position.z,yOffset=o===c.baton?1.25:.01;
+    o.position.set(cx(z),H(cx(z),z)+yOffset,z);
+
+    [-10.5,-7,-3.5,3.5,7,10.5].forEach((u,i)=>{
+      let q=o._introRow[i];
+      if(!q){
+        q=o.clone();
+        o.parent.add(q);
+        o._introRow[i]=q;
+      }
+      q.position.set(cx(z)+u,H(cx(z)+u,z)+yOffset,z);
+      q.rotation.copy(o.rotation);
+      q.visible=true;
+    });
+  }
 }
 for(let i=0;i<CHUNKS;i++){ const c=makeChunk(); fillChunk(c,i*CH_LEN-CH_LEN*2); }
 
@@ -2305,18 +2331,53 @@ function coneTest(){
 }
 function pickupTest(){
   const lift=P.ground?0:(P.y-H(P.x,P.z));
-  if(lift>2.6) return;
+
+  // 첫 줄은 좌우 위치·점프 여부와 무관하게 통과하면 획득.
+  // 그 이후 아이템은 기존 거리·높이 판정 유지.
+  const hit=(o,canReach)=>o._introLine
+    ? P.z>=o.position.z-1.9
+    : canReach&&Math.hypot(o.position.x-P.x,o.position.z-P.z)<1.9;
+
+  const take=o=>{
+    o.visible=false;
+    o.userData.taken=true;
+    for(const q of o._introRow||[])q.visible=false;
+  };
+
   for(const c of chunks){
-    const pl=c.pallet;
-    if(pl.visible&&!pl.userData.taken&&lift<1.5){
-      const dx=pl.position.x-P.x, dz=pl.position.z-P.z;
-      if(dx*dx+dz*dz<1.9*1.9){ pl.visible=false; pl.userData.taken=true; stackKinds[P.pallets]=pl.userData.kind||"aj"; P.pallets++; courseRun.pallets++; P.palMax=Math.max(P.palMax,P.pallets); setStack(P.pallets); SFX.pallet(P.pallets);
-        P.shake=Math.max(P.shake,0.25); emit(dust,P.x,P.y+0.3,P.z,0,2,0,3,8,0.6); if(navigator.vibrate) try{navigator.vibrate(12);}catch(e){} }
+    // 복제 경광봉도 원본과 함께 회전하고 떠오름.
+    for(const o of [c.pallet,c.baton])if(o._introLine&&o.visible){
+      const yOffset=o.position.y-H(o.position.x,o.position.z);
+      for(const q of o._introRow){
+        q.rotation.copy(o.rotation);
+        q.position.y=H(q.position.x,q.position.z)+yOffset;
+      }
     }
-    const b=c.baton; if(!b.visible||b.userData.taken) continue;
-    const dx=b.position.x-P.x, dz=b.position.z-P.z;
-    if(dx*dx+dz*dz<1.9*1.9){ b.visible=false; b.userData.taken=true; P.power=8; courseRun.batons++; SFX.baton(); boostFx(0.6);
-      emit(sparks,P.x,P.y+1,P.z,0,5,0,6,16,0.5); if(navigator.vibrate) try{navigator.vibrate(15);}catch(e){} }
+
+    const pl=c.pallet;
+    if(pl.visible&&!pl.userData.taken&&hit(pl,lift<1.5)){
+      take(pl);
+      stackKinds[P.pallets]=pl.userData.kind||'aj';
+      P.pallets++;
+      courseRun.pallets++;
+      P.palMax=Math.max(P.palMax,P.pallets);
+      setStack(P.pallets);
+      SFX.pallet(P.pallets);
+      P.shake=Math.max(P.shake,.25);
+      emit(dust,P.x,P.y+.3,P.z,0,2,0,3,8,.6);
+      if(navigator.vibrate)try{navigator.vibrate(12);}catch(e){}
+    }
+
+    const b=c.baton;
+    if(b.visible&&!b.userData.taken&&hit(b,lift<=2.6)){
+      take(b);
+      P.power=8;
+      courseRun.batons++;
+      SFX.baton();
+      boostFx(.6);
+      emit(sparks,P.x,P.y+1,P.z,0,5,0,6,16,.5);
+      if(navigator.vibrate)try{navigator.vibrate(15);}catch(e){}
+    }
   }
 }
 function courseEscape(){
