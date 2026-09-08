@@ -32,7 +32,7 @@ The original copyright header is also retained in the embedded script.
 <meta charset="utf-8">
 
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>자키 라이더 · 3D v2</title>
+<title>자키 라이더</title>
 <style>
   :root{
     --ink:#3B2A1C;
@@ -2280,8 +2280,7 @@ clipboard.add(mesh(boxG,M(0xF4F1EA),0.22,0.30,0.012,0,-0.01,0.012));
 clipboard.add(mesh(boxG,M(0x9A9187),0.12,0.04,0.03,0,0.16,0.01));
 clipboard.position.set(0.10,-0.70,0.12); clipboard.rotation.set(0.15,-1.1,0.1); clipboard.visible=false; arms[1].add(clipboard);
 
-/* 손에 든 경광봉 (무적 중에만 보인다) */
-const handBaton=makeBaton(); handBaton.visible=false; handBaton.position.set(0,-0.72,0.05); handBaton.rotation.x=0.35; arms[1].add(handBaton);
+const handBaton=makeBaton(); handBaton.visible=false; handBaton.position.set(0,-0.72,0.05); handBaton.rotation.x=Math.PI+0.35; arms[1].add(handBaton);
 
 /* 인트로 소품: 옆에 놓인 파렛트 */
 const introPallet=makePallet("kpp"); introPallet.visible=false; scene.add(introPallet);
