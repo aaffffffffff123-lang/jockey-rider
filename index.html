@@ -943,8 +943,15 @@ const tiller=new THREE.Group(); tiller.position.set(0,0.66,0.52); jack.add(tille
   const bar=mesh(cylG,mSteel,0.04,0.8,0.04,0,0.34,0.22); tiller.add(bar);                 // 0: 봉 (setTiller 가 길이 조절)
   const grip=mesh(boxG,mJackDark,0.52,0.06,0.06,0,0.70,0.0); tiller.add(grip);             // 1: 가로 손잡이
   const loop=mesh(boxG,mJackDark,0.06,0.06,0.06,0,0.62,0.04); tiller.add(loop);            // 2: (호환용)
-  const lA=mesh(boxG,mJackDark,0.05,0.34,0.05,-0.22,0.55,0.02); lA.rotation.z=-0.28; tiller.add(lA);   // 3: 삼각 손잡이 좌
-  const lB=mesh(boxG,mJackDark,0.05,0.34,0.05, 0.22,0.55,0.02); lB.rotation.z= 0.28; tiller.add(lB);   // 4: 삼각 손잡이 우
+ 
+ 
+ const lA=mesh(boxG,mJackDark,0.05,0.34,0.05,-0.22,0.55,0.02); 
+lA.rotation.z= 0.28; 
+tiller.add(lA);
+
+const lB=mesh(boxG,mJackDark,0.05,0.34,0.05, 0.22,0.55,0.02); 
+lB.rotation.z=-0.28; 
+tiller.add(lB);
 })();
 
 /* 사람: 포크 위에 서서 핸들을 잡는다 */
