@@ -1932,7 +1932,7 @@ function fillChunk(c,z0){
     const z=o.position.z,yOffset=o===c.baton?1.25:.01;
     o.position.set(cx(z),H(cx(z),z)+yOffset,z);
 
-    [-10.5,-7,-3.5,3.5,7,10.5].forEach((u,i)=>{
+    Array.from({length:21},(_,i)=>(i-10)*1.1).filter(u=>u!==0).forEach((u,i)=>{
       let q=o._introRow[i];
       if(!q){
         q=o.clone();
