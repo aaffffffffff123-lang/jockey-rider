@@ -46,7 +46,16 @@ The original copyright header is also retained in the embedded script.
   html,body{height:100%;overflow:hidden;background:#F3DDC0;
     font-family:"Pretendard","Apple SD Gothic Neo","Noto Sans KR","Malgun Gothic",system-ui,sans-serif;
     color:var(--ink);touch-action:none;overscroll-behavior:none;user-select:none}
-  #app{position:fixed;inset:0}
+ #app{
+  position:fixed;
+  inset:0;
+  opacity:0;
+  transition:opacity .45s ease;
+}
+
+body.scene-ready #app{
+  opacity:1;
+}
   canvas{display:block;width:100%;height:100%}
 
   /* ---------- HUD ---------- */
@@ -211,6 +220,13 @@ The original copyright header is also retained in the embedded script.
   cursor:pointer;
 }
 
+.startBtn:disabled{
+  opacity:.58;
+  cursor:default;
+  filter:saturate(.45);
+  transform:none;
+}
+
 .startBtn:active{transform:translateY(2px)}
 
 .startHint{
@@ -295,7 +311,9 @@ The original copyright header is also retained in the embedded script.
 </div>
 
   <div class="heroBottom">
-    <button id="go" class="startBtn">게임 시작</button>
+   <button id="go" class="startBtn" type="button" disabled>
+  로딩 중…
+</button>
     <div class="startHint">터치 · 클릭 · Enter · Space</div>
   </div>
 
@@ -1919,31 +1937,68 @@ function fillChunk(c,z0){
     o.position.y=H(o.position.x,z)+lift;
   }
 
-  // 첫 아이템만 가로 7개. 복제본은 재시작 시에도 재사용.
+
+
+
+  // 첫 파렛트·경광봉만 가로 17개.
+  // 간격은 살짝 띄우되 줄 전체 폭은 기존과 거의 같게 유지.
+  const INTRO_ROW_COUNT = 17;
+  const INTRO_ROW_GAP = 1.40;
+
   for(const o of [c.pallet,c.baton]){
     o._introRow=o._introRow||[];
+
+    // 이전 실행에서 만들어진 복제본은 일단 전부 감춤.
     for(const q of o._introRow)q.visible=false;
 
     o._introLine=o.visible&&(
-      o.userData.role==='first-pallet'||o.userData.role==='first-baton'
+      o.userData.role==='first-pallet'||
+      o.userData.role==='first-baton'
     );
+
     if(!o._introLine)continue;
 
-    const z=o.position.z,yOffset=o===c.baton?1.25:.01;
-    o.position.set(cx(z),H(cx(z),z)+yOffset,z);
+    const z=o.position.z;
+    const yOffset=o===c.baton?1.25:.01;
 
-    Array.from({length:21},(_,i)=>(i-10)*1.1).filter(u=>u!==0).forEach((u,i)=>{
+    // 가운데 원본.
+    o.position.set(
+      cx(z),
+      H(cx(z),z)+yOffset,
+      z
+    );
+
+    // 가운데를 제외한 좌우 복제본.
+    Array.from(
+      {length:INTRO_ROW_COUNT},
+      (_,i)=>(i-(INTRO_ROW_COUNT-1)/2)*INTRO_ROW_GAP
+    )
+    .filter(u=>u!==0)
+    .forEach((u,i)=>{
       let q=o._introRow[i];
+
       if(!q){
         q=o.clone();
         o.parent.add(q);
         o._introRow[i]=q;
       }
-      q.position.set(cx(z)+u,H(cx(z)+u,z)+yOffset,z);
+
+      q.position.set(
+        cx(z)+u,
+        H(cx(z)+u,z)+yOffset,
+        z
+      );
+
       q.rotation.copy(o.rotation);
       q.visible=true;
     });
   }
+
+
+
+
+
+
 }
 for(let i=0;i<CHUNKS;i++){ const c=makeChunk(); fillChunk(c,i*CH_LEN-CH_LEN*2); }
 
@@ -2345,6 +2400,10 @@ function pickupTest(){
   };
 
   for(const c of chunks){
+   
+   
+   
+   
     // 복제 경광봉도 원본과 함께 회전하고 떠오름.
     for(const o of [c.pallet,c.baton])if(o._introLine&&o.visible){
       const yOffset=o.position.y-H(o.position.x,o.position.z);
@@ -3066,7 +3125,21 @@ addEventListener("mouseup",function(){ if(mouseDown){mouseDown=false;stickEnd();
 const keys={}; let spaceAt=0;
 addEventListener("keydown",function(e){
   if(e.code==="Space"||e.code.startsWith("Arrow"))e.preventDefault();
-  if(!running&&(e.code==="Enter"||e.code==="Space")){ if(!keys[e.code]){keys[e.code]=true;start();} return; }
+ if(!running&&(e.code==="Enter"||e.code==="Space")){
+  if(
+    !introEl.classList.contains("hide") &&
+    !introCanStart
+  ){
+    return;
+  }
+
+  if(!keys[e.code]){
+    keys[e.code]=true;
+    start();
+  }
+
+  return;
+}
   if(keys[e.code])return; keys[e.code]=true; audioStart();
   if(e.code==="Space") spaceAt=performance.now();
   syncKeys();
@@ -3263,8 +3336,49 @@ document.getElementById("sound").addEventListener("click",function(){
    ================================================================== */
 const introEl=document.getElementById("intro");
 const overEl=document.getElementById("over");
+const goBtn=document.getElementById("go");
+
 const SPEED_DISPLAY = 2.0;
+
+// 첫 WebGL 렌더가 실제로 안정된 뒤 시작 버튼을 연다.
+let introRenderedFrames=0;
+let introReadyStarted=false;
+let introCanStart=false;
+
+function markIntroFrameReady(){
+  if(
+    introReadyStarted ||
+    introEl.classList.contains("hide")
+  ){
+    return;
+  }
+
+  introRenderedFrames++;
+
+  // 첫 프레임에서 셰이더·재질이 한꺼번에 뜨는 모습을 숨기기 위해
+  // 세 프레임이 완성된 뒤 화면을 보여준다.
+  if(introRenderedFrames<3)return;
+
+  introReadyStarted=true;
+  document.body.classList.add("scene-ready");
+
+  // 멋진 장면이 실제로 나타난 시점부터 최소 0.9초 감상.
+  setTimeout(()=>{
+    introCanStart=true;
+    goBtn.disabled=false;
+    goBtn.textContent="게임 시작";
+  },900);
+}
+
 function start(){
+  // 제목 인트로가 아직 준비 중이면 시작 금지.
+  // 게임오버의 '다시' 버튼에는 영향을 주지 않는다.
+  if(
+    !introEl.classList.contains("hide") &&
+    !introCanStart
+  ){
+    return;
+  }
   reset();
   introEl.classList.add("hide"); overEl.classList.add("hide");
   hudEl.classList.add("on");
@@ -3413,6 +3527,7 @@ function frame(now){
   world3D.renderSky(renderer,camera);
   renderer.clearDepth();
   renderer.render(scene,camera);
+   markIntroFrameReady();
 }
 reset(); P.alive=false;poseT=1;
 animateRider(1,0);introCamera(1);
