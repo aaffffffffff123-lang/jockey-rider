@@ -254,16 +254,24 @@ body.scene-ready #app{
 .pkeys em{font-style:normal;color:var(--ink-soft)}
 
 @media (max-width:640px){
+  /* 시작 버튼을 조금 더 아래로 */
+  .heroBottom{
+    bottom:calc(20px + env(safe-area-inset-bottom));
+  }
+
+  /* 설명 박스는 조금 더 위로 */
   .pkeys{
     left:50%;
     transform:translateX(-50%);
-    bottom:calc(120px + env(safe-area-inset-bottom));
+    bottom:calc(150px + env(safe-area-inset-bottom));
     width:min(92vw,360px);
     font-size:12px;
   }
-  .pkeys div{gap:8px}
-}
 
+  .pkeys div{
+    gap:8px;
+  }
+}
 
   @media (prefers-reduced-motion:reduce){ .press{animation:none} }
   #sound{position:fixed;right:calc(14px + env(safe-area-inset-right));bottom:calc(14px + env(safe-area-inset-bottom));
@@ -2979,15 +2987,73 @@ let introT=0;
 
 function introCamera(dt){
   introT+=dt;
+
   const portrait=camera.aspect<1;
-  const sway=Math.sin(introT*.18)*.16;
-  camTmp.set(P.x+(portrait?2.65:4.15)+sway,P.y+(portrait?2.65:2.75),P.z+(portrait?8.5:7.6));
-  camera.position.lerp(camTmp,clamp(4*dt,0,1));
-  camera.lookAt(P.x+(portrait?-.25:-.80),P.y+1.45,P.z-(portrait?2.0:2.6));
-  const fovT=portrait?60:55;
-  if(Math.abs(camera.fov-fovT)>.03){camera.fov=lerp(camera.fov,fovT,clamp(4*dt,0,1));camera.updateProjectionMatrix();}
-  const e=new THREE.Euler().setFromQuaternion(camera.quaternion,'YXZ');
-  bgU.uYaw.value=e.y;bgU.uPitch.value=clamp(-e.x*.55,-.3,.3);
+
+  /*
+   * 캐릭터를 중심으로 약 24초에 한 바퀴.
+   * 초기 각도는 기존과 비슷한 오른쪽 앞 3/4 구도.
+   */
+  const angle=0.25+introT*0.26;
+
+  /*
+   * 세로 화면은 카메라를 조금 더 멀리 두고
+   * 가로 화각 부족을 FOV로 보완한다.
+   */
+  const radius=portrait?6.8:6.3;
+  const height=portrait?3.05:2.75;
+
+  /*
+   * 사람만이 아니라 핸드자키까지 포함한
+   * 전체 캐릭터의 시각적 중심.
+   */
+  const focusX=P.x;
+  const focusY=P.y+1.05;
+  const focusZ=P.z-0.15;
+
+  camTmp.set(
+    focusX+Math.sin(angle)*radius,
+    P.y+height,
+    focusZ+Math.cos(angle)*radius
+  );
+
+  /*
+   * 목표 위치를 살짝 늦게 따라가게 해서
+   * 기계적으로 도는 느낌을 줄인다.
+   */
+  camera.position.lerp(
+    camTmp,
+    clamp(3*dt,0,1)
+  );
+
+  camera.lookAt(
+    focusX,
+    focusY,
+    focusZ
+  );
+
+  /*
+   * 모바일에서는 가로 화면이 워낙 좁으므로
+   * 배경 지게차와 파렛트도 들어오도록 넓힌다.
+   */
+  const fovT=portrait?68:58;
+
+  if(Math.abs(camera.fov-fovT)>.03){
+    camera.fov=lerp(
+      camera.fov,
+      fovT,
+      clamp(4*dt,0,1)
+    );
+    camera.updateProjectionMatrix();
+  }
+
+  const e=new THREE.Euler().setFromQuaternion(
+    camera.quaternion,
+    'YXZ'
+  );
+
+  bgU.uYaw.value=e.y;
+  bgU.uPitch.value=clamp(-e.x*.55,-.3,.3);
 }
 
 
