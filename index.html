@@ -578,6 +578,31 @@ function mesh(geo,mat,sx,sy,sz,px,py,pz){
 }
 
 
+function barXY(parent, mat, x1, y1, x2, y2, thick, z){
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const len = Math.hypot(dx, dy);
+
+  const b = mesh(
+    boxG,
+    mat,
+    thick,
+    len,
+    thick,
+    (x1 + x2) / 2,
+    (y1 + y2) / 2,
+    z
+  );
+
+  // 로컬 Y축 막대를 두 점 사이에 정확히 맞춤
+  b.rotation.z = Math.atan2(-dx, dy);
+
+  parent.add(b);
+  return b;
+}
+
+
+
 function triPrism(mat,w,h,d,px,py,pz){
   const shape = new THREE.Shape();
   shape.moveTo(-w/2, 0);
@@ -1209,38 +1234,63 @@ jack.add(tiller);
 const tBar = mesh(cylG, mJackDark, 0.055, 0.80, 0.055, 0, 0.34, 0.22);
 tiller.add(tBar);
 
-// 손잡이 헤드 전체를 한 그룹으로
+// 손잡이 헤드
 const tHead = new THREE.Group();
 tiller.add(tHead);
 
-// 상단 그립
-const tGrip = mesh(boxG, mJackDark, 0.34, 0.06, 0.06, 0, 0.18, 0);
+
+// ─────────────────────────────
+// 실제 자키 느낌의 역삼각형 손잡이
+//
+//   ─────────
+//    \      /
+//     \    /
+//      \  /
+//       \/
+//       │
+// ─────────────────────────────
+
+// 위 가로 그립
+const tGrip = mesh(
+  boxG,
+  mJackDark,
+  0.44, 0.06, 0.06,
+  0, 0.22, 0
+);
 tHead.add(tGrip);
 
-// 좌우 폐곡선 루프 느낌
-const tLU = mesh(boxG, mJackDark, 0.05, 0.18, 0.05, -0.12, 0.09, 0);
-tLU.rotation.z = -0.62;
-tHead.add(tLU);
 
-const tLL = mesh(boxG, mJackDark, 0.05, 0.23, 0.05, -0.10, -0.07, 0);
-tLL.rotation.z = 0.70;
-tHead.add(tLL);
+// 왼쪽 사선
+const tLeft = barXY(
+  tHead,
+  mJackDark,
+  -0.19, 0.19,   // 위
+   0.00, 0.00,   // 아래 중앙
+  0.05,
+  0
+);
 
-const tRU = mesh(boxG, mJackDark, 0.05, 0.18, 0.05, 0.12, 0.09, 0);
-tRU.rotation.z = 0.62;
-tHead.add(tRU);
 
-const tRL = mesh(boxG, mJackDark, 0.05, 0.23, 0.05, 0.10, -0.07, 0);
-tRL.rotation.z = -0.70;
-tHead.add(tRL);
+// 오른쪽 사선
+const tRight = barXY(
+  tHead,
+  mJackDark,
+   0.19, 0.19,
+   0.00, 0.00,
+  0.05,
+  0
+);
 
-// 가운데 세로 보강대
-const tMid = mesh(boxG, mJackDark, 0.055, 0.28, 0.05, 0, -0.02, 0);
-tHead.add(tMid);
 
-// 레버
-const tLever = mesh(boxG, mSteel, 0.018, 0.16, 0.03, -0.07, 0.02, 0.05);
-tLever.rotation.z = -0.82;
+// 조작 레버
+const tLever = mesh(
+  boxG,
+  mSteel,
+  0.018, 0.13, 0.03,
+  -0.07, 0.12, 0.05
+);
+
+tLever.rotation.z = -0.55;
 tHead.add(tLever);
 
 function setTiller(h){
@@ -1259,7 +1309,7 @@ function setTiller(h){
   tBar.rotation.x = ang;
 
   // 손잡이 머리
-  tHead.position.set(0, ty + 0.02, tz);
+ tHead.position.set(0, ty, tz);
   tHead.rotation.x = ang * 0.28; // 너무 같이 눕지 않게 살짝만
 }
 
@@ -1691,15 +1741,28 @@ const cr = P.crouch;
 const airLean = P.ground ? 0 : -0.22;
 const legK = clamp(14 * dt, 0, 1);
 
+// 웅크리기
+// 상체를 자키 쪽으로 접는 게 아니라
+// 무릎을 굽혀 몸 전체가 낮아지는 자세.
+
 body.position.y = lerp(
   body.position.y,
-  stackH - cr * 0.32,
+  stackH - cr * 0.26,
   legK
 );
 
+// 웅크릴수록 몸을 아주 조금 뒤쪽으로.
+// 손잡이 관통 방지 + 무게중심을 뒤에 둠.
+body.position.z = lerp(
+  body.position.z,
+  -cr * 0.07,
+  legK
+);
+
+// 상체 숙임은 아주 약하게만.
 body.rotation.x = lerp(
   body.rotation.x,
-  0.16 + cr * 0.5 + airLean,
+  0.16 + cr * 0.12 + airLean,
   clamp(12 * dt, 0, 1)
 );
 
@@ -1708,7 +1771,8 @@ body.rotation.x = lerp(
 // 기본 다리 자세
 // 오른발과 왼발을 반드시 따로 계산한다.
 // ----------------------------------------------------
-const baseLegX = -cr * 0.9;
+const baseLegX = -cr * 0.68;
+const baseKneeX = cr * 1.05;
 
 legs[0].rotation.x = lerp(
   legs[0].rotation.x,
@@ -1722,16 +1786,15 @@ legs[1].rotation.x = lerp(
   legK
 );
 
-// 무릎도 평상시 자세로 복귀
 knees[0].rotation.x = lerp(
   knees[0].rotation.x,
-  0,
+  baseKneeX,
   legK
 );
 
 knees[1].rotation.x = lerp(
   knees[1].rotation.x,
-  0,
+  baseKneeX,
   legK
 );
 
@@ -1756,7 +1819,7 @@ if(P.kickAnim > 0){
   const p = 1 - P.kickAnim / KICK_T;
 
   let hipX = baseLegX;
-  let kneeX = 0;
+ let kneeX = baseKneeX;
 
   if(p < 0.32){
 
