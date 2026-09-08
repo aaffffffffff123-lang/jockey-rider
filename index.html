@@ -1,5 +1,6 @@
 <!DOCTYPE html>
-<!-- Embedded Three.js license: 
+<!-- Jockey Rider v4 - rhythmic course and breakable dispatch dock.
+     Embedded Three.js license: 
 The MIT License
 
 Copyright © 2010-2022 Three.js authors
@@ -719,7 +720,7 @@ const D=global.JockeyWorldData;
 function createWorld(api){
  const T=global.THREE,{scene,camera,P,H,cx,seed=0}=api;
  if(!T||!D)throw new Error('Jockey world: renderer or geometry module is missing.');
- const root=new T.Group();root.name='JOCKEY_WORLD_V3';scene.add(root);
+ const root=new T.Group();root.name='JOCKEY_WORLD_V4';scene.add(root);
  const lin=hex=>new T.Color(hex).convertSRGBToLinear();
  function geometryFrom(b){
   const g=new T.BufferGeometry();
@@ -735,6 +736,54 @@ function createWorld(api){
   const m=new T.Mesh(geometryFrom(b),b.kind==='emissive'?emissive:b.kind==='wet'?wetMat:solids);
   m.name=b.name;m.userData.range=[b.min[2],b.max[2]];root.add(m);return m;
  });
+ // A derailed lower curtain hangs from the existing crooked half-shutter.
+ // Twenty-four corrugated metal panels are actual 3D meshes before AND after impact.
+ const dock=new T.Group();dock.name='breakable-dispatch-curtain';root.add(dock);
+ const dockZ=155.80,dockX=cx(156)+5.5,dockY=H(cx(156),156),dockPanels=[];
+ const dockMetal=new T.MeshLambertMaterial({vertexColors:true,side:T.DoubleSide});
+ const dr=D.rng(7043+seed);let dockBroken=false,dockAge=0;
+ for(let row=0;row<6;row++)for(let col=0;col<4;col++){
+  const b=new D.Batch('shutter-panel'),w=1.98,h=.655,localX=(col-1.5)*1.985,localY=.39+row*.655;
+  b.box([0,0,0],[w,h,.09],(row+col)%3?0x69776e:0x7e887f);
+  for(let k=0;k<4;k++)b.box([0,-h*.38+k*h*.25,-.064],[w,.031,.042],k%2?0x414e48:0x8a9286);
+  b.box([-.87,0,-.083],[.030,h,.028],0x59635b);b.box([.87,0,-.083],[.030,h,.028],0x59635b);
+  const m=new T.Mesh(geometryFrom(b),dockMetal);m.name='shutter-fragment-'+row+'-'+col;
+  const rz=-.105,yy=localY-2.0;
+  m.position.set(dockX+localX*Math.cos(rz)-yy*Math.sin(rz),dockY+2.0+localX*Math.sin(rz)+yy*Math.cos(rz),
+    dockZ+.07*localX+.12*Math.sin(row*.8+col));
+  m.rotation.set(.065,.018*(col-1.5),rz);
+  dock.add(m);dockPanels.push({m,home:m.position.clone(),rotation:m.rotation.clone(),vx:0,vy:0,vz:0,rx:0,ry:0,rz:0,rest:false});
+ }
+ function resetDock(alreadyOpen=false){
+  dockBroken=alreadyOpen;dockAge=0;
+  for(const q of dockPanels){q.m.position.copy(q.home);q.m.rotation.copy(q.rotation);q.m.scale.setScalar(1);q.m.visible=!alreadyOpen;q.rest=false;}
+ }
+ function breakDock(vx=0,vz=16){
+  if(dockBroken)return false;
+  dockBroken=true;dockAge=0;
+  for(const q of dockPanels){
+   const dx=q.home.x-dockX,side=dx<0?-1:1;
+   q.m.visible=true;q.vx=vx*.22+side*(2.8+Math.abs(dx)*1.15+dr()*2.0);
+   q.vy=3.2+dr()*5.2+(q.home.y-dockY)*.30;q.vz=Math.max(13,vz*.93)+dr()*9;
+   q.rx=(dr()-.5)*7;q.ry=(dr()-.5)*6;q.rz=side*(1.8+dr()*3.6);q.rest=false;
+  }
+  return true;
+ }
+ function stepDock(dt){
+  if(!dockBroken)return;dockAge+=dt;
+  for(const q of dockPanels){
+   if(!q.m.visible)continue;
+   if(dockAge>3.8){q.m.visible=false;continue;}
+   if(!q.rest){
+    q.vy-=21*dt;q.m.position.x+=q.vx*dt;q.m.position.y+=q.vy*dt;q.m.position.z+=q.vz*dt;
+    q.m.rotation.x+=q.rx*dt;q.m.rotation.y+=q.ry*dt;q.m.rotation.z+=q.rz*dt;
+    const floor=H(q.m.position.x,q.m.position.z)+.13;
+    if(q.m.position.y<floor){q.m.position.y=floor;q.vy*=-.24;q.vx*=.7;q.vz*=.7;q.rx*=.5;q.ry*=.5;q.rz*=.5;if(Math.abs(q.vy)<1.2)q.rest=true;}
+   }
+   if(dockAge>3.1)q.m.scale.setScalar(Math.max(.02,(3.8-dockAge)/.7));
+  }
+ }
+
  // Text belongs to physical placards, with perspective and ordinary depth testing.
  const signs=[];
  function sign(text,w,h,x,y,z,rotation=0){
@@ -944,6 +993,7 @@ function createWorld(api){
   audio.og.gain.setTargetAtTime(w.tunnel*.018*active,ctx.currentTime,.3);
  }
  function update(dt,sp){
+  stepDock(dt);
   elapsed+=dt;const z=P.z,w=D.weatherAt(z,elapsed);current=w;
   U.jwOrigin.value.set(cx(z),H(cx(z),z),z);U.jwTwist.value=w.spiral;U.jwTime.value=elapsed;
   const twist=w.spiral>.000001;
@@ -1001,9 +1051,10 @@ function createWorld(api){
  }
  for(const m of(api.materials||[]))patchMaterial(m);
  patchScene();
- return {update,renderSky,root,
-  getState:()=>({...current,version:3,spiralExitStart:1130,spiralExitEnd:1365,meshSections:sections.length,rainDrops:nr,activeRainDrops:visibleDrops,nearRainDrops:nearVisibleDrops,rainRibbonWidth:'world metres',twistSafeMetres:2.5,time:elapsed}),
+ return {update,renderSky,root,breakDock,resetDock,
+  getState:()=>({...current,version:4,dockBroken,dockAge,activeDockPanels:dockPanels.filter(q=>q.m.visible).length,spiralExitStart:1130,spiralExitEnd:1365,meshSections:sections.length,rainDrops:nr,activeRainDrops:visibleDrops,nearRainDrops:nearVisibleDrops,rainRibbonWidth:'world metres',twistSafeMetres:2.5,time:elapsed}),
   dispose(){
+   dockPanels.forEach(q=>q.m.geometry.dispose());dockMetal.dispose();
    scene.remove(root,rain,splashes);for(const m of sections)m.geometry.dispose();rainGeo.dispose();splashGeo.dispose();
    for(const s of signs){s.texture.dispose();s.mat.dispose();}
    for(const m of[solids,emissive,wetMat,rainMat,splashMat,moonMat,skyMat])m.dispose();
@@ -1504,8 +1555,8 @@ function burst(x,y,z,mats,n,spreadX,spreadZ,scale){
   }
 }
 function smash(o){
-  const mats=[];
-  o.traverse(ch=>{ if(ch.isMesh&&mats.indexOf(ch.material)<0) mats.push(ch.material); });
+  const mats=o.userData.shardMaterials?o.userData.shardMaterials.slice():[];
+  o.traverse(ch=>{ if(!o.userData.shardMaterials&&ch.isMesh&&mats.indexOf(ch.material)<0) mats.push(ch.material); });
   burst(o.position.x,o.position.y+0.6,o.position.z,mats,o.userData.h>2.5?18:12,2.5,3,1);
   o.visible=false;
 }
@@ -1565,6 +1616,124 @@ function makeTerrainGeo(gx,gz){
  }
  return geo;
 }
+/* V4 course direction: compact situations separated by genuine empty road.
+   Only the opening speed and object placement change. Pallet, jump and tipping physics stay intact. */
+function courseBeatAt(z){
+  if(z<188)return 'warehouse';
+  if(z<245)return 'release';
+  if(z<325)return 'choice';
+  if(z<400)return 'breath';
+  if(z<492)return 'smash';
+  if(z<560)return 'tunnel-entry';
+  if(z<630)return 'tunnel';
+  if(z<725)return 'breath';
+  if(z<815)return 'choice';
+  if(z<920)return 'spiral-entry';
+  if(z<1125)return 'spiral';
+  if(z<1380)return 'release';
+  const q=(z-1380)%660;
+  return q<135?'breath':q<225?'choice':q<285?'breath':q<405?'smash':q<460?'breath':q<560?'weave':'release';
+}
+function courseEvents(a,b){
+  const out=[];
+  const put=(kind,z,u,extra={})=>{if(z>=a&&z<b)out.push(Object.assign({kind,z,u,id:kind+':'+z},extra));};
+  const choice=(z,side,variant=0)=>{
+    // The opposite carriageway remains completely open. The reward is BETWEEN the cars,
+    // never hidden behind a mandatory collision. Early gap: 2.6+ m of centre clearance.
+    const zs=[z,z+(variant?5:0)],us=[side*2.95,side*9.40];
+    if(z>500&&(nearKicker(us[0],zs[0])||nearKicker(us[1],zs[1])||nearKicker(side*6.15,z+1)))return;
+    put('car',zs[0],us[0],{yaw:side*.035,role:'choice-inner'});
+    put('car',zs[1],us[1],{yaw:-side*.035,role:'choice-outer'});
+    put('pallet',z+1,side*6.15,{role:'choice-reward'});
+  };
+  put('skid',20,-9.65);put('cage',41,9.65);put('bench',61,-9.8);put('stacker',87,9.8);
+  put('pallet',24,5.5,{role:'first-pallet',kindName:'aj'});
+  put('baton',72,5.5,{role:'first-baton'});
+  put('cartons',104,5.5,{role:'power-demo',soft:true});
+  put('cartons',128,5.5,{role:'power-demo',soft:true});
+  choice(284,1);
+  put('baton',417,-5.5,{role:'smash-lead'});
+  put('car',449,-5.5,{role:'smash-target',yaw:.035});
+  put('car',480,-5.5,{role:'smash-target',yaw:-.035});
+  put('car',582,-7.5,{role:'tunnel-side',yaw:.05});
+  choice(756,-1);
+  put('car',956,-8.2,{role:'spiral-side',yaw:0});
+  put('debris',1048,9.2,{role:'spiral-side'});
+  // Deterministic modules: relaxed start -> optional reward -> air -> power run -> air -> modest weave -> release.
+  const k0=Math.max(0,Math.floor((a-1380)/660)-1),k1=Math.max(-1,Math.floor((b-1380)/660));
+  for(let k=k0;k<=k1;k++){
+    const start=1380+k*660,r=mulberry(7619+k*104729+SEED*7919),side=r()<.5?-1:1;
+    choice(start+175,side,r()<.5?0:1);
+    put('baton',start+296,-side*5.5,{role:'smash-lead'});
+    for(const dz of[335,380])if(!nearKicker(-side*5.5,start+dz))
+      put('car',start+dz,-side*5.5,{role:'smash-target',yaw:side*.025});
+    for(const [dz,u]of[[480,side*7.3],[550,-side*7.0]]){
+      // Dust/very heavy rain already demand attention; don't stack an extra obstacle climax on them.
+      const w=JockeyWorldData.weatherAt(start+dz);
+      if(w.dust>.35||w.rain>.75||nearKicker(u,start+dz))continue;
+      put('car',start+dz,u,{role:'weave-side',yaw:(r()-.5)*.16});
+    }
+  }
+  return out.sort((x,y)=>x.z-y.z);
+}
+
+const warehousePropMaterial=new THREE.MeshLambertMaterial({vertexColors:true});
+const warehouseShardMats=[M(0x937449),M(0x605447),M(0x59695f)];
+const warehousePropAssets={};
+function warehousePropAsset(kind){
+  if(warehousePropAssets[kind])return warehousePropAssets[kind];
+  const b=new JockeyWorldData.Batch('route-'+kind),steel=0x304954,dark=0x28312e,wood=0x716149,card=0x987a52;
+  const box=(x,y,z,w,h,d,c,rot)=>b.box([x,y,z],[w,h,d],c,rot);
+  const beam=(p,q,w=.07,d=.07,c=steel)=>b.beam(p,q,w,d,c);
+  function pallet(w=2.45,d=2.0,y=0){
+    for(const x of[-w*.38,0,w*.38])box(x,y+.11,0,w*.16,.22,d,wood);
+    for(let i=0;i<6;i++)box(0,y+.27,-d*.43+i*d*.172,w,.10,d*.14,0x8a775b);
+  }
+  function carton(x,y,z,w,h,d,rz=0){
+    box(x,y+h*.5,z,w,h,d,card,[0,rz,0]);
+    box(x,y+h+.008,z,.075,.018,d*.98,0xc0aa85,[0,rz,0]);
+    box(x+w*.20,y+h*.55,z-d*.503,w*.27,h*.24,.016,0xc7bea4);
+  }
+  let hits=[{x:0,z:0,r:1.4}],height=1.8;
+  if(kind==='skid'){
+    pallet();carton(-.59,.33,0,1.08,1.05,1.75);carton(.59,.33,0,1.08,.83,1.75);
+    carton(-.42,1.4,.03,.84,.7,1.2,.08);height=2.1;
+  }else if(kind==='cartons'){
+    pallet(1.95,1.7);carton(-.47,.33,0,.89,.89,1.48);carton(.47,.33,.05,.89,.7,1.4);
+    carton(-.20,1.24,.13,.92,.56,1.1,-.06);height=1.8;hits=[{x:0,z:0,r:1.0}];
+  }else if(kind==='cage'){
+    box(0,.26,0,2.1,.12,1.8,steel);
+    for(const x of[-.94,.94])for(const z of[-.79,.79]){box(x,.14,z,.19,.28,.27,dark);beam([x,.3,z],[x,2.8,z],.075,.075);}
+    for(let y=.5;y<2.9;y+=.38){beam([-.94,y,-.79],[.94,y,-.79],.035,.035);for(const x of[-.94,.94])beam([x,y,-.79],[x,y,.79],.035,.035);}
+    for(let x=-.7;x<1;x+=.35)beam([x,.35,-.79],[x,2.8,-.79],.035,.035);
+    carton(-.44,.34,0,.82,.86,1.45);carton(.44,.34,0,.82,.6,1.45);carton(-.30,1.22,0,.85,.7,1.1);height=2.8;
+  }else if(kind==='bench'){
+    box(0,1.04,0,3.5,.16,1.7,wood);
+    for(const x of[-1.5,1.5])for(const z of[-.62,.62])box(x,.49,z,.10,.98,.10,steel);
+    carton(-.65,1.13,0,1.05,.66,1.03);box(.78,1.38,.10,.48,.48,.4,0x4a5651);
+    pallet(1.5,1.3);height=1.85;hits=[{x:-.95,z:0,r:.92},{x:.95,z:0,r:.92}];
+  }else if(kind==='stacker'){
+    box(0,.63,-.22,1.65,1.1,2.3,0x9b703d);box(0,.99,-.2,1.70,.23,2.38,dark);
+    for(const x of[-.86,.86])for(const z of[-.9,.66])box(x,.34,z,.28,.68,.68,dark);
+    box(0,1.27,-.4,.76,.3,.73,dark);box(0,1.64,-.72,.76,.70,.18,dark,[.1,0,0]);
+    for(const x of[-.68,.68])for(const z of[-.92,.65])beam([x,1,z],[x,2.65,z],.1,.1,dark);
+    box(0,2.69,-.1,1.64,.14,2.0,dark);
+    for(const x of[-.48,.48]){beam([x,.2,1.1],[x,3.35,1.32],.18,.22,dark);box(x,.15,2.0,.23,.13,2.1,steel);}
+    box(0,.55,1.27,1.22,.65,.20,steel);height=3.4;hits=[{x:0,z:-.15,r:1.12},{x:0,z:1.9,r:.72}];
+  }
+  const geo=new THREE.BufferGeometry();
+  geo.setAttribute('position',new THREE.Float32BufferAttribute(b.p,3));
+  geo.setAttribute('normal',new THREE.Float32BufferAttribute(b.n,3));
+  geo.setAttribute('color',new THREE.Float32BufferAttribute(b.c.map(x=>Math.pow(Math.max(0,x),2.2)),3));
+  geo.computeBoundingSphere();
+  return warehousePropAssets[kind]={geo,hits,height};
+}
+function makeWarehouseProp(kind){
+  const asset=warehousePropAsset(kind),o=new THREE.Mesh(asset.geo,warehousePropMaterial);
+  o.name='route-'+kind;o.userData.hits=asset.hits;o.userData.h=asset.height;o.userData.propKind=kind;
+  o.userData.soft=kind==='cartons';o.userData.shardMaterials=warehouseShardMats;return o;
+}
+
 function makeChunk(){
   const geo=makeTerrainGeo(GX,GZ);
   const n=geo.attributes.position.count;
@@ -1582,6 +1751,8 @@ function makeChunk(){
   add(makeDeadTree,TREES,c.deco,false);
   add(makePole,POLES,c.deco,false);
   add(makeSign,SIGNS,c.deco,false);
+  c.props=[];
+  for(const kind of["skid","cage","bench","stacker","cartons","cartons"]){const o=makeWarehouseProp(kind);holder.add(o);c.props.push(o);c.obs.push(o);}
   const pal=new THREE.Group();
   pal.userData.kinds={aj:makePallet("aj"),kpp:makePallet("kpp")}; pal.add(pal.userData.kinds.aj); pal.add(pal.userData.kinds.kpp);
   const pbeam=new THREE.Mesh(cylG,beamMat2); pbeam.scale.set(0.5,8,0.5); pbeam.position.y=3.2; pal.add(pbeam); pal.userData.beam=pbeam;
@@ -1695,159 +1866,42 @@ function fillDecal(c,z0){
 
 function fillObjects(c,z0){
   const rnd=mulberry(Math.floor(z0/CH_LEN)*7919+13+SEED*104729);
-  const midZ=z0+CH_LEN*0.5;
-  const steep=steepLane(midZ);
-
-
-
-const placed=[];
-
-const d=difficultyAt(midZ);
-const obsGap=lerp(OBS_GAP_EASY,OBS_GAP_HARD,d);
-
-const tooClose=(x,z,r)=>{
-  for(const p of placed){
-    const dx=p.x-x, dz=p.z-z;
-
-    if(dx*dx+dz*dz<(p.r+r)*(p.r+r))
-      return true;
-
-    if(Math.abs(dz)<obsGap)
-      return true;
+  const events=courseEvents(z0,z0+CH_LEN),midZ=z0+CH_LEN*.5;
+  c.beat=courseBeatAt(midZ);c.events=events;
+  for(const o of c.obs){o.visible=false;o.userData.role='';}
+  c.pallet.visible=false;c.pallet.userData.taken=false;c.pallet.userData.role='';
+  c.baton.visible=false;c.baton.userData.taken=false;c.baton.userData.role='';
+  let carIndex=0,debrisIndex=0;
+  for(const e of events){
+    let o;
+    if(e.kind==='pallet'){
+      o=c.pallet;const kind=e.kindName||(ihash(Math.floor(e.z)*31+SEED*7)<.5?'aj':'kpp');
+      o.userData.kind=kind;o.userData.kinds.aj.visible=kind==='aj';o.userData.kinds.kpp.visible=kind==='kpp';
+    }else if(e.kind==='baton')o=c.baton;
+    else if(e.kind==='car'){
+      const pool=c.carsList.filter(x=>x.userData.h<2.5);o=pool[carIndex++];
+      if(o){const p=carPaints[Math.floor(rnd()*carPaints.length)];for(const m of o.userData.paint)m.material=p;o.userData.rust.visible=rnd()<.72;}
+    }else if(e.kind==='debris')o=c.deco.filter(x=>x.userData.hits)[debrisIndex++];
+    else o=c.props.find(x=>x.userData.propKind===e.kind&&!x.visible);
+    if(!o)throw new Error('Course object capacity exceeded: '+e.kind+' at '+e.z);
+    const x=cx(e.z)+e.u;o.position.set(x,H(x,e.z)+(e.kind==='baton'?1.25:e.kind==='pallet'?.01:0),e.z);
+    o.rotation.set(0,e.yaw||0,0);o.visible=true;o.userData.role=e.role||'edge-prop';o.userData.courseId=e.id;
   }
-
-  return false;
-};
-
-
-// 거리별 차량 수
-let carBudget;
-
-if(midZ < 260)       carBudget=0;
-else if(midZ < 520)  carBudget=1;
-else if(midZ < 760)  carBudget=2;
-else if(midZ < 1000) carBudget=3;
-else if(midZ < 1250) carBudget=4;
-else                  carBudget=5;
-
-
-
-
-  let carsUsed=0;
-  // 차량: 가파른 차로에 더 많이
-  for(const o of c.carsList){
-    let ok=false;
-    if(carsUsed>=carBudget){ o.visible=false; continue; }
-    for(let t=0;t<12&&!ok;t++){
-      const z=z0+rnd()*CH_LEN; if(z<60) break;
-      const side=(rnd()<0.66?(steep?1:-1):(steep?-1:1));
-      const u=side*(MED+1.2+rnd()*(RAIL-MED-2.6));
-      const x=cx(z)+u;
-      const isBus=o.userData.hits.length===3;
-      const r=isBus?5.5:2.6;
-      if(tooClose(x,z,r)) continue;
-      if(nearKicker(u,z)) continue;                 // 도약대와 착지 구간은 비워 둔다
-      o.position.set(x,H(x,z),z);
-      const yaw=rnd()<0.55?(rnd()-0.5)*0.5:(rnd()*6.28);
-      o.rotation.set(0,yaw,0);
-      if(rnd()<0.18){ o.rotation.z=Math.PI*0.5*(rnd()<0.5?1:-1); o.position.y+=0.9; }   // 전복
-      const p=carPaints[Math.floor(rnd()*carPaints.length)];
-      for(const m of o.userData.paint) m.material=p;
-      o.userData.rust.visible=rnd()<0.7;
-      o.visible=true; ok=true; carsUsed++;
-      placed.push({x:x,z:z,r:r});
-    }
-    if(!ok) o.visible=false;
-  }
-  // 잔해
-  let debrisBudget;
-
-if(midZ < 520)       debrisBudget=0;
-else if(midZ < 900)  debrisBudget=1;
-else if(midZ < 1250) debrisBudget=2;
-else                  debrisBudget=3;
-  for(const o of c.deco){
-    if(!o.userData.hits){ continue; }
-    let ok=false;
-    if(debrisBudget<=0){ o.visible=false; continue; }
-    for(let t=0;t<8&&!ok;t++){
-      const z=z0+rnd()*CH_LEN; if(z<60) break;
-      const u=(rnd()*2-1)*(RAIL-1.5);
-      if(Math.abs(u)<MED+0.8) continue;
-      if(nearKicker(u,z)) continue;
-      const x=cx(z)+u;
-      if(tooClose(x,z,1.6)) continue;
-      o.position.set(x,H(x,z),z); o.rotation.y=rnd()*6.28; o.visible=true; ok=true; debrisBudget--;
-      placed.push({x:x,z:z,r:1.6});
-    }
-    if(!ok) o.visible=false;
-  }
-  // 콘: 가파른 차로의 바깥 가장자리에 줄지어
+  // Familiar roadside scenery remains, but never occupies an authored escape lane.
   c.cones.forEach((o,k)=>{
-    const z=z0+(k+0.5)*(CH_LEN/CONES);
-    const sl=steepLane(z);
-    const u=(sl?1:-1)*(RAIL-1.0);
-    const x=cx(z)+u;
-    o.position.set(x,H(x,z),z); o.rotation.set(0,0,0); o.userData.knocked=false; o.visible=true;
+    const z=z0+(k+.5)*(CH_LEN/CONES),u=(steepLane(z)?1:-1)*(RAIL-1.0),x=cx(z)+u;
+    o.position.set(x,H(x,z),z);o.rotation.set(0,0,0);o.userData.knocked=false;o.visible=z>=188;
   });
-  // 길가 장식 (충돌 없음)
   let ti=0;
   for(const o of c.deco){
-    if(o.userData.hits) continue;
-    const z=z0+rnd()*CH_LEN;
-    const side=ti%2?1:-1;
-    const u=side*(ROAD_HALF+3+rnd()*18);
-    const x=cx(z)+u;
-    o.position.set(x,H(x,z)-0.2,z); o.rotation.y=rnd()*6.28;
-    const sc=0.85+rnd()*0.6; o.scale.setScalar(sc);
-    o.visible=true; ti++;
-  }
-  // 파렛트: 100m 넘으면 22% 확률로 하나. 경광봉과 같은 청크엔 안 놓는다
-  c.pallet.visible=false; c.pallet.userData.taken=false;
-  if(z0>100&&rnd()<0.22){
-    for(let t=0;t<6;t++){
-      const z=z0+12+rnd()*36, side=rnd()<0.5?-1:1;
-      const u=side*(MED+2.5+rnd()*(RAIL-MED-5.5));
-      if(nearKicker(u,z)) continue;
-      const x=cx(z)+u;
-      let blocked=false;
-      for(const q of placed){ const dx=q.x-x,dz=q.z-z; if(dx*dx+dz*dz<(q.r+2.2)*(q.r+2.2)){blocked=true;break;} }
-      if(blocked) continue;
-      // 색은 번갈아 나오되 가끔(25%) 뒤집어 랜덤한 느낌만 준다 (청크 PRNG 는 편중돼서 못 쓴다)
-      const kind=((palletSpawnCount+(ihash(palletSpawnCount*31+SEED*7+5)<0.25?1:0))%2)?"kpp":"aj"; palletSpawnCount++;
-      c.pallet.userData.kind=kind; c.pallet.userData.kinds.aj.visible=kind==="aj"; c.pallet.userData.kinds.kpp.visible=kind==="kpp";
-      c.pallet.position.set(x,H(x,z)+0.01,z); c.pallet.rotation.y=rnd()*6.28; c.pallet.visible=true;
-      placed.push({x:x,z:z,r:1.2});
-      break;
-    }
-  }
-  // 경광봉: 150m 넘으면 35% 확률로 청크에 하나
-  c.baton.visible=false; c.baton.userData.taken=false;
-  if(z0>150&&!c.pallet.visible&&rnd()<0.38){
-    for(let t=0;t<6;t++){
-      const z=z0+15+rnd()*30, side=rnd()<0.5?-1:1;
-      const u=side*(MED+2.5+rnd()*(RAIL-MED-5.5));
-      if(nearKicker(u,z)) continue;
-      const x=cx(z)+u;
-      let blocked=false;
-      for(const q of placed){ const dx=q.x-x,dz=q.z-z; if(dx*dx+dz*dz<(q.r+2.2)*(q.r+2.2)){blocked=true;break;} }
-      if(blocked) continue;
-      c.baton.position.set(x,H(x,z)+1.25,z); c.baton.visible=true; break;
-    }
+    if(o.userData.hits)continue;
+    const z=z0+rnd()*CH_LEN,side=ti++%2?1:-1,u=side*(ROAD_HALF+3+rnd()*18),x=cx(z)+u;
+    o.position.set(x,H(x,z)-.2,z);o.rotation.set(0,rnd()*6.28,0);o.scale.setScalar(.85+rnd()*.6);o.visible=z>=188;
   }
   for(const o of c.boulders){
-    const z=z0+rnd()*CH_LEN, side=rnd()<0.5?-1:1;
-    const u=side*(ROAD_HALF+2.5+rnd()*22), x=cx(z)+u;
-    o.position.set(x,H(x,z)-0.3,z); o.rotation.set(rnd()*3,rnd()*3,rnd()*3);
-    o.scale.set(0.8+rnd()*1.4,0.6+rnd()*0.9,0.8+rnd()*1.4); o.visible=true;
-  }
-  // 표지판은 도로 가까이
-  for(const o of c.deco){
-    if(o.children.length===4&&o.children[2].material===mSign){
-      const z=z0+10+rnd()*40, side=rnd()<0.5?-1:1;
-      const x=cx(z)+side*(ROAD_HALF+2.2);
-      o.position.set(x,H(x,z),z); o.rotation.y=side>0?0.2:-0.2; o.scale.setScalar(1); o.visible=true;
-    }
+    const z=z0+rnd()*CH_LEN,side=rnd()<.5?-1:1,u=side*(ROAD_HALF+2.5+rnd()*22),x=cx(z)+u;
+    o.position.set(x,H(x,z)-.3,z);o.rotation.set(rnd()*3,rnd()*3,rnd()*3);
+    o.scale.set(.8+rnd()*1.4,.6+rnd()*.9,.8+rnd()*1.4);o.visible=z>=188;
   }
 }
 
@@ -2171,11 +2225,15 @@ shadow.name='rider-contact-shadow';shadow.rotation.x=-Math.PI/2;shadow.scale.set
 const P={x:0,z:0,y:0,vx:0,vz:0,vy:0,ground:true,air:0,
   steer:0,steerT:0,crouch:0,crouchT:0,hold:0,tipMeter:0,boost:0,kickAnim:0,spin:0,
   hits:0,inv:0,top:0,shake:0,alive:false,dist:0,scrape:0,power:0,pallets:0,palMax:0,t0:0};
+const courseRun={time:0,pallets:0,batons:0,smashes:0,door:false,doorTime:0,doorSpeed:0};
 let best=0, running=false;
 try{ best=parseInt(localStorage.getItem("jockey_best")||"0",10)||0; }catch(e){}
 
 function reset(){
-  P.x=cx(0)+ (steepLane(0)?-1:1)*5.5; P.z=0; P.vx=0; P.vz=6; P.vy=0; P.ground=true; P.air=0;
+  Object.assign(courseRun,{time:0,pallets:0,batons:0,smashes:0,door:false,doorTime:0,doorSpeed:0});
+  world3D.resetDock();
+  P.onRail=false;P.jump=false;P.jumpImpulse=0;
+  P.x=cx(0)+ (steepLane(0)?-1:1)*5.5; P.z=0; P.vx=0; P.vz=12; P.vy=0; P.ground=true; P.air=0;
   P.steer=0;P.steerT=0;P.crouch=0;P.crouchT=0;P.hold=0;P.tipMeter=0;P.boost=0;P.kickAnim=0;P.spin=0;
   P.hits=0;P.inv=0;P.top=0;P.shake=0;P.dist=0;P.alive=true;P.scrape=0;P.power=0;P.pallets=0;P.palMax=0;P.t0=performance.now();
   stackKinds.length=0; setStack(0);
@@ -2197,13 +2255,12 @@ function recycle(){
   refreshRoadTail();
 }
 function hitTest(){
-  if(P.inv>0) return;
   const lift=P.ground?0:(P.y-H(P.x,P.z));      // 공중이면 낮은 것은 넘어간다
   for(const c of chunks){
     if(Math.abs(c.z0+CH_LEN*0.5-P.z)>CH_LEN*1.2) continue;
 
     for(const o of c.obs){
-      if(!o.visible) continue;
+      if(!o.visible||(P.inv>0&&!o.userData.soft)) continue;
       if(lift>(o.userData.h||1.5)+(o.rotation.z!==0?0.9:0)) continue;
       const dz0=o.position.z-P.z; if(dz0<-12||dz0>14) continue;
       const cy=Math.cos(o.rotation.y), sy=Math.sin(o.rotation.y);
@@ -2211,6 +2268,7 @@ function hitTest(){
         const wx=o.position.x+h.x*cy+h.z*sy, wz=o.position.z-h.x*sy+h.z*cy;
         const dx=wx-P.x, dz=wz-P.z, rr=h.r+0.55;
         if(dx*dx+dz*dz<rr*rr){
+          if(o.userData.soft){softPropHit(o);return;}
           if(P.power>0){ smashHit(o); return; }
           crash(false); return;
         }
@@ -2219,6 +2277,7 @@ function hitTest(){
   }
 }
 function smashHit(o){
+  courseRun.smashes++;
   smash(o); SFX.smash(o.userData.h>2.5);
   const k=1.10; P.vx*=k; P.vz*=k;
   P.shake=Math.max(P.shake,0.45); P.inv=Math.max(P.inv,0.25);
@@ -2251,15 +2310,43 @@ function pickupTest(){
     const pl=c.pallet;
     if(pl.visible&&!pl.userData.taken&&lift<1.5){
       const dx=pl.position.x-P.x, dz=pl.position.z-P.z;
-      if(dx*dx+dz*dz<1.9*1.9){ pl.visible=false; pl.userData.taken=true; stackKinds[P.pallets]=pl.userData.kind||"aj"; P.pallets++; P.palMax=Math.max(P.palMax,P.pallets); setStack(P.pallets); SFX.pallet(P.pallets);
+      if(dx*dx+dz*dz<1.9*1.9){ pl.visible=false; pl.userData.taken=true; stackKinds[P.pallets]=pl.userData.kind||"aj"; P.pallets++; courseRun.pallets++; P.palMax=Math.max(P.palMax,P.pallets); setStack(P.pallets); SFX.pallet(P.pallets);
         P.shake=Math.max(P.shake,0.25); emit(dust,P.x,P.y+0.3,P.z,0,2,0,3,8,0.6); if(navigator.vibrate) try{navigator.vibrate(12);}catch(e){} }
     }
     const b=c.baton; if(!b.visible||b.userData.taken) continue;
     const dx=b.position.x-P.x, dz=b.position.z-P.z;
-    if(dx*dx+dz*dz<1.9*1.9){ b.visible=false; b.userData.taken=true; P.power=8; boostFx(0.6);
+    if(dx*dx+dz*dz<1.9*1.9){ b.visible=false; b.userData.taken=true; P.power=8; courseRun.batons++; SFX.baton(); boostFx(0.6);
       emit(sparks,P.x,P.y+1,P.z,0,5,0,6,16,0.5); if(navigator.vibrate) try{navigator.vibrate(15);}catch(e){} }
   }
 }
+function courseEscape(){
+  if(courseRun.door||P.z<154.70||!P.alive)return;
+  courseRun.door=true;courseRun.doorSpeed=Math.hypot(P.vx,P.vz);courseRun.doorTime=courseRun.time;
+  world3D.breakDock(P.vx,P.vz);
+  // Scripted release, not a lethal wall. No pallet, life or power is required or consumed.
+  const k=1.055;P.vx*=k;P.vz*=k;P.boost=Math.max(P.boost,.68);P.shake=Math.max(P.shake,.70);
+  P.inv=Math.max(P.inv,.35);SFX.dock();boostFx(.42);
+  const x=cx(156)+5.5,y=H(x,156);
+  emit(sparks,x,y+1.7,155.7,0,3.5,9,7,26,.62);
+  emit(dust,x,y+1.8,156,0,3,7,6,18,.90);
+  if(navigator.vibrate)try{navigator.vibrate([16,22,28]);}catch(e){}
+}
+function softPropHit(o){
+  const powered=P.power>0;smash(o);courseRun.smashes++;
+  if(powered){SFX.smash(false);P.vx*=1.065;P.vz*=1.065;P.shake=Math.max(P.shake,.34);}
+  else {SFX.cone();P.shake=Math.max(P.shake,.20);}
+  emit(dust,o.position.x,o.position.y+.55,o.position.z,0,2.7,3,3,10,.7);
+}
+function runStep(dt){
+  if(!P.alive)return;
+  courseRun.time+=dt;
+  physics(dt);recycle();pickupTest();hitTest();coneTest();courseEscape();
+  if(P.power>0){const before=P.power;P.power=Math.max(0,P.power-dt);const step=P.power<2?.25:.5;
+    if(Math.floor(before/step)!==Math.floor(P.power/step))SFX.tick(P.power<2);}
+  const sp=Math.hypot(P.vx,P.vz);
+  if(P.ground&&sp>7&&P.z-seamZ>18){seamZ=P.z;SFX.seam(sp);}
+}
+
 function dropPallets(n){
   for(let i=0;i<n&&P.pallets>0;i++){
     const top=PAL_BASE_Y+P.pallets*PAL_H;
@@ -3049,6 +3136,13 @@ const SFX={
     ring(t+0.01,620*(big?0.8:1),0.7,0.22,0); ring(t+0.03,940*(big?0.8:1),0.5,0.14,15);   // 쇳소리
     for(let i=0;i<7;i++){ const d=0.05+Math.random()*0.35; hiss(t+d,"highpass",5000+Math.random()*4000,7000,2,0.05,0.16,0.001); }   // 유리 파편
     for(let i=0;i<3;i++) tone(t+0.25+i*0.13,"triangle",300-i*60,180-i*40,0.09,0.15,0.002); },   // 굴러 떨어지는 부품
+  dock:function(){ if(!this.ok())return;const t=now();
+    tone(t,"sine",108,31,.35,.75,.002);
+    hiss(t,"bandpass",1700,550,.7,.48,.60,.002);
+    hiss(t+.014,"highpass",5600,1800,1,.35,.29,.002);
+    ring(t+.015,265,.85,.20,-3);ring(t+.065,415,.68,.13,8);
+    for(let i=0;i<5;i++){const d=.14+i*.075;ring(t+d,580-i*63,.27,.075,0);}
+  },
   crash:function(){ if(!this.ok())return; const t=now();
     tone(t,"sine",85,28,0.28,0.85,0.002); hiss(t,"bandpass",900,400,1,0.2,0.6,0.002);
     tone(t+0.01,"triangle",1500,900,0.08,0.3,0.001); hiss(t+0.1,"lowpass",2500,500,1,0.3,0.3,0.01); },
@@ -3202,7 +3296,10 @@ const world3D=JockeyWorld3D.create({scene:scene,camera:camera,P:P,H:H,cx:cx,seed
  getAudio:()=>actx,getMaster:()=>master,isRunning:()=>running,materials:carPaints});
 function inspectWorldAt(z){
  if(!WORLD_TOUR)return;
- start();worldInspectPaused=true;P.z=z;P.dist=z;P.x=cx(z)+5.5;P.y=H(P.x,z);P.vz=13;P.vx=0;P.inv=60;
+ start();worldInspectPaused=true;P.z=z;P.dist=z;P.x=cx(z)+5.5;P.y=H(P.x,z);P.vz=17;P.vx=0;P.inv=0;
+ courseRun.door=z>=156;world3D.resetDock(courseRun.door);
+ if(z>26&&z<190){P.pallets=1;P.palMax=1;stackKinds[0]='aj';setStack(1);}
+ if(z>74&&z<175)P.power=3;
  const first=(Math.floor(z/CH_LEN)-2)*CH_LEN;
  for(let i=0;i<CHUNKS;i++)fillChunk(chunks[i],first+i*CH_LEN);
  refreshRoadTail();
@@ -3225,7 +3322,7 @@ if(WORLD_TOUR){
   b.style.cssText='margin:0;width:auto;min-width:0;flex:0 0 auto;height:32px;padding:6px 9px;border:1px solid #718578;background:#31473b;color:#eef1e5;border-radius:3px;touch-action:manipulation;font:11px system-ui;letter-spacing:0;box-shadow:none';
   b.addEventListener('pointerdown',e=>e.stopPropagation());b.addEventListener('click',e=>{e.stopPropagation();fn();});bar.appendChild(b);return b;};
  makeButton('인트로',showWorldIntro);
- for(const[label,z]of [['창고',45],['도크',139],['물류단지',218],['비',352],['터널',555],['나선',990],['나선 끝',1160],['복귀',1310]])makeButton(label,()=>inspectWorldAt(z));
+ for(const[label,z]of [['창고',12],['경광봉',64],['도크 돌파',140],['욕심길',253],['비',352],['박살길',401],['터널',555],['나선',990],['나선 끝',1160],['복귀',1310]])makeButton(label,()=>inspectWorldAt(z));
  const play=makeButton('▶ 시작',()=>{
   if(!running){start();worldInspectPaused=false;}else worldInspectPaused=!worldInspectPaused;
   play.textContent=worldInspectPaused?'▶ 주행':'Ⅱ 정지';
@@ -3238,22 +3335,19 @@ function frame(now){
   requestAnimationFrame(frame);
   let dt=(now-last)/1000; last=now; dt=Math.max(0,Math.min(dt,0.05));
   const sp0=Math.hypot(P.vx,P.vz);
-  if(running){
-    if(P.crouchT>0.5)P.hold=Math.min(0.6,P.hold+dt);
-    if(!worldInspectPaused){physics(dt); recycle(); if(!WORLD_TOUR){hitTest(); pickupTest();} coneTest();}
-    if(P.power>0){ const before=P.power; P.power-=dt; const step=P.power<2?0.25:0.5;
-      if(Math.floor(before/step)!==Math.floor(P.power/step)) SFX.tick(P.power<2); }
-    // 고속도로 이음새: 18m 마다 톡
-    if(P.ground&&sp0>7&&P.z-seamZ>18){ seamZ=P.z; SFX.seam(sp0); }
+  const animDt=worldInspectPaused?0:dt;
+  if(running&&!worldInspectPaused){
+    if(P.crouchT>0.5)P.hold=Math.min(.6,P.hold+dt);
+    runStep(dt);
   }
-  stepPieces(dt);
+  stepPieces(animDt);
   const sp=Math.hypot(P.vx,P.vz);
-  stepParticles(dust,dt); stepParticles(sparks,dt);
+  stepParticles(dust,animDt); stepParticles(sparks,animDt);
   animateRider(dt,sp);
   if(!window.__freeCam) updateCamera(dt,sp);
   if(running)updateHud(dt,worldInspectPaused?0:sp);
   audioUpdate(running?sp:0,dt);
-  world3D.update(dt,sp);
+  world3D.update(animDt,sp);
   renderer.clear();
   world3D.renderSky(renderer,camera);
   renderer.clearDepth();
@@ -3264,7 +3358,9 @@ animateRider(1,0);introCamera(1);
 requestAnimationFrame(frame);
 
 window.__game={world:world3D,inspectWorldAt:inspectWorldAt,showWorldIntro:showWorldIntro,pauseTour:function(v){if(WORLD_TOUR)worldInspectPaused=!!v;},renderStats:function(){return {calls:renderer.info.render.calls,triangles:renderer.info.render.triangles,geometries:renderer.info.memory.geometries,programs:renderer.info.programs.length};},P:P,start:start,H:H,cx:cx,cam:camera,rider:rider,SFX:SFX,actxState:function(){return actx?actx.state:'none';},master:function(){return master;},ctx:function(){return actx;},snapCam:function(){camInit=false;},setStack:function(n){for(let i=0;i<n;i++) if(!stackKinds[i]) stackKinds[i]=hash1(i*5.3)<0.5?"aj":"kpp"; setStack(n);},finish:finish,
-  sim:function(dt,n){const out=[];for(let i=0;i<n;i++){physics(dt);recycle();hitTest();pickupTest();
+  course:{beatAt:courseBeatAt,events:courseEvents,state:()=>({...courseRun}),
+    visible:()=>chunks.flatMap(c=>c.obs.filter(o=>o.visible).map(o=>({z:o.position.z,x:o.position.x,u:o.position.x-cx(o.position.z),role:o.userData.role,soft:!!o.userData.soft,hits:o.userData.hits,yaw:o.rotation.y})))},
+  sim:function(dt,n){const out=[];for(let i=0;i<n;i++){if(!P.alive)break;runStep(dt);stepPieces(dt);world3D.update(dt,Math.hypot(P.vx,P.vz));
     if(i%Math.floor(n/12||1)===0)out.push({t:+(i*dt).toFixed(1),v:+(Math.hypot(P.vx,P.vz)*3.6).toFixed(0),
       u:+(P.x-cx(P.z)).toFixed(0),z:+P.z.toFixed(0),air:P.ground?0:1,hit:P.hits});}return out;}};
 })();
