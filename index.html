@@ -154,18 +154,7 @@
     drop-shadow(0 8px 14px rgba(53,17,22,.30));
 }
 
-.heroHead .tag{
-  margin-top:12px;
-  display:inline-block;
-  padding:10px 16px;
-  border-radius:999px;
-  background:rgba(255,250,242,.84);
-  box-shadow:0 8px 24px rgba(59,42,28,.16);
-  color:var(--ink);
-  font-size:14px;
-  font-weight:800;
-  letter-spacing:-.02em;
-}
+
 
 .heroBottom{
   position:absolute;
@@ -273,10 +262,9 @@
 <div class="poster" id="intro">
   <div class="frame"></div>
 
-  <div class="heroHead">
-    <div class="ko" data-t="자키 라이더">자키 라이더</div>
-    <div class="tag">균형 잡고, 타이밍 맞추고, 끝까지 간다</div>
-  </div>
+<div class="heroHead">
+  <div class="ko" data-t="자키 라이더">자키 라이더</div>
+</div>
 
   <div class="heroBottom">
     <button id="go" class="startBtn">게임 시작</button>
@@ -289,7 +277,7 @@
     <div><span>점프</span><em>웅크렸다가 손 떼기</em></div>
     <div><span>발 구르기</span><em>짧게 탭 · Space 짧게</em></div>
     <div><span>경광봉</span><em>잠깐 무적 · 장애물 박살</em></div>
-    <div><span>파렛트</span><em>쌓을수록 아찔 · 높을수록 유리</em></div>
+    <div><span>파렛트</span><em>충돌 시 범퍼 역할</em></div>
   </div>
 </div>
 
@@ -547,8 +535,8 @@ const bgMat=new THREE.ShaderMaterial({
   "  float y=vUv.y+uPitch;",
   "  vec3 col=mix(uMid,uTop,smoothstep(0.55,1.15,y));",
   "  col=mix(uHaze,col,smoothstep(0.40,0.66,y));",
-  "  float sx=fract(0.5+uYaw*0.35);",                       // 해: 방향 따라 좌우 이동
-  "  float dx=(vUv.x-sx)*uAspect, dy=(y-0.60);",
+ "  float sx=0.72;",
+"  float dx=(vUv.x-sx)*uAspect, dy=(y-0.60);",
   "  float sun=exp(-(dx*dx+dy*dy)*70.0);",
   "  col+=vec3(1.0,0.95,0.82)*sun*0.42;",
   "  col+=vec3(1.0,0.85,0.6)*exp(-(dx*dx+dy*dy)*4.0)*0.07;",
