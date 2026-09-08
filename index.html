@@ -352,7 +352,7 @@ const OBS_GAP_HARD = 11;
 const TIP_RATE = 0.8;
 const LIVES    = 5;
 const MAXV     = 52;
-
+const SPEED_DISPLAY = 2.0;
 
 
 
@@ -2084,7 +2084,7 @@ function boostFx(k){
 let hudAcc=0;
 function updateHud(dt,sp){
   hudAcc+=dt; if(hudAcc<0.06)return; hudAcc=0;
-  spdEl.textContent=Math.round(sp*3.6);
+  spdEl.textContent = Math.round(sp * SPEED_DISPLAY);
   distEl.textContent=Math.round(P.dist);
   palEl.textContent=P.pallets;
   tipBar.style.width=(P.tipMeter*100).toFixed(0)+"%";
@@ -2360,6 +2360,7 @@ document.getElementById("sound").addEventListener("click",function(){
    ================================================================== */
 const introEl=document.getElementById("intro");
 const overEl=document.getElementById("over");
+
 function start(){
   reset();
   introEl.classList.add("hide"); overEl.classList.add("hide");
@@ -2380,7 +2381,7 @@ function finish(){
   const d=new Date();
   const date=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
   lastResult={game:GAME_ID,kind:"run",version:VERSION,seed:SEED,score:Math.round(P.dist),dist:Math.round(P.dist),
-    top:Math.round(P.top*3.6),pallets:P.palMax,elapsed:Math.round((performance.now()-P.t0)/100)/10,date:date};
+    top:Math.round(P.top*SPEED_DISPLAY),pallets:P.palMax,elapsed:Math.round((performance.now()-P.t0)/100)/10,date:date};
   window.JOCKEY_RESULT=lastResult;
   try{ if(typeof window.onJockeyFinish==="function") window.onJockeyFinish(lastResult); }catch(e){}
   try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:"jockey-result",result:lastResult},"*"); }catch(e){}
