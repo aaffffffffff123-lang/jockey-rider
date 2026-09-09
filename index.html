@@ -379,7 +379,8 @@ const INSERTS=[
  {name:'container-graveyard',at:1414,len:780},   // 마지막 물류동(1340±70, 접안 마당 1413까지) 뒤 ~ 논밭(1420) 앞
  {name:'ship-cargo-field',   at:6124,len:460}    // 좌초선 선체(≤6085)·달그림자(≤6121) 뒤 ~ 먼지 전선(6120~) 앞
 ];
-function wz(z){let w=z;for(const i of INSERTS)if(z>=i.at)w+=i.len;return w;}
+function shiftOf(z){let s=0;for(const i of INSERTS)if(z>=i.at)s+=i.len;return s;}
+function wz(z){return z+shiftOf(z);}
 function lz(w){let s=0;for(const i of INSERTS){const a=i.at+s;if(w<a)break;if(w<a+i.len)return i.at;s+=i.len;}return w-s;}
 function insertAt(w){let s=0;for(const i of INSERTS){const a=i.at+s;if(w<a)return null;if(w<a+i.len)return{ins:i,start:a,end:a+i.len,t:w-a};s+=i.len;}return null;}
 const EARLY_TWIST_END=Math.min(1510,INSERTS[0].at);  // 초반 트위스트 꼬리는 삽입 구간 앞에서 끝냄 (컬링 해제 구간이 새 구간까지 번지지 않게)
@@ -1992,7 +1993,7 @@ function remapBatches(batches){
  for(const b of batches){
   const p=b.p;
   for(let i=0;i<p.length;i+=9){
-   const s0=wz(p[i+2])-p[i+2],s1=wz(p[i+5])-p[i+5],s2=wz(p[i+8])-p[i+8];
+     const s0=shiftOf(p[i+2]),s1=shiftOf(p[i+5]),s2=shiftOf(p[i+8]);
    if(s0===s1&&s1===s2){p[i+2]+=s0;p[i+5]+=s1;p[i+8]+=s2;}
    else{dropped++;p[i+2]=wz(p[i+2]);for(let k=3;k<9;k++)p[i+k]=p[i+k%3];}
   }
@@ -2909,8 +2910,8 @@ const shipBasin=scenicBand(L,5780,6120,90)*smooth((u-14)/8)*(1-smooth((u-116)/18
 
  y-=shipBasin*8.5;
 
- const cargoBay=smooth((z-(SF_A-10))/60)*(1-smooth((z-(SF_B-40))/60))*smooth((u-16)/9)*(1-smooth((u-150)/30));
- y=lerp(y,roadBase-7.5+.3*Math.sin(z*.05),cargoBay);
+ const cargoBay=smooth((z-(SF_A-10))/60)*(1-smooth((z-(SF_B-40))/60))*smooth((u-13)/7)*(1-smooth((u-150)/30));
+ y=lerp(y,roadBase-10.5+.3*Math.sin(z*.05),cargoBay);
 
 
  const shipX=cx(wz(5960))+58,shipDx=Math.abs(x-shipX)-48,shipDz=Math.abs(z-wz(5960))-125,shipPad=(1-smooth((shipDx+1)/16))*(1-smooth((shipDz+1)/30))*smooth((Math.abs(u)-20)/12);
