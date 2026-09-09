@@ -2161,22 +2161,615 @@ function buildInsertedWorld(Hw,cxw,seed=0){
   cont(omen,CG_WALL+3,20,CONT_40,CONT.grey,-1.35,0,0,{doors:'missing',rust:.6});
   cont(omen,CG_WALL+3.6,20.4,CONT_20,CONT.ochre,-1.2,0,.12,{rust:.7},CONT_H+.05);
   boxes(omen,CG_WALL-6,-15,3,4);
-  // 공동묘지
-  const grave=make('container-graveyard');
-  for(let i=0;i<46;i++){
-   const t=i/46;if(t>.72&&R()<(t-.72)*3)continue;                       // 끝으로 갈수록 성겨짐
-   const z=CG_GRAVE_A+6+i*5.5+(R()-.5)*3,side=i%3===1?1:i%3===2?-1:(R()<.5?-1:1),u=side*(16.5+Math.pow(R(),1.6)*30),[x,y]=ground(u,z);
-   const levels=1+(R()<.6?1:0)+(R()<.4?1:0),yaw=(R()-.5)*.9+(side>0?0:Math.PI),len=R()<.35?CONT_20:CONT_40,g=settle(u,z,yaw,CONT_W/2,len/2),baseY=y-.15*R();
-   for(let l=0;l<levels;l++){
-    const c=CONT_LIST[(i*7+l*3)%CONT_LIST.length],jx=(R()-.5)*(l?1.1:0),jz=(R()-.5)*(l?1.4:0),roll=(l===levels-1&&R()<.3)?(R()-.5)*.5:(R()-.5)*.06;
-    const doors=Math.abs(roll)<.08&&R()<.4?(R()<.5?'open':'missing'):(R()<.25?'missing':'closed');
-    drawContainer(grave,[x+jx,baseY+CONT_H/2+l*CONT_H,z+jz],len,c,basisYXZ(yaw+(R()-.5)*.25*l,g.pitch+(R()-.5)*.05,g.roll+roll),{doors,doorAngle:1.4+R()*1.0,rust:.3+R()*.7,cargo:R()<.3?'boxes':null});
-   }
+
+
+
+  
+  // 공동묘지:
+  // 근경의 컨테이너 협곡 → 중경의 붕괴 더미
+  // → 원경의 끝없는 적재벽으로 깊이를 만든다.
+  const grave=make(
+    'container-graveyard'
+  );
+
+  const graveGround=make(
+    'container-graveyard-ground'
+  );
+
+  const graveFar=make(
+    'container-graveyard-far'
+  );
+
+
+  // 컨테이너가 초원에 놓인 소품처럼 보이지 않도록
+  // 도로 양옆을 낡은 야드 바닥으로 묶는다.
+  strip(
+    graveGround,
+    -82,-13.15,
+    CG_GRAVE_A-10,
+    CG_GRAVE_B+12,
+    0x42423d,
+    .022,
+    4
+  );
+
+  strip(
+    graveGround,
+    13.15,82,
+    CG_GRAVE_A-10,
+    CG_GRAVE_B+12,
+    0x46443e,
+    .022,
+    4
+  );
+
+
+  // 기존 컨테이너 색을 바래고 어둡게 만든다.
+  const dead=(i,k=.66)=>
+    shade(
+      CONT_LIST[
+        (
+          i%CONT_LIST.length+
+          CONT_LIST.length
+        )%CONT_LIST.length
+      ],
+      k
+    );
+
+
+  // 가까운 거리와 중간 거리의 상세 컨테이너 스택.
+  // drawContainer를 사용하므로 골, 프레임, 문짝, 녹이 유지된다.
+  function stackDead(
+    z,
+    u,
+    levels,
+    seed,
+    opt={}
+  ){
+    const side=
+      Math.sign(u)||
+      1;
+
+    const baseYaw=
+      opt.yaw!=null
+        ? opt.yaw
+        : (
+            side>0
+              ? Math.PI
+              : 0
+          );
+
+    for(let l=0;l<levels;l++){
+      const len=
+        (seed+l)%3===0
+          ? CONT_20
+          : CONT_40;
+
+      const uu=
+        u+
+        (
+          l
+            ? Math.sin(
+                seed*1.73+
+                l*.91
+              )*.62
+            : 0
+        );
+
+      const zz=
+        z+
+        (
+          l
+            ? Math.cos(
+                seed*1.19+
+                l*.83
+              )*.78
+            : 0
+        );
+
+      const[x,y]=
+        ground(
+          uu,
+          zz
+        );
+
+      const yaw=
+        baseYaw+
+        Math.sin(
+          seed*1.31+
+          l*.77
+        )*.085;
+
+      const g=
+        settle(
+          uu,
+          zz,
+          yaw,
+          CONT_W/2,
+          len/2
+        );
+
+      const top=
+        l===levels-1;
+
+      const roll=
+        (
+          top
+            ? opt.lean||0
+            : 0
+        )+
+        Math.sin(
+          seed*.9+
+          l*2.1
+        )*.022;
+
+      const pitch=
+        (
+          top
+            ? opt.pitch||0
+            : 0
+        )+
+        Math.cos(
+          seed*1.4+
+          l
+        )*.018;
+
+      const doorCode=
+        (seed+l*3)%7;
+
+      const doors=
+        doorCode===0
+          ? 'open'
+          : doorCode===1
+            ? 'missing'
+            : 'closed';
+
+      drawContainer(
+        grave,
+        [
+          x,
+          y+
+          CONT_H/2+
+          l*CONT_H*.96,
+          zz
+        ],
+        len,
+        dead(
+          seed*3+l,
+          .64+
+          .04*
+          (
+            (seed+l)%4
+          )
+        ),
+        basisYXZ(
+          yaw,
+          pitch+g.pitch,
+          roll+g.roll
+        ),
+        {
+          doors,
+          doorAngle:
+            1.55+
+            .18*
+            (
+              (seed+l)%4
+            ),
+          rust:
+            .72+
+            .07*
+            (
+              (seed+l)%4
+            ),
+          cargo:
+            doors==='open'&&
+            l===0
+              ? 'boxes'
+              : null
+        }
+      );
+    }
   }
-  // 무너진 더미 여섯: 컨테이너 4~5개가 아무렇게나 포개진 무더기
-  for(let h=0;h<6;h++){const z=CG_GRAVE_A+30+h*38+R()*10,side=h%2?-1:1,u=side*(19+R()*8),[x,y]=ground(u,z);
-   for(let k=0;k<4+(h%2);k++){const len=k%2?CONT_20:CONT_40,yaw=R()*Math.PI,roll=(R()-.5)*1.2,pitch=(R()-.5)*.5,lift=k*1.35+Math.abs(roll)*.6;
-    drawContainer(grave,[x+(R()-.5)*4,y+CONT_H/2+lift,z+(R()-.5)*5],len,CONT_LIST[(h*3+k*5)%7],basisYXZ(yaw,pitch,roll),{doors:R()<.5?'missing':'closed',rust:.6+R()*.4});}}
+
+
+  // 원경은 상세도를 조금 줄인 가벼운 실루엣으로 만든다.
+  // 멀리까지 컨테이너가 끝없이 이어진다는 인상만 담당한다.
+  function farDead(
+    z,
+    u,
+    levels,
+    seed
+  ){
+    const side=
+      Math.sign(u)||
+      1;
+
+    const yaw=
+      (
+        side>0
+          ? Math.PI
+          : 0
+      )+
+      Math.sin(
+        seed*.8
+      )*.06;
+
+    const[x,y]=
+      ground(
+        u,
+        z
+      );
+
+    const m=
+      basisYXZ(
+        yaw,
+        0,
+        Math.sin(
+          seed*1.7
+        )*.018
+      );
+
+    for(let l=0;l<levels;l++){
+      const len=
+        (seed+l)%4===0
+          ? CONT_20
+          : CONT_40;
+
+      const c=
+        dead(
+          seed+l,
+          .46+
+          .04*
+          (
+            (seed+l)%3
+          )
+        );
+
+      const centre=[
+        x+
+        Math.sin(
+          seed+l
+        )*.35,
+
+        y+
+        CONT_H/2+
+        l*CONT_H*.97,
+
+        z+
+        Math.cos(
+          seed*.7+l
+        )*.45
+      ];
+
+      mbox(
+        graveFar,
+        centre,
+        [
+          CONT_W,
+          CONT_H,
+          len
+        ],
+        c,
+        m
+      );
+
+      // 멀리서도 끝 프레임 정도는 보이게 한다.
+      for(const sx of[-1,1]){
+        for(const sz of[-1,1]){
+          mbox(
+            graveFar,
+            tb(
+              centre,
+              m,
+              sx*CONT_W/2,
+              0,
+              sz*len/2
+            ),
+            [
+              .13,
+              CONT_H+.03,
+              .13
+            ],
+            shade(
+              c,
+              .58
+            ),
+            m
+          );
+        }
+      }
+    }
+  }
+
+
+  // ─────────────────────────────
+  // 1. 근경
+  // 벽을 뚫자마자 양옆 3~4단 스택이 가까이 붙어
+  // 짧고 압도적인 컨테이너 협곡을 만든다.
+  //
+  // 64m와 178m 부근은 게임 쪽 실제 충돌 컨테이너가
+  // 들어오는 위치라 일부러 비워 둔다.
+  // ─────────────────────────────
+
+  const near=[
+    [  8,-15.3,3, 1, .08],
+    [ 17, 15.8,4, 2,-.10],
+
+    [ 31,-15.0,4, 3, .13],
+    [ 43, 16.1,3, 4,-.09],
+
+    [ 83,-15.6,4, 5, .11],
+    [ 96, 15.4,3, 6,-.10],
+
+    [111,-16.0,4, 7, .14],
+    [128, 15.5,4, 8,-.12],
+
+    [145,-15.4,3, 9, .10],
+
+    [198,-15.7,3,10, .08],
+    [214, 15.2,4,11,-.13],
+    [231,-16.2,3,12, .09]
+  ];
+
+  for(
+    const[
+      dz,
+      u,
+      levels,
+      seed,
+      lean
+    ]of near
+  ){
+    stackDead(
+      CG_GRAVE_A+dz,
+      u,
+      levels,
+      seed,
+      {
+        lean
+      }
+    );
+  }
+
+
+  // ─────────────────────────────
+  // 2. 중경
+  // 정돈된 적재열이 붕괴해서 서로 기대고 포개진 모습.
+  // 근경보다 조금 멀리 배치한다.
+  // ─────────────────────────────
+
+  for(let i=0;i<11;i++){
+    const z=
+      CG_GRAVE_A+
+      5+
+      i*22.2+
+      (i%3)*2.8;
+
+    for(const side of[-1,1]){
+      const u=
+        side*
+        (
+          24.5+
+          (i%4)*3.0
+        );
+
+      const levels=
+        2+
+        (
+          (
+            i+
+            (
+              side>0
+                ? 1
+                : 0
+            )
+          )%3
+        );
+
+      stackDead(
+        z,
+        u,
+        levels,
+        30+
+        i*5+
+        (
+          side>0
+            ? 2
+            : 0
+        ),
+        {
+          yaw:
+            (
+              side>0
+                ? Math.PI
+                : 0
+            )+
+            (
+              i%2
+                ? .13
+                : -.10
+            ),
+
+          lean:
+            side*
+            (
+              i%4===2
+                ? .16
+                : .04
+            ),
+
+          pitch:
+            i%5===3
+              ? .09
+              : 0
+        }
+      );
+    }
+  }
+
+
+  // ─────────────────────────────
+  // 3. 원경
+  // 도로 바깥 멀리 3~6단 높이의 적재벽을 세운다.
+  // 가까운 컨테이너보다 어둡게 만들어 깊이만 담당한다.
+  // ─────────────────────────────
+
+  for(let i=0;i<12;i++){
+    const z=
+      CG_GRAVE_A-
+      8+
+      i*23.5;
+
+    for(const side of[-1,1]){
+      farDead(
+        z,
+
+        side*
+        (
+          43+
+          (i%3)*12
+        ),
+
+        3+
+        (
+          (
+            i+
+            (
+              side>0
+                ? 2
+                : 0
+            )
+          )%4
+        ),
+
+        70+
+        i*4+
+        (
+          side>0
+            ? 1
+            : 0
+        )
+      );
+    }
+  }
+
+
+  // 오른쪽 한 곳은 적재된 탑이 아니라
+  // 여러 컨테이너가 뒤집혀 포개진 봉분처럼 만든다.
+  {
+    const z0=
+      CG_GRAVE_A+
+      142;
+
+    const u0=
+      25.5;
+
+    const heap=[
+      [
+        -3.0,-5.0,
+        CONT_40,
+        .15,.05,.44
+      ],
+      [
+        1.5,-1.0,
+        CONT_20,
+        1.70,-.10,-.62
+      ],
+      [
+        -1.0,3.5,
+        CONT_40,
+        2.55,.18,.78
+      ],
+      [
+        3.2,5.0,
+        CONT_20,
+        -.80,.30,-.45
+      ],
+      [
+        -2.7,7.0,
+        CONT_20,
+        .55,-.22,1.12
+      ],
+      [
+        1.0,9.0,
+        CONT_40,
+        1.20,.12,-.88
+      ]
+    ];
+
+    for(
+      let i=0;
+      i<heap.length;
+      i++
+    ){
+      const[
+        du,
+        dz,
+        len,
+        yaw,
+        pitch,
+        roll
+      ]=heap[i];
+
+      const u=
+        u0+du;
+
+      const z=
+        z0+dz;
+
+      const[x,y]=
+        ground(
+          u,
+          z
+        );
+
+      drawContainer(
+        grave,
+        [
+          x,
+          y+
+          CONT_H/2+
+          i*.92+
+          Math.abs(roll)*.45,
+          z
+        ],
+        len,
+        dead(
+          130+i,
+          .60
+        ),
+        basisYXZ(
+          yaw,
+          pitch,
+          roll
+        ),
+        {
+          doors:
+            i%3===1
+              ? 'open'
+              : i%3===2
+                ? 'missing'
+                : 'closed',
+
+          doorAngle:
+            1.8,
+
+          rust:
+            .92,
+
+          cargo:
+            i===1
+              ? 'boxes'
+              : null
+        }
+      );
+    }
+  }
+
+
+
+
+    
   // 옆으로 누운 컨테이너 넷
   for(let i=0;i<4;i++){const z=CG_GRAVE_A+40+i*62,side=i%2?1:-1,u=side*(15.5+R()*6),[x,y]=ground(u,z);drawContainer(grave,[x,y+CONT_W/2-.05,z],CONT_40,CONT_LIST[(i*5+2)%7],basisYXZ(side*.35+(R()-.5)*.4,(R()-.5)*.12,side*Math.PI/2),{doors:'missing',rust:.8});}
   // 왼쪽에 도로 쪽으로 기울어 기댄 컨테이너 벽 다섯
