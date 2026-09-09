@@ -397,7 +397,7 @@ function wastelandBump(z){
  return d<.20?(.72*Math.pow(1-d/.20,1.65))*.84:0;
 }
 function twistField(z){
- const early=.026*smooth(760,980,z)*(1-smooth(1180,1560,z));
+const early=.105*smooth(790,930,z)*(1-smooth(1210,1510,z));
  const deep=1.12*smooth(DEEP_SPIRAL_START,DEEP_SPIRAL_FULL,z)*(1-smooth(DEEP_SPIRAL_RELAX,DEEP_SPIRAL_END,z));
  return Math.max(early,deep);
 }
@@ -759,17 +759,29 @@ function roadPaint(batch,outline,color,lift=.035){
   const a=1420+r*340,e=a+340,b=make('country-fields-'+r),canal=make('country-canals-'+r,'water');
   for(let z=a;z<e;z+=42){
    const c0=(Math.floor(z/42)+r)%3===0?0x6f7247:(Math.floor(z/42)+r)%3===1?0x8a7044:0x5f6b48;
-   strip(b,-79,-18,z,Math.min(e,z+39),c0,.016,7);strip(b,18,79,z,Math.min(e,z+39),c0,.016,7);
+  strip(b,-79,-18,z,Math.min(e,z+39),c0,.016,7);
+   if(z+39<1740||z>2420){
+     strip(b,18,79,z,Math.min(e,z+39),c0,.016,7);
+   }
    for(const side of[-1,1]){
     const x=cx(z)+side*(25+(Math.floor(z/42)%3)*13),y=Y(x,z);
-    b.box([x,y+.12,z],[26,.24,.55],0x4f4b35,[0,(R()-.5)*.08,0]);
+     const yaw=(R()-.5)*.08;
+    if(side<0||z<1740||z>2420){
+      b.box([x,y+.12,z],[26,.24,.55],0x4f4b35,[0,yaw,0]);
+    }
    }
   }
-  for(let z=a+24;z<e;z+=86){strip(canal,-24,-22,z,z+58,0x405c58,.035,6);strip(canal,22,24,z+18,z+74,0x405c58,.035,6);}
+ for(let z=a+24;z<e;z+=86){
+   strip(canal,-24,-22,z,z+58,0x405c58,.035,6);
+   if(z+74<1740||z+18>2420){
+     strip(canal,22,24,z+18,z+74,0x405c58,.035,6);
+   }
+  }
  }
- greenhouse(1545,-1,0);greenhouse(1750,1,1);greenhouse(2160,-1,2);greenhouse(2380,1,3);
+ greenhouse(1545,-1,0);greenhouse(1750,1,1);greenhouse(2160,-1,2);greenhouse(2460,1,3);
  const rural=make('country-roadside');
- for(let z=1460,i=0;z<2490;z+=76,i++)for(const side of[-1,1]){
+for(let z=1460,i=0;z<2490;z+=76,i++)for(const side of[-1,1]){
+  if(side>0&&z>=1740&&z<=2420)continue;
   const x=cx(z)+side*(22+(i%3)*6),y=pole(rural,x,z,7.5+(i%2)*2,0x4d4c43);
   rural.beam([x,y+7.2,z],[x+side*8,y+6.7,z+1.5],.045,.045,0x333632);
   if(i%4===1)rural.box([x+side*2.2,y+4.3,z],[3.6,.08,2.3],0x62594b,[0,.2*side,.25*side]);
@@ -1056,31 +1068,36 @@ for(const side of[-1,1]){
   mountain.box([cc,by+12.0,z+(z===ts?-4:4)],[38,3.0,9],0x6c7063);
  }
 
- // 4.9–5.9 km: full night opens over a black sea on the right, leading directly to the ship.
- const nightSea=make('black-night-sea','water'),nightGlint=make('night-moon-reflection','moon-glint'),nightShore=make('black-sea-shore');
- const nightSeaLevelAt=z=>base(z)-2.08;
- gradedStrip(nightSea,-330,-16.0,4900,5940,nightSeaLevelAt,0x061923,.024,6);
- // A broken silver path from the moon, wide enough to remain visible from the road.
- for(let z=4970,i=0;z<5900;z+=15,i++){
-  const x=cx(z)-22-Math.sin(z*.018)*6-(i%4)*3.2,w=6.5+14*Math.pow(i/62,.60);
-  nightGlint.box([x,nightSeaLevelAt(z)+.055,z],[w,.016,9+(i%3)*4],i%2?0xc5e2eb:0x91b9c8,[0,.10*Math.sin(i*.7),0]);
+
+
+
+
+ // 검은 수면: 해안·부두·달빛 길 없이 어두운 물 자체를 보여준다.
+ const blackWater=make('black-water-basin','black-water');
+ const waterY=z=>base(z)-1.55;
+ const waterPoint=(z,far)=>{
+   const k=smooth(4920,5010,z)*(1-smooth(5470,5560,z));
+   const u=far?mix(-13.4,-156,k):-13.4;
+   return[cx(z)+u,waterY(z)+.025,z];
+ };
+ for(let z=4920;z<5560;z+=4){
+   const z2=Math.min(5560,z+4);
+   blackWater.quad(
+     waterPoint(z,false),waterPoint(z2,false),
+     waterPoint(z2,true),waterPoint(z,true),rgb(0x020405)
+   );
  }
- // Jagged rocks, drowned posts and a tiny abandoned jetty define the shoreline.
- for(let z=4920,i=0;z<5950;z+=24,i++){
-  const x=cx(z)-13.0-(i%3)*.8,y=Y(x,z);
-  nightShore.box([x,y+.35,z],[4.5+(i%4)*2.3,.70,9+(i%3)*6],i%2?0x252b29:0x33362f,[R()*.12,R()*2.6,(R()-.5)*.12]);
-  if(i%5===1){const sx=cx(z)-20-(i%2)*7,sy=nightSeaLevelAt(z);nightShore.beam([sx,sy-1.0,z],[sx-.3,sy+3.2,z+.8],.10,.12,0x252825);}
- }
- {const z=5480,x=cx(z)-19,y=nightSeaLevelAt(z);
-  nightShore.box([x-13,y+.20,z],[27,.34,2.4],0x4a4137,[0,.06,0]);
-  for(const dx of[1,8,15,22,27])nightShore.beam([x-dx,y-4.0,z],[x-dx,y+.35,z],.17,.17,0x302d28);
- }
- // A few almost invisible shapes below the surface make the water feel bottomless rather than decorative.
- for(let i=0;i<9;i++){const z=5100+i*82,x=cx(z)-105-(i%3)*37,y=nightSeaLevelAt(z)-.8-(i%2)*1.4;nightShore.box([x,y,z],[8+i%4*5,.35,16+i%3*8],0x061015,[.04,R()*2.7,.02]);}
+ // 삭제한 해안 장식의 난수 소비를 유지해 이후 동굴 배치가 바뀌지 않게 한다.
+ for(let i=0;i<43*3+9;i++)R();
+
+
+
 
  // 5.8–6.1 km: a stranded container ship. It sits close to the road, before the dust front.
  const ship=make('stranded-container-ship'),shipGlow=make('ship-emergency-light','night-emissive');
- {const z=5960,side=-1,x=cx(z)+side*58,y=base(z)-3.2,ry=.18,c=Math.cos(ry),sn=Math.sin(ry);
+ {
+  
+ const z=5960,side=1,x=cx(z)+side*58,y=base(z)-3.2,ry=-.18,c=Math.cos(ry),sn=Math.sin(ry);
   const p=(dx,dy,dz)=>[x+c*(dx*side)+sn*dz,y+dy,z-sn*(dx*side)+c*dz];
   // Long tapered hull and a pale road-facing stripe keep the silhouette readable in moonlight.
   ship.box(p(0,8,-8),[48,16,142],0x557681,[0,ry,.025]);ship.box(p(0,9,73),[42,14,28],0x587984,[0,ry,.07]);ship.box(p(0,10,94),[31,12,18],0x5d7f88,[0,ry,.10]);ship.box(p(0,11,108),[18,9,12],0x64858d,[0,ry,.13]);
@@ -1314,7 +1331,7 @@ uniform vec3 jwOrigin;
 uniform float jwTwist, jwTime, jwSeed;
 float jwEase(float a,float b,float x){float t=clamp((x-a)/(b-a),0.0,1.0);return t*t*(3.0-2.0*t);}
 float jwTwistField(float z){
- float early=.026*jwEase(760.0,980.0,z)*(1.0-jwEase(1180.0,1560.0,z));
+float early=.105*jwEase(790.0,930.0,z)*(1.0-jwEase(1210.0,1510.0,z));
  float deep=1.12*jwEase(7350.0,7720.0,z)*(1.0-jwEase(8820.0,9200.0,z));
  return max(early,deep);
 }
@@ -1395,11 +1412,17 @@ function createWorld(api){
  const emissive=new T.MeshBasicMaterial({vertexColors:true,side:T.DoubleSide});
  const wetMat=new T.MeshPhongMaterial({vertexColors:true,transparent:true,opacity:0,depthWrite:false,shininess:65,specular:0x8c9a94,side:T.DoubleSide});
  const waterMat=new T.MeshPhongMaterial({vertexColors:true,transparent:true,opacity:.70,depthWrite:false,shininess:105,specular:0xa9c8d4,side:T.DoubleSide});
+ const blackWaterMat=new T.MeshBasicMaterial({
+   vertexColors:true,side:T.DoubleSide,depthWrite:true
+ });
  const nightEmissiveMat=new T.MeshBasicMaterial({vertexColors:true,transparent:true,opacity:0,depthWrite:false,side:T.DoubleSide});
  const pulseEmissiveMat=new T.MeshBasicMaterial({vertexColors:true,transparent:true,opacity:.75,depthWrite:false,side:T.DoubleSide});
  const moonGlintMat=new T.MeshBasicMaterial({vertexColors:true,transparent:true,opacity:0,depthWrite:false,side:T.DoubleSide,blending:T.AdditiveBlending});
  const nightShadowMat=new T.MeshBasicMaterial({vertexColors:true,transparent:true,opacity:0,depthWrite:false,side:T.DoubleSide});
- const materialFor=kind=>kind==='emissive'?emissive:kind==='wet'?wetMat:kind==='water'?waterMat:kind==='night-emissive'?nightEmissiveMat:kind==='pulse-emissive'?pulseEmissiveMat:kind==='moon-glint'?moonGlintMat:kind==='night-shadow'?nightShadowMat:solids;
+ const materialFor=kind=>kind==='black-water'?blackWaterMat:kind==='emissive'?emissive:
+ 
+ 
+ kind==='wet'?wetMat:kind==='water'?waterMat:kind==='night-emissive'?nightEmissiveMat:kind==='pulse-emissive'?pulseEmissiveMat:kind==='moon-glint'?moonGlintMat:kind==='night-shadow'?nightShadowMat:solids;
  const sections=D.buildWorld(H,cx,seed).map(b=>{
   const m=new T.Mesh(geometryFrom(b),materialFor(b.kind));
   m.name=b.name;m.userData.range=[b.min[2],b.max[2]];m.userData.kind=b.kind;
@@ -1579,10 +1602,10 @@ sign(
   float voidDot=dot(d,normalize(vec3(.47,.12,.875)));
   float voidCore=smoothstep(.72+(voidNoise-.5)*.16,.992,voidDot)*anomaly;
   float voidFringe=smoothstep(.58+(voidNoise-.5)*.10,.91,voidDot)*anomaly;
-  float starVis=night*(1.0-cloud*.92)*(1.0-dust*.86)*(1.0-voidCore*.88);
+  float starVis=night*(1.0-cloud*.92)*(1.0-dust*.86)*(1.0-voidCore*.96);
   col+=vec3(.70,.82,1.0)*stars*starVis*1.95;
   col+=vec3(.10,.16,.24)*milky*starVis*.75;
-  col=mix(col,col*.42,voidCore*.22);
+  col=mix(col,col*.28,voidCore*.38);
   col+=vec3(.025,.045,.075)*voidFringe*(.12+.10*voidNoise);
   return mix(col,cloudTone,cloud);
  }
@@ -1745,7 +1768,8 @@ sign(
   scene.fog.near=D.mix(88,18,haze);scene.fog.far=D.mix(365,underground>.2?132:180,haze);
   // The cavern opens back up; the deep spiral remains visible but its circular edge dissolves into haze.
   scene.fog.near=D.mix(scene.fog.near,46,w.cavern);scene.fog.far=D.mix(scene.fog.far,285,w.cavern);
-  scene.fog.near=D.mix(scene.fog.near,24,w.deepSpiral);scene.fog.far=D.mix(scene.fog.far,148,w.deepSpiral);
+scene.fog.near=D.mix(scene.fog.near,48,w.deepSpiral);
+  scene.fog.far=D.mix(scene.fog.far,320,w.deepSpiral);
   const anchor=Math.floor((z-D.TUNNEL_START)/12)*12+D.TUNNEL_START;
   for(let i=0;i<2;i++){
    const l=lamps[i];
@@ -1800,7 +1824,14 @@ sign(
    dockPanels.forEach(q=>q.m.geometry.dispose());dockMetal.dispose();
    scene.remove(root,rain,splashes);for(const m of sections)m.geometry.dispose();rainGeo.dispose();splashGeo.dispose();
    for(const s of signs){s.texture.dispose();s.mat.dispose();}
-   for(const m of[solids,emissive,wetMat,waterMat,nightEmissiveMat,pulseEmissiveMat,moonGlintMat,nightShadowMat,rainMat,splashMat,moonMat,skyMat,moonHaloMat,fragMat])m.dispose();
+      for(const m of[
+     solids,emissive,wetMat,waterMat,blackWaterMat,
+     nightEmissiveMat,pulseEmissiveMat,
+     moonGlintMat,nightShadowMat,
+     rainMat,splashMat,moonMat,skyMat,moonHaloMat,fragMat
+   ])m.dispose();
+   
+   
    dome.geometry.dispose();moon.geometry.dispose();fragGeo.dispose();haloTex.dispose();if(audio){audio.src.stop();audio.osc.stop();audio.drone.stop();audio.drone2.stop();}
    lamps.forEach(l=>scene.remove(l));scene.remove(moonLight,moonTarget);
   }
@@ -2029,16 +2060,23 @@ function H(x,z){
  y=lerp(y,roadBase-3.45-.22*Math.sin(z*.018),farmLake);
  const river=scenicBand(z,2580,2960,90)*smooth((Math.abs(u)-12.8)/10);
  y=lerp(y,roadBase-5.55-.28*Math.sin(x*.018),river);
- // The night shoreline is now on the right, visibly leading toward the stranded ship.
- const nightLake=scenicBand(z,4920,6040,120)*smooth((-u-12.8)/18);
- y=lerp(y,roadBase-4.25-.20*Math.sin(z*.014),nightLake);
+ 
+ 
+// 검은 수면은 이 구간에서 끝나며, 뒤의 배와 연결되지 않는다.
+ const nightLake=scenicBand(z,4920,5560,70)
+   *smooth((-u-12.5)/3.2)*(1-smooth((-u-145)/28));
+ y=lerp(y,roadBase-3.4,nightLake);
+
+
+
  // The abandoned cross street is a real cut through the embankment, not a folded terrain ribbon.
  const crossStreet=scenicBand(z,3482,3548,25)*smooth((Math.abs(u)-12.2)/8)*(1-smooth((Math.abs(u)-108)/18));
  y=lerp(y,rawH(cx(3515),3515)-.04,crossStreet);
  // Only the route corridor falls into the sinkhole; the surface remains above on both sides.
- const shipBasin=scenicBand(z,5780,6120,90)*smooth((-u-14)/8)*(1-smooth((-u-116)/18));
+const shipBasin=scenicBand(z,5780,6120,90)*smooth((u-14)/8)*(1-smooth((u-116)/18));
+
  y-=shipBasin*8.5;
- const shipX=cx(5960)-58,shipDx=Math.abs(x-shipX)-48,shipDz=Math.abs(z-5960)-125,shipPad=(1-smooth((shipDx+1)/16))*(1-smooth((shipDz+1)/30))*smooth((Math.abs(u)-20)/12);
+ const shipX=cx(5960)+58,shipDx=Math.abs(x-shipX)-48,shipDz=Math.abs(z-5960)-125,shipPad=(1-smooth((shipDx+1)/16))*(1-smooth((shipDz+1)/30))*smooth((Math.abs(u)-20)/12);
  y=lerp(y,rawH(cx(5960),5960)-10.0,shipPad);
  const storyDepth=JW.storyDepthAt(z),corridor=1-smooth((Math.abs(u)-14)/30);
  y-=storyDepth*corridor;
@@ -2665,7 +2703,10 @@ function fillDecal(c,z0){
       if(roadFurnitureSuppressed((z+z2)*.5))continue;
       const c1=cx(z), c2=cx(z2);
       const y1=H(c1+u,z), y2=H(c2+u,z2);
-      quad([c1+u,y1+h0,z],[c1+u,y1+h1,z],[c2+u,y2+h1,z2],[c2+u,y2+h0,z2],color);
+        const open=blackWaterView((z+z2)*.5,u);
+      const low=open?.02:h0,high=open?.14:h1;
+      quad([c1+u,y1+low,z],[c1+u,y1+high,z],
+           [c2+u,y2+high,z2],[c2+u,y2+low,z2],color);
     }
   };
   const zA=Math.max(z0,188), zB=z0+CH_LEN;
@@ -2683,7 +2724,7 @@ function fillDecal(c,z0){
   for(const s of[-1,1]){
     fence(s*(RAIL+0.55), CLR.rail, 0.45,0.78, zA,zB,3);
     for(let z=zA+1;z<zB;z+=4){
-      if(roadFurnitureSuppressed(z))continue;
+       if(roadFurnitureSuppressed(z)||blackWaterView(z,s*(RAIL+.55)))continue;
       const cc=cx(z), y=H(cc+s*(RAIL+0.55),z);
       const u=cc+s*(RAIL+0.55);
       quad([u-0.07,y,z-0.07],[u-0.07,y+0.8,z-0.07],[u+0.07,y+0.8,z+0.07],[u+0.07,y,z+0.07],CLR.post);
@@ -2749,13 +2790,20 @@ function fillObjects(c,z0){
   }
 }
 
+function blackWaterView(z,u){return z>=5020&&z<=5470&&u< -12;}
+function shoreClear(z,u){
+  return (z>=4920&&z<=5560&&u< -12.5)
+    ||(z>=1740&&z<=2420&&u>13.5);
+}
 function fillChunk(c,z0){
   c.z0=z0;
   fillGround(c,z0);
   fillDecal(c,z0);
   fillObjects(c,z0);
   for(const o of [...c.cones,...c.deco,...c.boulders,...c.weeds]){
-    if(o.position.z<188&&!o.userData.hits)o.visible=false;
+     if(!o.userData.hits&&(
+      o.position.z<188||shoreClear(o.position.z,o.position.x-cx(o.position.z))
+    ))o.visible=false;
   }
   for(const o of [c.pallet,c.baton,c.helmet])if(o.visible&&o.position.z>105&&o.position.z<188){
     const z=o.position.z,cc=cx(z),b=JockeyWorldData.driveBounds(z),lift=o===c.baton?1.25:.01;
@@ -2793,13 +2841,20 @@ for(let i=0;i<2;i++){
  mesh.frustumCulled=false;decal.frustumCulled=false;scene.add(mesh,decal);
  roadTail.push({geo,mesh,decal,z0:NaN});
 }
+
+
 function refreshRoadTail(){
- const front=Math.max(...chunks.map(c=>c.z0))+CH_LEN;
- for(let i=0;i<roadTail.length;i++){
-  const c=roadTail[i],z0=front+i*CH_LEN;
-  if(c.z0===z0)continue;
-  c.z0=z0;fillGround(c,z0);fillDecal(c,z0);
- }
+  const front=Math.max(...chunks.map(c=>c.z0))+CH_LEN;
+  const wanted=roadTail.map((_,i)=>front+i*CH_LEN);
+
+  for(const z0 of wanted){
+    if(roadTail.some(c=>c.z0===z0))continue;
+    const c=roadTail.find(c=>!wanted.includes(c.z0));
+    if(!c)continue;
+    c.z0=z0;
+    fillGround(c,z0);
+    fillDecal(c,z0);
+  }
 }
 refreshRoadTail();
 
@@ -3364,7 +3419,9 @@ function dropPallets(n){
   }
   setStack(P.pallets);
 }
+const perfTrace=window.__jockeyPerf={lastHit:null,frames:[]};
 function crash(wipe){
+  const hitStarted=performance.now();
   const shield=P.pallets>0;                       // 파렛트가 있으면 목숨 대신 파렛트가 깨진다
   if(shield){ dropPallets(wipe?2:1); SFX.shield(wipe); }
   else { P.hits++; if(wipe) SFX.wipeout(); else SFX.crash(); }
@@ -3378,7 +3435,11 @@ function crash(wipe){
   emit(dust,P.x,P.y+0.2,P.z,-P.vx*0.2,2.5,-P.vz*0.2,6,shield?14:26,0.9);
   updateLives();
   if(navigator.vibrate) try{navigator.vibrate(wipe?[30,40,30]:(shield?20:35));}catch(e){}
-  if(P.hits>=P.maxLives) finish();
+   if(P.hits>=P.maxLives) finish();
+  perfTrace.lastHit={
+    at:performance.now(),z:Math.round(P.z),
+    ms:performance.now()-hitStarted,shield
+  };
 }
 const KICK_T=0.62;
 function kick(){
@@ -4102,6 +4163,32 @@ shadow.rotation.set(-Math.PI/2+g.z*0.9,0,-g.x*0.9);
 
 /* ---- 카메라: 도로 방향을 따라간다. 조작하면 캐릭터가 화면 안에서 움직인다 ---- */
 const camTmp=new THREE.Vector3();
+const pipeCamCenter=new THREE.Vector3();
+const pipeCamLook=new THREE.Vector3();
+
+function pipeCenterAt(z,out){
+  const y=q=>H(cx(q),q)+18*JW.glideAt(q)+PIPE_RADIUS;
+  if(z<PIPE_START||z>PIPE_END)return out.set(cx(z),y(z),z);
+  const a=PIPE_START+Math.floor((z-PIPE_START)/12)*12;
+  const b=Math.min(PIPE_END,a+12),t=b>a?(z-a)/(b-a):0;
+  return out.set(lerp(cx(a),cx(b),t),lerp(y(a),y(b),t),z);
+}
+
+function keepCameraInsidePipe(){
+  const z=camera.position.z;
+  if(z<PIPE_START||z>PIPE_END)return;
+  pipeCenterAt(z,pipeCamCenter);
+  const dx=camera.position.x-pipeCamCenter.x;
+  const dy=camera.position.y-pipeCamCenter.y;
+  const r=Math.hypot(dx,dy),limit=PIPE_RADIUS*.62;
+  if(r>limit){
+    camera.position.x=pipeCamCenter.x+dx*limit/r;
+    camera.position.y=pipeCamCenter.y+dy*limit/r;
+  }
+  camera.up.set(0,1,0);
+  pipeCenterAt(Math.max(z+18,P.z+8),pipeCamLook);
+  camera.lookAt(pipeCamLook);
+}
 let camYaw=0, camX=0, camInit=false;
 let introT=0;
 
@@ -4126,65 +4213,35 @@ function updateCamera(dt,sp){
   }
   if(!running&&poseT>.5){camera.up.set(0,1,0);introCamera(dt);return;}
   
-  
-  // 파이프에서는 관 중심을 따라간다.
-// 캐릭터의 회전을 카메라가 함께 쫓지 않는다.
-if(P.pipeMode){
-  const centerY=z=>
-    H(cx(z),z)+18*JW.glideAt(z)+PIPE_RADIUS;
-
+if(P.pipeMode||(
+  P.z>=PIPE_END&&P.z<PIPE_END+80&&camera.position.z<PIPE_END+8
+)){
   const fov=82;
   const narrow=Math.max(.35,Math.min(1,camera.aspect));
-  const back=Math.max(
-    18,
-    12/(Math.tan(fov*Math.PI/360)*narrow)
-  );
+  const back=Math.max(18,12/(Math.tan(fov*Math.PI/360)*narrow));
   const z=P.z-back;
+  const exit=smooth((P.z-PIPE_END)/(back+18));
 
-  camera.up.set(0,1,0);
-
+  pipeCenterAt(z,pipeCamCenter);
   camTmp.set(
-    cx(z)+(P.x-cx(P.z))*.10,
-    centerY(z)+(P.y-centerY(P.z))*.10,
-    z
+    lerp(pipeCamCenter.x,P.x,exit),
+    lerp(pipeCamCenter.y,P.y+3+stackH*.7,exit),z
   );
-
+  camera.up.set(0,1,0);
   camera.position.lerp(camTmp,1-Math.exp(-12*dt));
 
-  // 진입·출구에서도 카메라가 관벽 밖으로 나가지 않게 한다.
-  const cz=camera.position.z;
-  const cx0=cx(cz),cy0=centerY(cz);
-  const ox=camera.position.x-cx0;
-  const oy=camera.position.y-cy0;
-  const r=Math.hypot(ox,oy),limit=PIPE_RADIUS*.70;
-
-  if(r>limit){
-    camera.position.x=cx0+ox*limit/r;
-    camera.position.y=cy0+oy*limit/r;
-  }
-
-  rideLook.set(
-    cx(P.z+10),
-    centerY(P.z+10),
-    P.z+10
-  );
-  camera.lookAt(rideLook);
-
+  pipeCenterAt(P.z+10,pipeCamLook);
+  pipeCamLook.y=lerp(pipeCamLook.y,P.y+1+stackH*.75,exit);
+  camera.lookAt(pipeCamLook);
   camera.fov=lerp(camera.fov,fov,1-Math.exp(-7*dt));
   camera.updateProjectionMatrix();
-
   camYaw=Math.atan2(cxSlope(P.z),1);
-  camX=P.x;
-  camInit=true;
-
-  const e=new THREE.Euler()
-    .setFromQuaternion(camera.quaternion,'YXZ');
-
+  camX=P.x;camInit=true;
+  const e=new THREE.Euler().setFromQuaternion(camera.quaternion,'YXZ');
   bgU.uYaw.value=e.y;
   bgU.uPitch.value=clamp(-e.x*.55,-.3,.3);
   return;
 }
-  
 
 
 
@@ -4695,7 +4752,7 @@ if(WORLD_TOUR){
   b.style.cssText='margin:0;width:auto;min-width:0;flex:0 0 auto;height:32px;padding:6px 9px;border:1px solid #718578;background:#31473b;color:#eef1e5;border-radius:3px;touch-action:manipulation;font:11px system-ui;letter-spacing:0;box-shadow:none';
   b.addEventListener('pointerdown',e=>e.stopPropagation());b.addEventListener('click',e=>{e.stopPropagation();fn();});bar.appendChild(b);return b;};
  makeButton('인트로',showWorldIntro);
- for(const[label,z]of [['창고',12],['첫 비',352],['약한 뒤틀림',990],['논밭',1600],['저수지',2050],['강 다리',2760],['철길',3125],['교차로',3515],['아파트',3720],['고가도로',3970],['산악 터널',4450],['검은 바다',5350],['좌초선',5900],['관람차',6740],['진짜 나선',7900],['관측소',9550],['싱크홀 전조',11040],['싱크홀',11320],['지하차도',11880],['자연동굴',12820],['활강',13480],['배수관',14250],['관 출구',15150],['다시 낮',15800],['부서진 길',17500],['자키 벌판',18350]])makeButton(label,()=>inspectWorldAt(z));
+ for(const[label,z]of [['창고',12],['첫 비',352],['약한 뒤틀림',990],['논밭',1600],['저수지',2050],['강 다리',2760],['철길',3125],['교차로',3515],['아파트',3720],['고가도로',3970],['산악 터널',4450],['검은 수면',5350],['좌초선',5900],['관람차',6740],['진짜 나선',7900],['관측소',9550],['싱크홀 전조',11040],['싱크홀',11320],['지하차도',11880],['자연동굴',12820],['활강',13480],['배수관',14250],['관 출구',15150],['다시 낮',15800],['부서진 길',17500],['자키 벌판',18350]])makeButton(label,()=>inspectWorldAt(z));
  const play=makeButton('▶ 시작',()=>{
   if(!running){start();worldInspectPaused=false;}else worldInspectPaused=!worldInspectPaused;
   play.textContent=worldInspectPaused?'▶ 주행':'Ⅱ 정지';
@@ -4706,7 +4763,18 @@ if(WORLD_TOUR){
 let last=performance.now();
 function frame(now){
   requestAnimationFrame(frame);
-  let dt=(now-last)/1000; last=now; dt=Math.max(0,Math.min(dt,0.05));
+    const gap=now-last;
+  if(gap>70&&running&&!gamePaused&&!worldInspectPaused&&!document.hidden){
+    const hit=perfTrace.lastHit;
+    perfTrace.frames.push({
+      z:Math.round(P.z),gap:Math.round(gap),
+      hitAgo:hit?Math.round(now-hit.at):null,
+      hitMs:hit?+hit.ms.toFixed(2):null
+    });
+    if(perfTrace.frames.length>30)perfTrace.frames.shift();
+  }
+  let dt=Math.max(0,Math.min(gap/1000,.05));
+  last=now;
   const sp0=Math.hypot(P.vx,P.vz);
   const frozen=(worldInspectPaused||gamePaused)&&!story.ending,animDt=frozen?0:dt;
   if(running&&!worldInspectPaused&&!gamePaused&&!story.ending){
@@ -4718,7 +4786,10 @@ function frame(now){
   stepParticles(dust,animDt); stepParticles(sparks,animDt);
     revealIntroItems();
   animateRider(animDt,sp);
-  if(!window.__freeCam)updateCamera(animDt,sp);
+    if(!window.__freeCam){
+    updateCamera(animDt,sp);
+    keepCameraInsidePipe();
+  }
   if(running&&!story.ending)updateHud(dt,(worldInspectPaused||gamePaused)?0:sp);
   audioUpdate(running&&!gamePaused?sp:0,dt);
   world3D.update(animDt,sp);
