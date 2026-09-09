@@ -3642,7 +3642,11 @@ function drawStrap(b,pts,color=0xc7b23a){for(let i=0;i+1<pts.length;i++)b.beam(p
 const CG_A=INSERTS[0].at,CG_B=CG_A+INSERTS[0].len;                 // 1414~2194 컨테이너 이상징후 → 미니 밭 → 벽 → 공동묘지
 const CG_FIELD_A=CG_A+236,CG_FIELD_B=CG_A+380,CG_REVEAL=CG_A+402,CG_WALL=CG_A+470,CG_GRAVE_A=CG_A+482,CG_GRAVE_B=CG_A+742;
 const SF_A=wz(INSERTS[1].at)-INSERTS[1].len,SF_B=SF_A+INSERTS[1].len; // 6904~7364 해상 유실 화물지대
-const SF_SPILL=SF_A+8,SF_FIELD_A=SF_A+30,SF_FIELD_B=SF_A+290,SF_REVEAL=SF_A+300,SF_STRUCT=SF_A+420;
+
+const SF_SPILL=SF_A+10,SF_FIELD_A=SF_A+34,SF_FIELD_B=SF_A+260,SF_REVEAL=SF_A+310,SF_STRUCT=SF_A+420;
+
+
+
 const SF_WATER_DROP=6.9;  // 도로 기준면 아래 검은 물 수면 깊이 (게임 쪽 H()의 cargoBay 밴드와 맞춤)
 
 // 삽입 구간은 월드 좌표로 직접 만든다 (Hw, cxw = 월드 좌표 지형 함수)
@@ -4321,7 +4325,31 @@ function buildInsertedWorld(Hw,cxw,seed=0){
 
  // ================= 삽입 2: 해상 유실 화물지대 (컨테이너선 뒤) =================
  {
-  const wreck=make('ship-cargo-wreckage'),wet=make('ship-cargo-wet-pallets'),water=make('ship-cargo-black-water','black-water'),glint=make('ship-cargo-water-sheen','moon-glint'),straps=make('ship-cargo-straps');
+  const wreck=make(
+  'ship-cargo-wreckage'
+);
+
+const wet=make(
+  'ship-cargo-wet-pallets'
+);
+
+const water=make(
+  'ship-cargo-black-water',
+  'black-water'
+);
+
+const glint=make(
+  'ship-cargo-water-sheen',
+  'moon-glint'
+);
+
+const straps=make(
+  'ship-cargo-straps'
+);
+
+const quay=make(
+  'ship-cargo-broken-quay'
+);
   // 배 이전 전조 (원래 좌표 5662~5822): 젖은 파렛트·문짝·끊어진 끈
   for(const[i,[lp,u]]of[[5662,-16.5],[5705,17.2],[5748,-15.3],[5790,16.0],[5822,-18.0]].entries()){
    const z=wz(lp),[x,y]=ground(u,z);
@@ -4332,40 +4360,1117 @@ function buildInsertedWorld(Hw,cxw,seed=0){
   // 검은 물 (도로 오른쪽 basin) + 달빛 반사
   for(let z=SF_A-30;z<SF_B+30;z+=8){const z2=z+8,y1=base(z)-SF_WATER_DROP,y2=base(z2)-SF_WATER_DROP;water.quad([cx(z)+18,y1,z],[cx(z2)+18,y2,z2],[cx(z2)+170,y2,z2],[cx(z)+170,y1,z],rgb(0x020405));}
   for(let i=0;i<10;i++){const z=SF_A+20+i*42+R()*10,u=34+R()*40,l=6+R()*9,y=base(z)-SF_WATER_DROP+.02;glint.quad([cx(z)+u,y,z],[cx(z)+u+l*.2,y,z+l],[cx(z)+u+.35+l*.2,y,z+l],[cx(z)+u+.35,y,z],rgb(0xf0e6cc));}
-  // 찢어진 컨테이너 — 물가 비탈 위, 도로 쪽으로 기울어 안에서 파렛트가 쏟아짐
-  cont(wreck,SF_SPILL,17.6,CONT_40,CONT.teal,-.55,.06,.34,{doors:'missing',cargo:'pallets',rust:.8},.35);
-  for(const[dz,u,k]of[[4,15.4,'aj'],[6.5,13.1,'kpp'],[9,12.2,'aj'],[12,10.9,'kpp'],[14.5,9.6,'aj']])pallet(wet,SF_SPILL+dz,u,k,R()*3,.04,dz===9);
-  // 밭 주변: 물에 반쯤 잠긴 컨테이너·젖은 파렛트·끊어진 끈 (풍경)
-  for(let i=0;i<6;i++){const z=SF_FIELD_A+20+i*44,u=26+R()*14,x=cx(z)+u,y=base(z)-SF_WATER_DROP;drawContainer(wreck,[x,y-1.0+R()*.5,z],i%2?CONT_20:CONT_40,CONT_LIST[(i*3+1)%7],basisYXZ(R()*3,.25+R()*.3,(R()-.5)*.3),{doors:i%2?'missing':'closed',rust:.9});}
-  for(let i=0;i<12;i++){const z=SF_FIELD_A-6+i*22,side=i%3===0?-1:1,u=side*(13.5+R()*(side>0?9:5));pallet(wet,z,u,i%2?'wet':(i%4?'kpp':'aj'),R()*3,(R()-.5)*.2,i%5===2);}
-  for(let i=0;i<4;i++){const z=SF_FIELD_A+40+i*58,u=-14-R()*3;drawStrap(straps,[0,3,7,10,14].map(dz=>{const p=ground(u+Math.sin(dz*1.3+i)*1.2,z+dz);return[p[0],p[1]+.05,p[2]];}));}
-  boxes(wreck,SF_FIELD_A+120,-16,4,5);boxes(wreck,SF_FIELD_A+210,15.5,3,4);
-  // 도로 위에 깔린 죽은 파렛트(납작, 밟고 지나감) — 수집 파렛트(게임 쪽 풀)와 반대편 차선에 놓아 겹치지 않게
-  const pickU=i=>{const t=i/25;return i<6?8.6-2.75*i:(5.2-3.6*t)*Math.sin((i-6)*.5+.2);};
-  for(let i=0;i<14;i++){const z=SF_FIELD_A+5+i*18.5,j=Math.round((z-SF_FIELD_A)/10),up=pickU(Math.max(0,Math.min(25,j))),u=(up>0?-1:1)*(3+R()*7.5),[x,y]=ground(u,z),m=basisYXZ(R()*3);
-   mbox(wet,[x,y+.02,z],[1.1,.04,1.1],PAL_DECOR.wet.deck,m);for(let k=0;k<5;k++)mbox(wet,tb([x,y+.045,z],m,0,0,-.44+k*.22),[1.1,.012,.08],shade(PAL_DECOR.wet.deck,.72),m);}
-  // 밭 끝 ~ 공개 카메라 구간: 잔해는 물가로만
-  cont(wreck,SF_FIELD_B+12,24,CONT_20,CONT.red,1.1,.35,.2,{doors:'missing',rust:.9},-2.2);
-  // 화물 게이트: 쓰러진 항만 크레인 붐 + 케이블에 매달린 컨테이너 셋 (도로 전폭)
-  {const z=SF_STRUCT,bz=base(z),c0=cx(z);
-   const p0=[c0+40,bz+4,z+6],p1=[c0-36,bz+17,z-4],p0b=[c0+40,bz+4,z+7.4],p1b=[c0-36,bz+17,z-2.6];
-   wreck.beam(p0,p1,1.1,1.1,0x6b6f6c);wreck.beam(p0b,p1b,1.1,1.1,0x6b6f6c);
-   for(let t=.08;t<.98;t+=.09){const a=[mix(p0[0],p1[0],t),mix(p0[1],p1[1],t),mix(p0[2],p1[2],t)],b2=[mix(p0b[0],p1b[0],t+.045),mix(p0b[1],p1b[1],t+.045),mix(p0b[2],p1b[2],t+.045)];wreck.beam(a,b2,.32,.32,0x5c605e);}
-   // 크레인 다리(부러져 물가에 꽂힘)
-   const lx=c0+41,ly=bz-7;wreck.beam([lx,ly-4,z+1],[lx+3,bz+5,z+9],1.6,1.6,0x6b6f6c);wreck.beam([lx+4,ly-4,z+11],[lx+3,bz+5,z+9],1.6,1.6,0x6b6f6c);wreck.beam([lx-2,bz+4.6,z+5],[lx+3,bz+5,z+9],1.2,1.2,0x6b6f6c);
-   const[lx2,ly2]=ground(-36,z-4);wreck.beam([lx2-8,ly2-.5,z-14],[lx2,bz+17,z-4],1.4,1.4,0x6b6f6c);
-   // 매달린 컨테이너: 밑면 높이 3.25/3.7/3.4 (도로 기준면), 케이블은 붐까지
-   const hang=[[-6.9,3.25,CONT_40,CONT.grey,.05,0],[3.9,3.7,CONT_20,CONT.blue,-.06,1.2],[10.1,3.4,CONT_20,CONT.ochre,.09,-.8]];
-   for(const[u,bottom,len,color,roll,dz]of hang){
-    const cxx=c0+u,cy=bz+bottom+CONT_H/2,m=basisYXZ(Math.PI/2+roll*.5,0,roll);
-    drawContainer(wreck,[cxx,cy,z+dz],len,color,m,{doors:'closed',rust:.7});
-    mbox(wreck,[cxx,cy+CONT_H/2+.15,z+dz],[len+.4,.3,.5],0x8a8f8c,basisYXZ(Math.PI/2+roll*.5));   // 스프레더
-    for(const sx of[-1,1]){const px=cxx+sx*(len/2-.4),t=clamp((p0[0]-px)/(p0[0]-p1[0])),by=mix(p0[1],p1[1],t),bzz=mix(p0[2],p1[2],t);wreck.beam([px,cy+CONT_H/2+.3,z+dz],[px,by,bzz],.07,.07,0x30343a);}
-   }
+ 
+ 
+ 
+  
+  // 파손된 물가 경계.
+  // 검은 공백처럼 보이지 않고 도로와 수면의 높이 차가 읽히게 한다.
+  for(
+    let z=SF_A-8,i=0;
+    z<SF_B+18;
+    z+=18,i++
+  ){
+    if(i%6===4)continue;
+
+    const u=
+      15.4+
+      (i%3)*.42;
+
+    const x=
+      cx(z)+u;
+
+    const y=
+      base(z)-
+      .55-
+      (i%2)*.18;
+
+    quay.box(
+      [x,y,z],
+      [3.1,.9,14.6],
+      i%3
+        ? 0x4b4f4c
+        : 0x5a5a53,
+      [
+        0,
+        .025*Math.sin(i*.8),
+        .04*Math.sin(i*.53)
+      ]
+    );
+
+    if(i%4===1){
+      quay.box(
+        [
+          x+1.5,
+          y-.75,
+          z+2.6
+        ],
+        [1.8,1.5,5.0],
+        0x343936,
+        [.08,.30,.18]
+      );
+    }
   }
-  // 게이트 뒤: 잔해 잦아들고 먼지 전선으로
-  cont(wreck,SF_STRUCT+22,-19,CONT_20,CONT.maroon,2.7,0,0,{doors:'open',doorAngle:1.5,rust:.8});pallet(wet,SF_STRUCT+30,15,'wet',.7);
- }
+
+
+  // 첫 유실원:
+  // 도로 오른쪽 비탈에 걸린 찢어진 40ft 컨테이너.
+  cont(
+    wreck,
+    SF_SPILL,
+    18.0,
+    CONT_40,
+    CONT.teal,
+    -.58,
+    .08,
+    .42,
+    {
+      doors:'missing',
+      cargo:'pallets',
+      rust:.92
+    },
+    .55
+  );
+
+
+  // 그 뒤 물속에 반쯤 잠긴 두 번째 컨테이너.
+  cont(
+    wreck,
+    SF_SPILL+22,
+    27.0,
+    CONT_20,
+    CONT.ochre,
+    .86,
+    .28,
+    -.36,
+    {
+      doors:'open',
+      doorAngle:1.7,
+      cargo:'boxes',
+      rust:.95
+    },
+    1.8
+  );
+
+
+  // 도로로 흘러나온 죽은 파렛트와 박스.
+  const spillTrail=[
+    [ 3.0,15.0,.25,false],
+    [ 5.6,13.7,1.20,false],
+    [ 8.2,12.4,2.10,true ],
+    [11.0,10.7,.68,false],
+    [14.1, 8.9,2.55,false],
+    [17.5, 7.1,1.42,false],
+    [21.2, 5.0,.12,true ],
+    [25.0, 2.6,2.92,false],
+    [29.0,-.4,1.86,false],
+    [33.3,-3.2,.45,false],
+    [38.0,-5.7,2.42,true ],
+    [43.0,-7.6,1.10,false]
+  ];
+
+  for(
+    let i=0;
+    i<spillTrail.length;
+    i++
+  ){
+    const[
+      dz,
+      u,
+      yaw,
+      standing
+    ]=spillTrail[i];
+
+    pallet(
+      wet,
+      SF_SPILL+dz,
+      u,
+      'wet',
+      yaw,
+      (i%3-1)*.05,
+      standing
+    );
+  }
+
+  boxes(
+    wreck,
+    SF_SPILL+16,
+    11.8,
+    7,
+    7
+  );
+
+  boxes(
+    wreck,
+    SF_SPILL+35,
+    -5.2,
+    5,
+    6
+  );
+
+
+  // 물 위로 이어지는 컨테이너 잔해.
+  // 무작위 소품이 아니라 배에서 해안으로 흘러온 방향을 만든다.
+  const seaCargo=[
+    [
+      12,31,
+      CONT_40,
+      CONT.blue,
+      .15,.26,-.18
+    ],
+    [
+      42,39,
+      CONT_20,
+      CONT.maroon,
+      1.35,.38,.30
+    ],
+    [
+      73,28,
+      CONT_40,
+      CONT.grey,
+      2.48,.18,-.42
+    ],
+    [
+      104,47,
+      CONT_20,
+      CONT.green,
+      -.72,.48,.22
+    ],
+    [
+      137,35,
+      CONT_40,
+      CONT.red,
+      .90,.34,-.28
+    ],
+    [
+      169,52,
+      CONT_20,
+      CONT.teal,
+      2.18,.42,.38
+    ],
+    [
+      200,30,
+      CONT_40,
+      CONT.ochre,
+      -.25,.22,-.33
+    ],
+    [
+      228,43,
+      CONT_20,
+      CONT.blue,
+      1.72,.51,.20
+    ]
+  ];
+
+  for(
+    let i=0;
+    i<seaCargo.length;
+    i++
+  ){
+    const[
+      dz,
+      u,
+      len,
+      color,
+      yaw,
+      pitch,
+      roll
+    ]=seaCargo[i];
+
+    const z=
+      SF_FIELD_A+dz;
+
+    const y=
+      base(z)-
+      SF_WATER_DROP-
+      .55+
+      (i%3)*.16;
+
+    drawContainer(
+      wreck,
+      [
+        cx(z)+u,
+        y,
+        z
+      ],
+      len,
+      color,
+      basisYXZ(
+        yaw,
+        pitch,
+        roll
+      ),
+      {
+        doors:
+          i%3===1
+            ? 'open'
+            : i%3===2
+              ? 'missing'
+              : 'closed',
+
+        doorAngle:1.65,
+        rust:.94,
+
+        cargo:
+          i===1
+            ? 'boxes'
+            : null
+      }
+    );
+  }
+
+
+  // 왼쪽 갓길에 떠밀려온 트레일러와 컨테이너.
+  {
+    const z=
+      SF_FIELD_A+78;
+
+    const[x,y]=
+      ground(
+        -18.8,
+        z
+      );
+
+    drawTrailer(
+      wreck,
+      [
+        x,
+        y-.78,
+        z
+      ],
+      basisYXZ(
+        .42,
+        -.08,
+        .10
+      ),
+      {}
+    );
+
+    drawContainer(
+      wreck,
+      [
+        x+3.0,
+        y+
+        CONT_W/2-
+        .18,
+        z+4.4
+      ],
+      CONT_40,
+      CONT.grey,
+      basisYXZ(
+        .76,
+        .12,
+        1.31
+      ),
+      {
+        doors:'missing',
+        rust:.96
+      }
+    );
+  }
+
+
+  cont(
+    wreck,
+    SF_FIELD_A+188,
+    -18.5,
+    CONT_20,
+    CONT.red,
+    2.55,
+    .10,
+    -.18,
+    {
+      doors:'open',
+      doorAngle:2.05,
+      cargo:'boxes',
+      rust:.92
+    },
+    -.20
+  );
+
+
+  // 수집 파렛트와 헷갈리지 않는 어두운 파렛트.
+  // 왼쪽 갓길과 오른쪽 수면에 나눠 둔다.
+  for(let i=0;i<28;i++){
+    const z=
+      SF_FIELD_A-
+      5+
+      i*8.15;
+
+    const side=
+      i%3===0
+        ? -1
+        : 1;
+
+    if(side<0){
+      const u=-(
+        13.3+
+        (i%5)*1.18+
+        R()*1.1
+      );
+
+      pallet(
+        wet,
+        z,
+        u,
+        'wet',
+        R()*Math.PI*2,
+        (R()-.5)*.18,
+        i%10===3
+      );
+    }else{
+      const u=
+        18.5+
+        (i%5)*1.30+
+        R()*1.4;
+
+      const x=
+        cx(z)+u;
+
+      const y=
+        base(z)-
+        SF_WATER_DROP+
+        .02+
+        (i%4)*.025;
+
+      drawPalletDecor(
+        wet,
+        [x,y,z],
+        basisYXZ(
+          R()*Math.PI*2,
+          (R()-.5)*.16,
+          (R()-.5)*.12
+        ),
+        'wet'
+      );
+    }
+  }
+
+
+  // 일부 죽은 파렛트는 도로 위에 납작하게 밟혀 있다.
+  for(let i=0;i<17;i++){
+    const z=
+      SF_FIELD_A+
+      6+
+      i*13.0+
+      R()*4.5;
+
+    const u=
+      -10.4+
+      R()*20.8;
+
+    const[x,y]=
+      ground(
+        u,
+        z
+      );
+
+    const m=
+      basisYXZ(
+        R()*Math.PI*2,
+        (R()-.5)*.08,
+        (R()-.5)*.06
+      );
+
+    drawPalletDecor(
+      wet,
+      [
+        x,
+        y+.018,
+        z
+      ],
+      m,
+      'wet'
+    );
+  }
+
+
+  // 끊어진 고정끈이 파렛트 흐름과 같은 방향으로 도로를 가로지른다.
+  for(let i=0;i<5;i++){
+    const z0=
+      SF_FIELD_A+
+      24+
+      i*42;
+
+    const start=
+      i%2
+        ? -10.8
+        : 11.0;
+
+    const end=
+      -start*.82;
+
+    const pts=[];
+
+    for(let k=0;k<6;k++){
+      const t=k/5;
+
+      const z=
+        z0+
+        k*3.2;
+
+      const u=
+        mix(
+          start,
+          end,
+          t
+        )+
+        Math.sin(
+          i*1.7+
+          k*.9
+        )*.65;
+
+      const p=
+        ground(
+          u,
+          z
+        );
+
+      pts.push([
+        p[0],
+        p[1]+.055,
+        p[2]
+      ]);
+    }
+
+    drawStrap(
+      straps,
+      pts,
+      i%2
+        ? 0xa88d2e
+        : 0xc2a63a
+    );
+  }
+
+
+  // 컨테이너 문짝.
+  for(const[
+    dz,
+    u,
+    color,
+    yaw
+  ]of[
+    [
+      58,14.5,
+      CONT.blue,.35
+    ],
+    [
+      112,-14.2,
+      CONT.red,1.80
+    ],
+    [
+      157,15.1,
+      CONT.ochre,2.55
+    ],
+    [
+      214,-13.8,
+      CONT.grey,.92
+    ]
+  ]){
+    const z=
+      SF_FIELD_A+dz;
+
+    const[x,y]=
+      ground(
+        u,
+        z
+      );
+
+    mbox(
+      wreck,
+      [
+        x,
+        y+.06,
+        z
+      ],
+      [1.22,.06,2.52],
+      color,
+      basisYXZ(
+        yaw,
+        .04,
+        dz%2
+          ? -.08
+          : .08
+      )
+    );
+  }
+
+  boxes(
+    wreck,
+    SF_FIELD_A+94,
+    -15.2,
+    6,
+    7
+  );
+
+  boxes(
+    wreck,
+    SF_FIELD_A+151,
+    15.6,
+    5,
+    6
+  );
+
+  boxes(
+    wreck,
+    SF_FIELD_A+221,
+    -15.0,
+    4,
+    5
+  );
+
+
+  // 밭이 끝난 뒤 50m는 도로를 비운다.
+  // 탑과 뒤편 선박을 보여주는 동안 잔해는 물 위에만 남는다.
+  {
+    const z=
+      SF_FIELD_B+16;
+
+    const y=
+      base(z)-
+      SF_WATER_DROP-
+      .7;
+
+    drawContainer(
+      wreck,
+      [
+        cx(z)+31,
+        y,
+        z
+      ],
+      CONT_20,
+      CONT.maroon,
+      basisYXZ(
+        1.10,
+        .38,
+        .24
+      ),
+      {
+        doors:'missing',
+        rust:.96
+      }
+    );
+  }
+
+  {
+    const z=
+      SF_FIELD_B+28;
+
+    const x=
+      cx(z)+24.0;
+
+    const y=
+      base(z)-
+      SF_WATER_DROP+
+      .025;
+
+    drawPalletDecor(
+      wet,
+      [x,y,z],
+      basisYXZ(
+        .8,
+        .18,
+        .05
+      ),
+      'wet'
+    );
+  }
+
+
+  // 화물 게이트:
+  // 한 점에 겹친 오브젝트가 아니라
+  // 높이가 점점 낮아지는 세 구조물로 이어진다.
+  {
+    const gateZ=[
+      SF_STRUCT-6,
+      SF_STRUCT+10,
+      SF_STRUCT+26
+    ];
+
+    const c0=
+      cx(SF_STRUCT);
+
+    const bz=
+      base(SF_STRUCT);
+
+    const towerX=
+      c0+38;
+
+
+    // 물가에 무너진 항만 크레인 다리.
+    wreck.beam(
+      [
+        towerX-5,
+        bz-10,
+        SF_STRUCT-22
+      ],
+      [
+        towerX-2,
+        bz+23,
+        SF_STRUCT-13
+      ],
+      1.45,
+      1.45,
+      0x59615d
+    );
+
+    wreck.beam(
+      [
+        towerX+5,
+        bz-10,
+        SF_STRUCT-12
+      ],
+      [
+        towerX-2,
+        bz+23,
+        SF_STRUCT-13
+      ],
+      1.45,
+      1.45,
+      0x59615d
+    );
+
+    wreck.beam(
+      [
+        towerX-6,
+        bz-5,
+        SF_STRUCT-18
+      ],
+      [
+        towerX+5,
+        bz-5,
+        SF_STRUCT-12
+      ],
+      1.0,
+      1.0,
+      0x4b5350
+    );
+
+
+    // 도로 위로 비스듬히 내려앉은 격자 붐.
+    const boomA=[
+      towerX-2,
+      bz+23,
+      SF_STRUCT-13
+    ];
+
+    const boomB=[
+      c0-29,
+      bz+10.5,
+      SF_STRUCT+33
+    ];
+
+    const boomA2=[
+      boomA[0],
+      boomA[1],
+      boomA[2]+1.35
+    ];
+
+    const boomB2=[
+      boomB[0],
+      boomB[1],
+      boomB[2]+1.35
+    ];
+
+    wreck.beam(
+      boomA,
+      boomB,
+      .72,
+      .72,
+      0x616a65
+    );
+
+    wreck.beam(
+      boomA2,
+      boomB2,
+      .72,
+      .72,
+      0x616a65
+    );
+
+    for(
+      let t=.07;
+      t<.97;
+      t+=.09
+    ){
+      const t2=
+        Math.min(
+          1,
+          t+.045
+        );
+
+      const a=[
+        mix(
+          boomA[0],
+          boomB[0],
+          t
+        ),
+        mix(
+          boomA[1],
+          boomB[1],
+          t
+        ),
+        mix(
+          boomA[2],
+          boomB[2],
+          t
+        )
+      ];
+
+      const b=[
+        mix(
+          boomA2[0],
+          boomB2[0],
+          t2
+        ),
+        mix(
+          boomA2[1],
+          boomB2[1],
+          t2
+        ),
+        mix(
+          boomA2[2],
+          boomB2[2],
+          t2
+        )
+      ];
+
+      wreck.beam(
+        a,
+        b,
+        .18,
+        .18,
+        0x4c5551
+      );
+    }
+
+
+    // 1단계:
+    // 높은 격자 가로보.
+    {
+      const z=
+        gateZ[0];
+
+      const cc=
+        cx(z);
+
+      const by=
+        base(z);
+
+      for(const dz of[
+        -.72,
+        .72
+      ]){
+        wreck.beam(
+          [
+            cc-15.6,
+            by+6.58,
+            z+dz
+          ],
+          [
+            cc+15.6,
+            by+6.58,
+            z+dz
+          ],
+          .38,
+          .38,
+          0x616966
+        );
+      }
+
+      for(
+        let x=-13.5;
+        x<13.5;
+        x+=4.5
+      ){
+        wreck.beam(
+          [
+            cc+x,
+            by+6.22,
+            z-.72
+          ],
+          [
+            cc+x+3.7,
+            by+6.92,
+            z+.72
+          ],
+          .13,
+          .13,
+          0x4d5652
+        );
+      }
+
+      wreck.beam(
+        [
+          cc-13,
+          by+7.0,
+          z
+        ],
+        [
+          boomA[0]-8,
+          boomA[1]-2,
+          boomA[2]+8
+        ],
+        .07,
+        .07,
+        0x282e2c
+      );
+
+      wreck.beam(
+        [
+          cc+13,
+          by+7.0,
+          z
+        ],
+        [
+          boomA[0]-2,
+          boomA[1]-1,
+          boomA[2]+10
+        ],
+        .07,
+        .07,
+        0x282e2c
+      );
+    }
+
+
+    // 2단계:
+    // 도로 전폭을 덮는 매달린 40ft 컨테이너 두 개.
+    {
+      const z=
+        gateZ[1];
+
+      const cc=
+        cx(z);
+
+      const by=
+        base(z);
+
+      const bottom=5.02;
+
+      for(const[
+        u,
+        color,
+        roll
+      ]of[
+        [
+          -6.12,
+          CONT.grey,
+          .055
+        ],
+        [
+          6.12,
+          CONT.blue,
+          -.060
+        ]
+      ]){
+        drawContainer(
+          wreck,
+          [
+            cc+u,
+            by+
+            bottom+
+            CONT_H/2,
+            z
+          ],
+          CONT_40,
+          color,
+          basisYXZ(
+            Math.PI/2,
+            0,
+            roll
+          ),
+          {
+            doors:'closed',
+            rust:.86
+          }
+        );
+
+        mbox(
+          wreck,
+          [
+            cc+u,
+            by+
+            bottom+
+            CONT_H+
+            .22,
+            z
+          ],
+          [
+            CONT_40+.48,
+            .30,
+            .58
+          ],
+          0x7a817d,
+          IDENT
+        );
+
+        for(const sx of[
+          -1,
+          1
+        ]){
+          const px=
+            cc+
+            u+
+            sx*
+            (
+              CONT_40/2-
+              .48
+            );
+
+          wreck.beam(
+            [
+              px,
+              by+
+              bottom+
+              CONT_H+
+              .35,
+              z
+            ],
+            [
+              px,
+              by+17.5,
+              z-1.8
+            ],
+            .065,
+            .065,
+            0x282e2c
+          );
+        }
+      }
+    }
+
+
+    // 3단계:
+    // 가장 낮은 스프레더 프레임.
+    {
+      const z=
+        gateZ[2];
+
+      const cc=
+        cx(z);
+
+      const by=
+        base(z);
+
+      for(const dz of[
+        -.86,
+        .86
+      ]){
+        wreck.beam(
+          [
+            cc-14.4,
+            by+4.10,
+            z+dz
+          ],
+          [
+            cc+14.4,
+            by+4.10,
+            z+dz
+          ],
+          .34,
+          .34,
+          0x747b77
+        );
+      }
+
+      for(
+        let x=-13.2;
+        x<13.2;
+        x+=4.4
+      ){
+        wreck.beam(
+          [
+            cc+x,
+            by+3.83,
+            z-.86
+          ],
+          [
+            cc+x+3.5,
+            by+4.40,
+            z+.86
+          ],
+          .13,
+          .13,
+          0x565e5a
+        );
+      }
+
+      for(const x of[
+        -13.8,
+        13.8
+      ]){
+        wreck.beam(
+          [
+            cc+x,
+            by+4.25,
+            z
+          ],
+          [
+            cc+x*.72,
+            by+14.8,
+            z-2.0
+          ],
+          .07,
+          .07,
+          0x282e2c
+        );
+      }
+
+      // 프레임 바깥에 비틀린 20ft 컨테이너.
+      drawContainer(
+        wreck,
+        [
+          cc+20.0,
+          by+5.9,
+          z+2.0
+        ],
+        CONT_20,
+        CONT.ochre,
+        basisYXZ(
+          .85,
+          .20,
+          .48
+        ),
+        {
+          doors:'open',
+          doorAngle:1.4,
+          rust:.94
+        }
+      );
+    }
+  }
+
+
+  // 게이트 뒤에서 잔해가 끊기고 먼지 전선으로 넘어간다.
+  cont(
+    wreck,
+    SF_STRUCT+34,
+    -18.5,
+    CONT_20,
+    CONT.maroon,
+    2.70,
+    0,
+    0,
+    {
+      doors:'open',
+      doorAngle:1.5,
+      rust:.88
+    }
+  );
+
+  pallet(
+    wet,
+    SF_STRUCT+38,
+    15.0,
+    'wet',
+    .70
+  );
+}
+
+
+
+
  return batches;
 }
 
@@ -8497,6 +9602,119 @@ function miniMineLayout(i){
 }
 
 
+// 화물선 뒤 대형 파렛트 지대.
+// 12개의 느슨한 영역마다 네 방향에 파렛트를 흩뿌린다.
+// 같은 z에 정렬되지 않으며, 초반에는 오른쪽 유실원에서 시작해
+// 갈수록 도로 전폭으로 퍼진다.
+const SHIP_MINE_X=[
+  -9.6,
+  -3.2,
+  3.2,
+  9.6
+];
+
+const SHIP_MINE_BANDS=12;
+
+const SHIP_MINE_N=
+  SHIP_MINE_X.length*
+  SHIP_MINE_BANDS;
+
+function shipMineLayout(i){
+  const cols=SHIP_MINE_X.length;
+  const band=Math.floor(i/cols);
+  const j=i%cols;
+
+  const usable=
+    SF_FIELD_B-
+    SF_FIELD_A-
+    14;
+
+  const bandLen=
+    usable/
+    SHIP_MINE_BANDS;
+
+  // 각 영역마다 좌우 위치 순서를 섞는다.
+  const slot=
+    (j*3+band)%
+    cols;
+
+  const t=
+    band/
+    (SHIP_MINE_BANDS-1);
+
+  const hz=
+    lmHash(
+      21001+i*41
+    );
+
+  const hx=
+    lmHash(
+      22103+i*59
+    );
+
+  const hy=
+    lmHash(
+      23311+i*73
+    );
+
+  const hr=
+    lmHash(
+      24709+i*83
+    );
+
+  const hp=
+    lmHash(
+      25913+i*97
+    );
+
+  // 동일 영역 안에서도 앞뒤 위치를 흩트려
+  // 횡대나 아이템 줄처럼 보이지 않게 한다.
+  const z=
+    SF_FIELD_A+
+    7+
+    band*bandLen+
+    1.4+
+    hz*
+    Math.max(
+      2,
+      bandLen-3.2
+    );
+
+  // 초반에는 오른쪽 컨테이너에서 흘러나오다가,
+  // 뒤로 갈수록 편향이 줄어 도로 전체로 퍼진다.
+  const sourceBias=
+    3.2*
+    Math.pow(
+      1-t,
+      2
+    );
+
+  const drift=
+    1.15*
+    Math.sin(
+      band*.78+.35
+    );
+
+  const u=Math.max(
+    -10.7,
+    Math.min(
+      10.7,
+      SHIP_MINE_X[slot]+
+      sourceBias+
+      drift+
+      (hx-.5)*1.15
+    )
+  );
+
+  return{
+    z,
+    u,
+    yaw:hr*Math.PI*2,
+    pitch:(hy-.5)*.13,
+    roll:(hp-.5)*.11
+  };
+}
+
 const FIELDS=[
  // 미니 밭: 14장, 완만한 S자. 조향이 서툴러도 7~12장은 먹힌다
 // 미니 밭: 컨테이너에서 쏟아져 나온 49장의 불규칙한 파렛트 지대.
@@ -8508,8 +9726,13 @@ const FIELDS=[
   n:MINI_MINE_N,
   layout:miniMineLayout
 },
- // 본격 밭: 26장. 찢어진 컨테이너(도로 오른쪽 물가, +u)에서 대각선으로 흘러나와 도로 전체를 덮고, 뒤로 갈수록 진폭이 줄어 조향이 거의 필요 없음
- {id:'ship',a:SF_FIELD_A,b:SF_FIELD_B,n:26,layout:i=>{const t=i/25,u=i<6?8.6-2.75*i:(5.2-3.6*t)*Math.sin((i-6)*.5+.2);return{z:SF_FIELD_A+i*10.0,u};}},
+{
+  id:'ship',
+  a:SF_FIELD_A,
+  b:SF_FIELD_B,
+  n:SHIP_MINE_N,
+  layout:shipMineLayout
+},
  // 공동묘지: 보충용 두 장만 (묘지 구간은 원래 청크 이벤트를 끊으므로 여기서 놓는다)
  {id:'grave',a:CG_GRAVE_A+150,b:CG_GRAVE_A+215,n:2,layout:i=>({z:CG_GRAVE_A+150+i*65,u:i?5.5:-5.5})}
 ];
@@ -8536,9 +9759,15 @@ g.position.set(
 );
 
 g.rotation.set(
-  0,
+  Number.isFinite(lay.pitch)
+    ? lay.pitch
+    : 0,
+
   yaw,
-  0
+
+  Number.isFinite(lay.roll)
+    ? lay.roll
+    : 0
 );
 
 g.userData.taken=false;
@@ -8557,9 +9786,13 @@ function poolPickup(){
 
   if(lift>1.5)return;
 
-  const mini=
-    activeField.id===
-    'container';
+ const mini=
+  activeField.id===
+  'container';
+
+const ship=
+  activeField.id===
+  'ship';
 
   for(const g of specialPool){
     if(
@@ -8579,17 +9812,20 @@ function poolPickup(){
         P.x
       );
 
-    // 초반 맛보기만 살짝 관대하게 잡는다.
-    // 자동 획득이 아니라 실제 파렛트 가까이 지나가야 먹힌다.
-    const touched=
-      mini
-        ? (
-            Math.abs(dz)<4.0&&
-            dx<2.45
-          )
-        : (
-            Math.hypot(dx,dz)<1.9
-          );
+  const touched=
+  mini
+    ? (
+        Math.abs(dz)<4.0&&
+        dx<2.45
+      )
+    : ship
+      ? (
+          Math.abs(dz)<4.4&&
+          dx<3.05
+        )
+      : (
+          Math.hypot(dx,dz)<1.9
+        );
 
     if(!touched)continue;
 
@@ -8687,22 +9923,229 @@ function stepWall(dt){
   if(q.m.position.y<g){q.m.position.y=g;if(Math.abs(q.vy)<2.2){q.vy=0;q.vx*=.78;q.vz*=.78;q.ax*=.5;q.ay*=.5;q.az*=.5;if(Math.hypot(q.vx,q.vz)<.5||wall.t>3.4)q.rest=true;}else{q.vy=Math.abs(q.vy)*.32;q.vx*=.86;q.vz*=.86;}}}
 }
 
-// ---- 화물 게이트(컨테이너선 밭 뒤): 매달린 컨테이너 밑면 3.25m. 라이더는 웅크려 통과하고 위쪽 파렛트만 3단계로 긁혀 나간다 (최종 6~10단) ----
-const gate={z:SF_STRUCT,done:false,stage:0,t:0,plan:[]};
-function gateKeep(n){return n<=8?n:n<=15?8:10;}
+
+
+// ---- 화물 게이트:
+// 높이가 점점 낮아지는 세 구조물을 실제 z 위치에서 순서대로 맞는다.
+const gate={
+  z:SF_STRUCT,
+  done:false,
+  active:false,
+  stage:0,
+  plan:[0,0,0],
+
+  marks:[
+    SF_STRUCT-6,
+    SF_STRUCT+10,
+    SF_STRUCT+26
+  ]
+};
+
+function gateKeep(n){
+  return n<=8
+    ? n
+    : n<=15
+      ? 8
+      : 10;
+}
+
+function makeGatePlan(total){
+  if(total<=0){
+    return[0,0,0];
+  }
+
+  let a=
+    Math.round(
+      total*.28
+    );
+
+  let b=
+    Math.round(
+      total*.34
+    );
+
+  if(total>=3){
+    a=Math.max(
+      1,
+      a
+    );
+
+    b=Math.max(
+      1,
+      b
+    );
+  }
+
+  if(a+b>total){
+    b=Math.max(
+      0,
+      total-a
+    );
+  }
+
+  return[
+    a,
+    b,
+    Math.max(
+      0,
+      total-a-b
+    )
+  ];
+}
+
 function triggerGate(){
- gate.done=true;const keep=gateKeep(P.pallets),total=P.pallets-keep;
- if(total<=0){gate.plan=[];return;}
- const a=Math.max(1,Math.round(total*.2)),b=Math.max(1,Math.round(total*.33)),c=Math.max(0,total-a-b);
- gate.plan=[a,b,c].filter(n=>n>0);gate.stage=0;gate.t=0;P.inv=Math.max(P.inv||0,.7);P.crouch=1;
+  gate.done=true;
+  gate.active=true;
+  gate.stage=0;
+
+  const keep=
+    gateKeep(
+      P.pallets
+    );
+
+  const total=
+    Math.max(
+      0,
+      P.pallets-keep
+    );
+
+  gate.plan=
+    makeGatePlan(
+      total
+    );
+
+  if(total<=0){
+    gate.active=false;
+    return;
+  }
+
+  P.inv=Math.max(
+    P.inv||0,
+    .55
+  );
 }
+
+function strikeGateStage(
+  n,
+  index
+){
+  if(n<=0)return;
+
+  const topBefore=
+    P.y+
+    (
+      typeof stackH===
+      'number'
+        ? stackH
+        : P.pallets*.15
+    )+
+    .32;
+
+  dropPallets(n);
+
+  // 뒤쪽 낮은 구조물일수록 몸도 더 낮춘다.
+  P.crouch=Math.max(
+    P.crouch||0,
+    index===2
+      ? 1
+      : .72
+  );
+
+  P.crouchT=Math.max(
+    P.crouchT||0,
+    index===2
+      ? .82
+      : .58
+  );
+
+  // 거의 감속하지 않고 위쪽 적재물만 벗겨낸다.
+  P.vx*=.992;
+  P.vz*=.992;
+
+  P.inv=Math.max(
+    P.inv||0,
+    .38
+  );
+
+  P.shake=Math.max(
+    P.shake||0,
+    .34+
+    index*.16
+  );
+
+  shardBurst(
+    P.x,
+    topBefore,
+    P.z,
+
+    Math.min(
+      20,
+      8+n*2
+    ),
+
+    [
+      shardMats.spark,
+      shardMats.dark
+    ],
+
+    5.0+
+    index*1.1,
+
+    4.8+
+    index*.8,
+
+    [
+      -P.vx*.12,
+      1.5,
+      -P.vz*.18
+    ],
+
+    .28+
+    index*.05
+  );
+
+  sfx(
+    'shield',
+    false
+  );
+
+  sfx(
+    'smash',
+    index===1
+  );
+}
+
 function stepGate(dt){
- if(!gate.done||gate.stage>=gate.plan.length)return;gate.t-=dt;
- if(gate.t<=0){const n=gate.plan[gate.stage++];dropPallets(n);P.crouch=1;P.vx*=.975;P.vz*=.975;P.shake=Math.max(P.shake||0,.28+.12*gate.stage);
-  const top=P.y+(typeof stackH==='number'?stackH:P.pallets*.15)+.3,sp=Math.hypot(P.vx,P.vz);
-  shardBurst(P.x,top,P.z,6+n,[shardMats.spark,shardMats.dark],5,5,[-P.vx*.15,2,-P.vz*.15],.32);
-  sfx('shield',false);sfx('smash',false);gate.t=.17;}
+  if(!gate.active)return;
+
+  // 속도가 높아 한 프레임에 구조물을 둘 이상 지나도
+  // 빠진 단계 없이 모두 순서대로 처리한다.
+  while(
+    gate.stage<
+    gate.marks.length&&
+    P.z>=
+    gate.marks[
+      gate.stage
+    ]-.8
+  ){
+    const index=
+      gate.stage++;
+
+    strikeGateStage(
+      gate.plan[index]||0,
+      index
+    );
+  }
+
+  if(
+    gate.stage>=
+    gate.marks.length
+  ){
+    gate.active=false;
+  }
 }
+
+
 
 // ---- 공개 카메라: 밭이 끝난 빈 도로에서 잠깐 빠져 탑 전체를 보여준다 (조작은 끊지 않음) ----
 // container: 옆·뒤·위로 빠져 탑과 전방 도로를 함께. ship: 앞·물가 쪽으로 빠져 뒤돌아보며 탑 + 뒤편 좌초선을 한 프레임에 (직선·무장애물 구간이라 전방 시야 없어도 됨)
@@ -8715,9 +10158,9 @@ const REVEALS=[
     dir:-1
   },
   {
-    id:'ship',
-    z:SF_REVEAL,
-    dur:2.2,
+  id:'ship',
+z:SF_REVEAL,
+dur:1.7,
     back:true,
     dir:1
   }
@@ -8726,20 +10169,42 @@ const reveal={t:-1,dur:0,back:false,dir:1,id:null,fov0:null},revealDone={};
 function revealK(){if(reveal.t<0)return 0;return sm01(Math.min(reveal.t/.55,1))*(1-sm01(Math.max(0,(reveal.t-(reveal.dur-.75))/.75)));}
 
 function landmarkStep(dt){
- const f=FIELDS.find(f=>P.z>f.a-260&&P.z<f.b+40)||null;
+ const f=FIELDS.find(f=>{
+  // 화물선 필드는 선박 자체를 충분히 지난 뒤에만 보이기 시작한다.
+  const lead=
+    f.id==='ship'
+      ? 135
+      : 260;
+
+  return(
+    P.z>
+    f.a-lead&&
+    P.z<
+    f.b+40
+  );
+})||null;
  if(f!==activeField)activateField(f);
  if(reveal.t<0)for(const r of REVEALS)if(!revealDone[r.id]&&P.z>=r.z&&P.z<r.z+40&&P.pallets>=3){revealDone[r.id]=true;Object.assign(reveal,{t:0,dur:r.dur,back:r.back,dir:r.dir,id:r.id,fov0:null});}
  if(reveal.t>=0){reveal.t+=dt;if(reveal.t>=reveal.dur)reveal.t=-1;}
  if(!wall.broken&&P.z>=CG_WALL-3.2&&P.z<CG_WALL+30)hitWall();
  stepWall(dt);
- if(!gate.done&&P.z>=SF_STRUCT-1.0&&P.z<SF_STRUCT+30)triggerGate();
+ if(
+  !gate.done&&
+  P.z>=SF_STRUCT-24&&
+  P.z<SF_STRUCT+40
+){
+  triggerGate();
+}
  stepGate(dt);stepShards(dt);
 }
 function resetLandmarks(){
  activateField(null);
  for(const q of wall.pieces){q.m.position.copy(q.home);q.m.rotation.copy(q.rot);q.m.visible=true;q.rest=false;}
  wall.broken=false;wall.t=0;wall.drops=0;wall.dropIdx=0;
- gate.done=false;gate.stage=0;gate.plan=[];
+ gate.done=false;
+gate.active=false;
+gate.stage=0;
+gate.plan=[0,0,0];
  reveal.t=-1;for(const k in revealDone)delete revealDone[k];
  for(const o of landmarkObstacles)o.visible=true;
  for(const s of shards)s.m.visible=false;
@@ -8747,7 +10212,10 @@ function resetLandmarks(){
 function inspectLandmarks(z){
  resetLandmarks();
  if(z>CG_WALL+5){wall.broken=true;wall.t=99;for(const q of wall.pieces)q.m.visible=false;}
- if(z>SF_STRUCT+5)gate.done=true;
+if(z>SF_STRUCT+32){
+  gate.done=true;
+  gate.active=false;
+}
  for(const r of REVEALS)if(z>r.z+40)revealDone[r.id]=true;
  const demo=z>=CG_FIELD_B-20&&z<CG_WALL+40?9:z>=SF_FIELD_B-30&&z<SF_STRUCT+60?24:0;
  if(demo>0){for(let i=0;i<demo;i++)stackKinds[i]=i%2?'kpp':'aj';P.pallets=demo;P.palMax=Math.max(P.palMax||0,demo);setStack(demo);}
