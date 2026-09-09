@@ -655,7 +655,86 @@ function buildWorld(H,cx,seed=0){
   if(idx===0||idx===2)for(const zz of[z-l/2+3,z+l/2-5])b.beam([front-s*4,yy,zz],[front-s*4,yy+7,zz],.25,.25,C.steel);
  });
  // BEYOND THE LOGISTICS PARK: familiar Korean outskirts first, then increasingly strange landmarks.
+// 현재 도로 격자(가로 2.5, 세로 1.25)에 맞춰 바닥 무늬를 붙인다.
+function roadPaint(batch,outline,color,lift=.035){
+  const dx=2.5,dz=1.25;
+  const edge=(a,b,p)=>
+    (b[0]-a[0])*(p[1]-a[1])-(b[1]-a[1])*(p[0]-a[0]);
+
+  function cut(poly,a,b){
+    const out=[];
+    if(!poly.length)return out;
+
+    let prev=poly[poly.length-1],pd=edge(a,b,prev);
+
+    for(const p of poly){
+      const d=edge(a,b,p);
+
+      if((d<=0)!==(pd<=0)){
+        const t=pd/(pd-d);
+        out.push([
+          mix(prev[0],p[0],t),
+          mix(prev[1],p[1],t)
+        ]);
+      }
+
+      if(d<=0)out.push(p);
+      prev=p;
+      pd=d;
+    }
+
+    return out;
+  }
+
+  const xs=outline.map(p=>p[0]),zs=outline.map(p=>p[1]);
+  const minX=Math.floor(Math.min(...xs)/dx)*dx;
+  const maxX=Math.max(...xs);
+  const minZ=Math.floor(Math.min(...zs)/dz)*dz;
+  const maxZ=Math.max(...zs);
+  const col=rgb(color);
+
+  for(let x=minX;x<maxX;x+=dx){
+    for(let z=minZ;z<maxZ;z+=dz){
+      const a=[x,z],b=[x,z+dz];
+      const c=[x+dx,z+dz],d=[x+dx,z];
+
+      for(const tri of [[a,b,d],[b,c,d]]){
+        let poly=outline;
+
+        for(let k=0;k<3;k++){
+          poly=cut(poly,tri[k],tri[(k+1)%3]);
+        }
+
+        if(poly.length<3)continue;
+
+        const [A,B,C]=tri,area=edge(A,B,C);
+        const ya=H(...A),yb=H(...B),yc=H(...C);
+
+        const v=poly.map(p=>[
+          p[0],
+          (
+            edge(B,C,p)*ya+
+            edge(C,A,p)*yb+
+            edge(A,B,p)*yc
+          )/area+lift,
+          p[1]
+        ]);
+
+        for(let k=1;k<v.length-1;k++){
+          if(Math.abs(edge(poly[0],poly[k],poly[k+1]))<1e-9){
+            continue;
+          }
+
+          batch.tri(v[0],v[k],v[k+1],col);
+        }
+      }
+    }
+  }
+}
+
+
  function lineAcross(b,z,u0,u1,yLift,width,color){
+
   const n=16;
   for(let i=0;i<n;i++){
    const a=mix(u0,u1,i/n),q=mix(u0,u1,(i+1)/n),x1=cx(z)+a,x2=cx(z)+q;
@@ -792,19 +871,56 @@ function buildWorld(H,cx,seed=0){
 
  for(let u=-150;u<=150;u+=2.55){if(Math.abs(u)<17)continue;const p=railPoint(u);railway.box([p[0],p[1]+.10,p[2]],[.38,.16,4.45],0x44372e,[0,railYaw,0]);}
  for(const n of[-1.08,1.08])for(let u=-155;u<155;u+=4){const p=railPoint(u,n),q=railPoint(u+4,n);railway.beam([p[0],p[1]+.24,p[2]],[q[0],q[1]+.24,q[2]],.115,.115,0xd0d4d1);}
- // One flush rubber crossing deck reads as a railway crossing without a stack of ghost slabs.
+ 
+ 
+ 
+ 
+ 
+ 
+// One flush rubber crossing deck reads as a railway crossing without a stack of ghost slabs.
+{
+  const outline=[
+    [-16,-3],[-16,3],[16,3],[16,-3]
+  ].map(([u,n])=>{
+    const p=railPoint(u,n);
+    return[p[0],p[2]];
+  });
+
+  roadPaint(railway,outline,0x4c5451,.055);
+}
+
+for(const n of[-6.2,6.2]){
+  const p=railPoint(0,n);
+  lineAcross(
+    railway,p[2],
+    -11.6,11.6,
+    .05,.13,0xd6bb4a
+  );
+}
+
+// 건널목 앞 X 표시도 수평 막대 대신 바닥에 붙인다.
+for(const side of[-1,1]){
+  const z=railZ-32,x=cx(z)+side*5.5;
+
+  for(const s of[-1,1]){
+    const a=[x-s*2.2,z-2.5];
+    const b=[x+s*2.2,z+2.5];
+    const len=Math.hypot(b[0]-a[0],b[1]-a[1]);
+    const ox=-(b[1]-a[1])/len*.055;
+    const oz=(b[0]-a[0])/len*.055;
+
+    roadPaint(railway,[
+      [a[0]+ox,a[1]+oz],
+      [b[0]+ox,b[1]+oz],
+      [b[0]-ox,b[1]-oz],
+      [a[0]-ox,a[1]-oz]
+    ],0xe2dcca,.06);
+  }
+}
 
 
-{const p=railPoint(0);railway.box([p[0],p[1]+.072,p[2]],[32,.035,6.0],0x4c5451,[0,railYaw,0]);}
 
 
-
- for(const n of[-6.2,6.2]){const p=railPoint(0,n);lineAcross(railway,p[2],-11.6,11.6,.05,.13,0xd6bb4a);}
- for(const side of[-1,1]){
-  const z=railZ-32,x=cx(z)+side*5.5,y=Y(x,z)+.045;
-  railway.beam([x-side*2.2,y,z-2.5],[x+side*2.2,y,z+2.5],.11,.035,0xe2dcca);
-  railway.beam([x+side*2.2,y,z-2.5],[x-side*2.2,y,z+2.5],.11,.035,0xe2dcca);
- }
  // Big crossbuck signs and red-white barriers on both approaches.
  for(const side of[-1,1]){
   const u=side*16.0,p=railPoint(u,-side*6.0),x=p[0],z=p[2],y=pole(railway,x,z,5.8,0x444b49);
@@ -996,11 +1112,18 @@ function buildWorld(H,cx,seed=0){
    if(i%7===0)gl.box([x,y+2,z],[.4,.4,.4],0x9ed7e7);
   }
  }
- const moonShadows=make('moon-cast-road-shadows','night-shadow');
- for(let z=4680;z<10300;z+=24){
-  const cc=cx(z),phase=Math.sin(z*.013)*2.2,p0=[cc-12,z-1.0],p1=[cc-11.2,z+1.0],p2=[cc+5+phase,z-8],p3=[cc+4+phase,z-9.6];
-  moonShadows.quad([p0[0],H(p0[0],p0[1])+.032,p0[1]],[p1[0],H(p1[0],p1[1])+.032,p1[1]],[p2[0],H(p2[0],p2[1])+.032,p2[1]],[p3[0],H(p3[0],p3[1])+.032,p3[1]],rgb(0x000000));
- }
+const moonShadows=make('moon-cast-road-shadows','night-shadow');
+
+for(let z=4680;z<10300;z+=24){
+  const cc=cx(z),phase=Math.sin(z*.013)*2.2;
+
+  roadPaint(moonShadows,[
+    [cc-12,z-1.0],
+    [cc-11.2,z+1.0],
+    [cc+5+phase,z-8],
+    [cc+4+phase,z-9.6]
+  ],0x000000,.035);
+}
 
  // 9.4–10.2 km: abandoned dishes all point at the broken moon.
  const observatory=make('moon-observatory'),obsGlow=make('observatory-beacons','night-emissive');
@@ -3024,7 +3147,7 @@ const shadowTexture=(function(){
  ctx.fillStyle=g;ctx.fillRect(0,0,128,128);
  return new THREE.CanvasTexture(c);
 })();
-const shadow=new THREE.Mesh(new THREE.PlaneGeometry(2.2,2.2),
+const shadow=new THREE.Mesh(new THREE.PlaneGeometry(2.6,2.6),
  new THREE.MeshBasicMaterial({color:0x000000,map:shadowTexture,transparent:true,opacity:.38,
   depthWrite:false,depthTest:true,fog:false,polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-1}));
 shadow.name='rider-contact-shadow';shadow.rotation.x=-Math.PI/2;shadow.scale.set(1,1.3,1);scene.add(shadow);
@@ -3045,7 +3168,7 @@ function updateMoonShadow(len,opacity,width){
  for(let i=0;i<MOON_SHADOW_SEGMENTS;i++){
   const t0=i/MOON_SHADOW_SEGMENTS,t1=(i+1)/MOON_SHADOW_SEGMENTS,w0=width*(.48+.52*t0),w1=width*(.48+.52*t1);
   const c0x=P.x+sdx*len*t0,c0z=P.z+sdz*len*t0,c1x=P.x+sdx*len*t1,c1z=P.z+sdz*len*t1;
-  const pts=[[c0x-plx*w0,H(c0x-plx*w0,c0z-plz*w0)+.020,c0z-plz*w0],[c0x+plx*w0,H(c0x+plx*w0,c0z+plz*w0)+.020,c0z+plz*w0],[c1x-plx*w1,H(c1x-plx*w1,c1z-plz*w1)+.020,c1z-plz*w1],[c1x+plx*w1,H(c1x+plx*w1,c1z+plz*w1)+.020,c1z+plz*w1]];
+  const pts=[[c0x-plx*w0,H(c0x-plx*w0,c0z-plz*w0)+.032,c0z-plz*w0],[c0x+plx*w0,H(c0x+plx*w0,c0z+plz*w0)+.032,c0z+plz*w0],[c1x-plx*w1,H(c1x-plx*w1,c1z-plz*w1)+.032,c1z-plz*w1],[c1x+plx*w1,H(c1x+plx*w1,c1z+plz*w1)+.032,c1z+plz*w1]];
   for(let k=0;k<4;k++)pos.setXYZ(i*4+k,...pts[k]);
  }
  pos.needsUpdate=true;moonShadowGeo.computeBoundingSphere();moonShadow.material.opacity=opacity;
@@ -3972,9 +4095,7 @@ if(P.kickAnim > 0){
   shadow.position.set(P.x,gh+.06,P.z);
   const shs=1-lift*0.11; shadow.scale.set(shs,shs*1.3,1);
   shadow.material.opacity=specialAir?0:.38*(1-lift*.10);
-  const gx=clamp(g.x,-0.55,0.55);
-const gz=clamp(g.z,-0.55,0.55);
-shadow.rotation.set(-Math.PI/2+gz*0.55,0,-gx*0.55);
+shadow.rotation.set(-Math.PI/2+g.z*0.9,0,-g.x*0.9);
   const wv=world3D.getState(),moonK=wv.shadow*(1-lift*.13),len=10.5+wv.night*5.0;
   updateMoonShadow(len,specialAir?0:.40*moonK,1.75+stackH*.10);
 }
@@ -4006,9 +4127,68 @@ function updateCamera(dt,sp){
   if(!running&&poseT>.5){camera.up.set(0,1,0);introCamera(dt);return;}
   
   
+  // 파이프에서는 관 중심을 따라간다.
+// 캐릭터의 회전을 카메라가 함께 쫓지 않는다.
+if(P.pipeMode){
+  const centerY=z=>
+    H(cx(z),z)+18*JW.glideAt(z)+PIPE_RADIUS;
+
+  const fov=82;
+  const narrow=Math.max(.35,Math.min(1,camera.aspect));
+  const back=Math.max(
+    18,
+    12/(Math.tan(fov*Math.PI/360)*narrow)
+  );
+  const z=P.z-back;
+
+  camera.up.set(0,1,0);
+
+  camTmp.set(
+    cx(z)+(P.x-cx(P.z))*.10,
+    centerY(z)+(P.y-centerY(P.z))*.10,
+    z
+  );
+
+  camera.position.lerp(camTmp,1-Math.exp(-12*dt));
+
+  // 진입·출구에서도 카메라가 관벽 밖으로 나가지 않게 한다.
+  const cz=camera.position.z;
+  const cx0=cx(cz),cy0=centerY(cz);
+  const ox=camera.position.x-cx0;
+  const oy=camera.position.y-cy0;
+  const r=Math.hypot(ox,oy),limit=PIPE_RADIUS*.70;
+
+  if(r>limit){
+    camera.position.x=cx0+ox*limit/r;
+    camera.position.y=cy0+oy*limit/r;
+  }
+
+  rideLook.set(
+    cx(P.z+10),
+    centerY(P.z+10),
+    P.z+10
+  );
+  camera.lookAt(rideLook);
+
+  camera.fov=lerp(camera.fov,fov,1-Math.exp(-7*dt));
+  camera.updateProjectionMatrix();
+
+  camYaw=Math.atan2(cxSlope(P.z),1);
+  camX=P.x;
+  camInit=true;
+
+  const e=new THREE.Euler()
+    .setFromQuaternion(camera.quaternion,'YXZ');
+
+  bgU.uYaw.value=e.y;
+  bgU.uPitch.value=clamp(-e.x*.55,-.3,.3);
+  return;
+}
   
-  
-if(P.pipeMode||P.glideMode||P.diveMode){
+
+
+
+if(P.glideMode||P.diveMode){
   rideFrame();
 
 
