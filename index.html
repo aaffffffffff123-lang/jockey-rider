@@ -607,6 +607,455 @@ function buildWorld(H,cx,seed=0){
  // Small luminous bay lamp, mounted to the wall, not drawn over the image.
  lamps.box([doorX,ey+8.83,ex-.68],[.65,.11,.11],0xd4c5a1);
  // Fallen material is outside the driving corridor.
+
+// 도크문 밖 반실내 접안 차량구역.
+// 아직 완전한 야외가 아니라 거대한 물류센터의 몸통 아래를 빠져나가는 짧은 구간이다.
+{
+  const dockA=160;
+  const dockB=240;
+
+  const dockYard=make('covered-vehicle-apron');
+  const dockLights=make('covered-vehicle-apron-lights','emissive');
+  const dockPulse=make('covered-vehicle-apron-flicker','pulse-emissive');
+  const dockMess=make('covered-vehicle-apron-clutter');
+
+  // 기존 지형 위에 조금 더 어두운 접안장 바닥을 덮는다.
+  strip(
+    dockYard,
+    -34,34,
+    dockA,dockB,
+    0x555a58,
+    .038,
+    2
+  );
+
+  // 중앙 차량 통로는 명확하게 비워 두고,
+  // 양옆에 주차선과 접안 유도선을 만든다.
+  for(const u of[-11.35,11.35]){
+    strip(
+      dockYard,
+      u-.065,u+.065,
+      dockA,dockB,
+      0xe3e1d8,
+      .052,
+      2
+    );
+  }
+
+  for(const u of[-28.0,-15.2,15.2,28.0]){
+    strip(
+      dockYard,
+      u-.045,u+.045,
+      dockA+2,dockB-4,
+      0xcfd0c8,
+      .050,
+      2
+    );
+  }
+
+  for(let z=dockA+8;z<dockB-3;z+=16){
+    lineAcross(
+      dockYard,
+      z,
+      -28.0,-15.2,
+      .052,.055,
+      0xd9d8cf
+    );
+
+    lineAcross(
+      dockYard,
+      z,
+      15.2,28.0,
+      .052,.055,
+      0xd9d8cf
+    );
+  }
+
+  // 오래된 타이어 자국.
+  // 바닥 무늬일 뿐 장애물처럼 보이지 않도록 얇게 둔다.
+  strip(
+    dockYard,
+    -4.25,-3.98,
+    dockA+6,dockB-12,
+    0x2d3231,
+    .056,
+    2
+  );
+
+  strip(
+    dockYard,
+    3.72,3.96,
+    dockA+14,dockB-4,
+    0x303534,
+    .056,
+    2
+  );
+
+  // 낮고 넓은 콘크리트 천장.
+  // 출구 쪽 마지막 판 하나를 비워 앞쪽 빛이 조금 일찍 보이게 한다.
+  for(let z=dockA+5;z<dockB;z+=10){
+    if(
+      z>dockB-13 &&
+      Math.floor(z/10)%2===0
+    ){
+      continue;
+    }
+
+    const yaw=
+      Math.atan2(
+        cx(z+5)-cx(z-5),
+        10
+      );
+
+    const y=base(z)+10.15;
+
+    dockYard.box(
+      [cx(z),y,z],
+      [68,.30,10.5],
+      z%20<10
+        ? 0xb9bbb5
+        : 0xc4c4bd,
+      [0,yaw,0]
+    );
+  }
+
+  // 천장 가로보.
+  for(let z=dockA+8;z<=dockB-6;z+=16){
+    const y=base(z)+9.52;
+
+    dockYard.beam(
+      [cx(z)-31,y,z],
+      [cx(z)+31,y,z],
+      .42,.52,
+      0xaeb2ad
+    );
+  }
+
+  // 굵은 흰색 기둥 숲.
+  // 안쪽 면 하단에 검정·노랑 안전무늬를 붙인다.
+  for(
+    let z=dockA+8,row=0;
+    z<=dockB-8;
+    z+=16,row++
+  ){
+    for(const u of[-28.2,-15.3,15.3,28.2]){
+      const side=Math.sign(u);
+      const x=cx(z)+u;
+      const y=Y(x,z);
+
+      dockYard.box(
+        [x,y+4.72,z],
+        [1.38,9.44,1.38],
+        row%2
+          ? 0xe1e0d9
+          : 0xe9e7df
+      );
+
+      // 노란색 보호대.
+      dockYard.box(
+        [x,y+.84,z],
+        [1.48,1.68,1.48],
+        0xe4bd20
+      );
+
+      // 주행로에서 보이는 안쪽 면의 검은 사선.
+      const faceX=x-side*.755;
+
+      for(let k=-2;k<=2;k++){
+        dockYard.box(
+          [
+            faceX,
+            y+.84+k*.31,
+            z+k*.16
+          ],
+          [.048,.25,1.58],
+          0x171b1a,
+          [side*.62,0,0]
+        );
+      }
+    }
+  }
+
+  // 오른쪽에 추가 도크베이 3개.
+  // 왼쪽은 이미 존재하는 첫 외부 물류동의 접안면이 자연스럽게 이어받는다.
+  const bayZ=[174,200,226];
+
+  for(const side of[1]){
+    for(let i=0;i<bayZ.length;i++){
+      const z=bayZ[i];
+
+      const yaw=
+        Math.atan2(
+          cx(z+5)-cx(z-5),
+          10
+        );
+
+      const wallX=cx(z)+side*34.7;
+      const yy=Y(wallX,z);
+
+      // 가운데 베이 하나만 열려 있다.
+      const open=i===1;
+      const faceX=wallX-side*.52;
+
+      // 흰색 접안 벽.
+      dockYard.box(
+        [wallX,yy+4.35,z],
+        [1.0,8.70,20.5],
+        0xe0dfd8,
+        [0,yaw,0]
+      );
+
+      // 셔터 또는 열린 내부.
+      dockYard.box(
+        [faceX,yy+2.48,z],
+        [.075,4.96,10.6],
+        open
+          ? 0x101514
+          : 0x59635f,
+        [0,yaw,0]
+      );
+
+      if(!open){
+        // 닫힌 셔터의 가로 골.
+        for(let h=.35;h<4.85;h+=.36){
+          dockYard.box(
+            [
+              faceX-side*.045,
+              yy+h,
+              z
+            ],
+            [.035,.045,10.45],
+            0x77807a,
+            [0,yaw,0]
+          );
+        }
+      }else{
+        // 열린 베이 안에 파렛트와 박스가 조금 남아 있다.
+        dockMess.box(
+          [
+            wallX-side*2.7,
+            yy+.10,
+            z
+          ],
+          [2.2,.20,2.4],
+          0x83735b,
+          [0,yaw,0]
+        );
+
+        dockMess.box(
+          [
+            wallX-side*3.0,
+            yy+.72,
+            z+.3
+          ],
+          [1.8,1.25,1.8],
+          0x8d7350,
+          [0,yaw+.05,0]
+        );
+      }
+
+      // 도크 레벨러.
+      dockYard.box(
+        [
+          cx(z)+side*31.2,
+          yy+.30,
+          z
+        ],
+        [6.2,.60,11.7],
+        0x686d69,
+        [0,yaw,0]
+      );
+
+      // 검은 접안 범퍼.
+      for(const dz of[-4.25,4.25]){
+        dockYard.box(
+          [
+            cx(z)+side*27.95,
+            yy+.72,
+            z+dz
+          ],
+          [.42,1.35,.62],
+          0x242a28,
+          [0,yaw,0]
+        );
+      }
+
+      // 도크 번호판처럼 보이는 파란 표식.
+      dockYard.box(
+        [
+          faceX-side*.05,
+          yy+6.72,
+          z-6.75
+        ],
+        [.05,.82,2.35],
+        0x315f77,
+        [0,yaw,0]
+      );
+
+      dockLights.box(
+        [
+          faceX-side*.09,
+          yy+6.72,
+          z-6.75
+        ],
+        [.028,.17,1.42],
+        0xe3ece7,
+        [0,yaw,0]
+      );
+    }
+  }
+
+  // 천장 조명.
+  // 하나만 고장 난 것처럼 깜빡인다.
+  for(
+    let z=dockA+7,i=0;
+    z<dockB-4;
+    z+=12,i++
+  ){
+    for(const u of[-7.5,7.5]){
+      const x=cx(z)+u;
+      const y=base(z)+9.62;
+
+      const batch=
+        i===3 && u>0
+          ? dockPulse
+          : dockLights;
+
+      batch.box(
+        [x,y,z],
+        [.24,.08,3.25],
+        i===3 && u>0
+          ? 0xf0d08b
+          : 0xd8d4b7
+      );
+    }
+  }
+
+  // 주행선 밖의 가벼운 어수선함:
+  // 빈 파렛트 두 장.
+  palletAt(
+    cx(180)-22.8,
+    180,
+    .02,
+    2.45,
+    2.05
+  );
+
+  palletAt(
+    cx(184)-22.2,
+    184,
+    .02,
+    2.45,
+    2.05
+  );
+
+  // 바닥에 끊어져 널린 랩 비닐.
+  dockMess.box(
+    [
+      cx(190)-20.7,
+      Y(cx(190)-20.7,190)+.12,
+      190
+    ],
+    [4.8,.035,1.15],
+    0xc7c9c0,
+    [.12,.35,-.10]
+  );
+
+  // 방치된 롤테이너 카트.
+  {
+    const z=211;
+    const x=cx(z)+22.4;
+    const y=Y(x,z);
+
+    dockMess.box(
+      [x,y+.22,z],
+      [2.0,.15,1.65],
+      0x394744
+    );
+
+    for(const dx of[-.88,.88]){
+      for(const dz of[-.70,.70]){
+        dockMess.beam(
+          [x+dx,y+.25,z+dz],
+          [x+dx,y+2.15,z+dz],
+          .055,.055,
+          0x394744
+        );
+
+        dockMess.box(
+          [x+dx,y+.12,z+dz],
+          [.28,.24,.28],
+          0x232927
+        );
+      }
+    }
+
+    for(let h=.48;h<2.12;h+=.34){
+      dockMess.beam(
+        [x-.88,y+h,z-.70],
+        [x+.88,y+h,z-.70],
+        .035,.035,
+        0x394744
+      );
+    }
+  }
+
+  // 코너에 밀려난 박스 두 개.
+  carton(
+    cx(224)-23.0,
+    224,
+    .05,
+    1.35,.75,1.1,
+    .10
+  );
+
+  carton(
+    cx(226)-21.8,
+    226,
+    .05,
+    1.10,1.05,1.3,
+    -.06
+  );
+
+  // 바퀴와 프레임만 남은 빈 트레일러 섀시.
+  {
+    const z=229;
+    const x=cx(z)+22.8;
+    const y=Y(x,z);
+
+    const yaw=
+      Math.atan2(
+        cx(z+6)-cx(z-6),
+        12
+      );
+
+    dockMess.box(
+      [x,y+.48,z],
+      [3.0,.30,13.2],
+      0x303836,
+      [0,yaw,0]
+    );
+
+    dockMess.box(
+      [x,y+.77,z-5.4],
+      [3.2,.22,2.1],
+      0x555e59,
+      [0,yaw,0]
+    );
+
+    for(const dz of[-4.4,4.4]){
+      for(const dx of[-1.48,1.48]){
+        dockMess.box(
+          [x+dx,y+.38,z+dz],
+          [.75,.75,.34],
+          0x202624,
+          [0,yaw,0]
+        );
+      }
+    }
+  }
+}
+
  for(let i=0;i<24;i++){const z=15+R()*125,x=(R()<.5?-1:1)*(17+R()*13);at(stock,x,.3,z,.6+R(),.4+R()*.4,.7+R(),i%3?C.box:C.roof,[R()*.2,R()*3,R()*.25]);}
  // CAMPUS: real wall thickness, recessed bays, separate yards, roof breaks.
  const campuses=[[-1,218,63,65,98,12], [1,296,78,79,123,14],[-1,406,80,82,110,15], [1,472,104,105,127,17],[-1,720,116,90,120,13], [1,1340,150,95,140,17]];
@@ -1301,7 +1750,7 @@ function weatherAt(z,t=0){
  const rainRaw=Math.max(first,windowAt(z,2080,2480,90),windowAt(z,4860,5310,100),windowAt(z,6480,6880,90),z>10000?windowAt((z-10000)%2700,760,1260,110):0);
  const dustRaw=Math.max(windowAt(z,3240,3520,75),windowAt(z,6120,6420,85),z>10400?windowAt((z-10400)%3100,1900,2320,100):0);
  const rain=rainRaw*(1-underground)*(1-day2),dust=dustRaw*(1-underground)*(1-day2);
- const indoor=(1-smooth(151,164,z))*(z>-70?1:0),tunnel=windowAt(z,TUNNEL_START-2,TUNNEL_END+2,18);
+ const indoor=(1-smooth(226,244,z))*(z>-70?1:0),tunnel=windowAt(z,TUNNEL_START-2,TUNNEL_END+2,18);
  const night=smooth(4140,4625,z)*(1-day2),dusk=smooth(2850,4140,z)*(1-night)*(1-day2);
  const spiral=twistField(z),warpActive=Math.max(spiral,twistField(z+140),twistField(z+300),twistField(z+470));
  const deepSpiral=smooth(DEEP_SPIRAL_START,DEEP_SPIRAL_FULL,z)*(1-smooth(DEEP_SPIRAL_RELAX,DEEP_SPIRAL_END,z));
@@ -1311,7 +1760,52 @@ function weatherAt(z,t=0){
  const shadow=night*(1-rain*.78)*(1-dust*.58)*(1-tunnel*.88)*(1-underground);
  return{rain,dust,indoor,tunnel,underground,cavern,glide,pipe,day2,sink,spiral,warpActive,deepSpiral,anomaly,silence,dusk,night,stars,shadow,cloud:clamp(rain*.92+dust*.45+.10+night*.03)};
 }
-function roofed(x,z,cx){if(z>=TUNNEL_START&&z<=TUNNEL_END&&Math.abs(x-cx(z))<14.2)return true;if(z>=SINK_START+80&&z<=PIPE_END&&Math.abs(x-cx(z))<36)return true;if(z>=-40&&z<=156&&Math.abs(x)<35){const i=Math.floor((z+40)/12),p=Math.round(x/10)*10;return !((i===8&&p>-10)||(i===13&&p<0)||(i===10&&p===20));}return false;}
+
+function roofed(x,z,cx){
+  if(
+    z>=TUNNEL_START &&
+    z<=TUNNEL_END &&
+    Math.abs(x-cx(z))<14.2
+  ){
+    return true;
+  }
+
+  if(
+    z>=SINK_START+80 &&
+    z<=PIPE_END &&
+    Math.abs(x-cx(z))<36
+  ){
+    return true;
+  }
+
+  // 반실내 접안 차량구역.
+  if(
+    z>=158 &&
+    z<=240 &&
+    Math.abs(x-cx(z))<34
+  ){
+    return true;
+  }
+
+  // 기존 창고 내부 천장.
+  if(
+    z>=-40 &&
+    z<=156 &&
+    Math.abs(x)<35
+  ){
+    const i=Math.floor((z+40)/12);
+    const p=Math.round(x/10)*10;
+
+    return !(
+      (i===8&&p>-10) ||
+      (i===13&&p<0) ||
+      (i===10&&p===20)
+    );
+  }
+
+  return false;
+}
+
 function warp(p,origin,strength,time,seed=0){
  const d=p[2]-origin[2],localTwist=twistField(p[2]);if(d<=2.5||strength<=.000001||localTwist<=.000001)return p.slice();
  const near=smooth(2.5,13,d),run=smooth(2.5,58,d);
@@ -2639,6 +3133,8 @@ function courseEvents(a,b){
     soft:true
   });
 
+put('skid',214,-8.6,{role:'dock-edge'});
+
   // 희귀 추가 목숨 헬멧.
   for(const [z,u] of [
     [2380,-5.5],
@@ -3454,7 +3950,7 @@ for(let i=0;i<STACK_MAX;i++){
   g.visible=false; stackGroup.add(g); stackMeshes.push(g);
 }
 const stackKinds=[];
-let stackH=0;
+let stackH=0,camStack=0;
 
 
 
@@ -3469,6 +3965,8 @@ function setStack(n){
     if(i<n){ const k=stackKinds[i]||"aj"; g.userData.aj.visible=k==="aj"; g.userData.kpp.visible=k==="kpp"; }
   }
   stackH=n>0?Math.max(0,PAL_BASE_Y+Math.min(n,STACK_MAX)*PAL_H-0.19):0;      // 발이 맨 위 상판에 닿게
+camStack=2.2*(1-Math.exp(-stackH/2.2));
+
   setTiller(stackH);
 }
 setTiller(0);
@@ -4638,9 +5136,9 @@ rideLook.copy(rider.position)
   camera.up.set(0,1,0);
   const roadYaw=Math.atan2(cxSlope(P.z+12),1),heading=Math.atan2(P.vx,P.vz);let targetYaw=roadYaw*.9+heading*.1;
   if(!camInit){camYaw=targetYaw;camX=P.x;camInit=true;}let dy=targetYaw-camYaw;while(dy>Math.PI)dy-=2*Math.PI;while(dy<-Math.PI)dy+=2*Math.PI;camYaw+=dy*clamp(2.2*dt,0,1);camX=lerp(camX,P.x,clamp(3*dt,0,1));
-  const dist=6.6+stackH*.45,hgt=3+stackH*.7;camTmp.set(camX-Math.sin(camYaw)*dist,P.y+hgt,P.z-Math.cos(camYaw)*dist);camera.position.lerp(camTmp,clamp(10*dt,0,1));
+  const dist=6.6+camStack*.45,hgt=3+camStack*.7;;camTmp.set(camX-Math.sin(camYaw)*dist,P.y+hgt,P.z-Math.cos(camYaw)*dist);camera.position.lerp(camTmp,clamp(10*dt,0,1));
   const floor=H(camera.position.x,camera.position.z)+1.6;if(camera.position.y<floor)camera.position.y=floor;if(P.shake>0){const sh=P.shake*.28;camera.position.x+=(Math.random()-.5)*sh;camera.position.y+=(Math.random()-.5)*sh;}
-  camera.lookAt(camX+Math.sin(camYaw)*9,P.y+1+stackH*.75,P.z+Math.cos(camYaw)*9);const fov=66+P.boost*5;if(Math.abs(camera.fov-fov)>.05){camera.fov=lerp(camera.fov,fov,clamp(5*dt,0,1));camera.updateProjectionMatrix();}
+  camera.lookAt(camX+Math.sin(camYaw)*9,P.y+1+camStack*.75,P.z+Math.cos(camYaw)*9);const fov=66+P.boost*5;if(Math.abs(camera.fov-fov)>.05){camera.fov=lerp(camera.fov,fov,clamp(5*dt,0,1));camera.updateProjectionMatrix();}
   const e=new THREE.Euler().setFromQuaternion(camera.quaternion,'YXZ');bgU.uYaw.value=e.y;bgU.uPitch.value=clamp(-e.x*.55,-.3,.3);
 }
 
