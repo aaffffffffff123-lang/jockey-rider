@@ -3580,37 +3580,1125 @@ const CONT_LIST=[CONT.red,CONT.blue,CONT.green,CONT.grey,CONT.ochre,CONT.maroon,
 const CONT_W=2.44,CONT_H=2.59,CONT_40=12.19,CONT_20=6.06;
 const PAL_DECOR={aj:{deck:0x7d8f3c,foot:0x66752c},kpp:{deck:0x5b2530,foot:0x461b25},wet:{deck:0x4e5a48,foot:0x3d4636}};
 
-// 컨테이너: center = 본체 중심, m = basisYXZ(...), opt.doors 'closed'|'open'|'missing', opt.doorAngle, opt.rust 0~1, opt.cargo 'pallets'|'boxes'
-function drawContainer(b,center,len,color,m=IDENT,opt={}){
- const w=CONT_W,h=CONT_H,r=(x,y,z)=>tb(center,m,x,y,z),dark=shade(color,.62),rib=shade(color,.84);
- mbox(b,center,[w,h,len],color,m);
- const step=.92,n=Math.max(1,Math.floor((len-.7)/step));
- for(let k=0;k<=n;k++){const dz=-len/2+.35+k*step;for(const s of[-1,1])mbox(b,r(s*(w/2+.015),0,dz),[.045,h*.88,.17],rib,m);}
- for(const sx of[-1,1])for(const sz of[-1,1])mbox(b,r(sx*w/2,0,sz*len/2),[.17,h+.05,.17],dark,m);
- for(const sx of[-1,1])for(const sy of[-1,1])mbox(b,r(sx*w/2,sy*h/2,0),[.13,.13,len+.02],dark,m);
- for(const sz of[-1,1])for(const sy of[-1,1])mbox(b,r(0,sy*h/2,sz*len/2),[w+.02,.13,.13],dark,m);
- const doors=opt.doors||'closed';
- if(doors==='closed'){
-  for(const s of[-1,1]){
-   mbox(b,r(s*w/4,0,len/2+.035),[w/2-.07,h-.16,.06],shade(color,.78),m);
-   for(const dx of[-.34,.34])mbox(b,r(s*w/4+dx,0,len/2+.095),[.05,h-.5,.05],0x3a3e3c,m);
-   mbox(b,r(s*w/4,-.12,len/2+.12),[.22,.05,.04],0x3a3e3c,m);
+
+
+// 컨테이너:
+// center = 본체 중심
+// m = basisYXZ(...)
+// opt.doors = 'closed' | 'open' | 'missing'
+// opt.doorAngle, rust 0~1, damage 0~1
+// opt.detail = 0 | 1 | 2
+// opt.cargo = 'pallets' | 'boxes'
+function drawContainer(
+  b,
+  center,
+  len,
+  color,
+  m=IDENT,
+  opt={}
+){
+  const w=CONT_W;
+  const h=CONT_H;
+
+  const r=(x,y,z)=>
+    tb(
+      center,
+      m,
+      x,y,z
+    );
+
+  const clamp01=v=>
+    Math.max(
+      0,
+      Math.min(1,v)
+    );
+
+  const rust=
+    clamp01(
+      Number(opt.rust)||0
+    );
+
+  const damage=
+    clamp01(
+      opt.damage!=null
+        ? Number(opt.damage)||0
+        : rust*.58
+    );
+
+  const detail=
+    opt.detail===0
+      ? 0
+      : opt.detail===2
+        ? 2
+        : 1;
+
+  // 위치를 기준으로 고정된 변화값을 만든다.
+  // 재실행 때 컨테이너 외형이 마구 바뀌지 않는다.
+  const seed=
+    Number.isFinite(opt.seed)
+      ? opt.seed
+      : Math.abs(
+          Math.sin(
+            center[0]*12.9898+
+            center[2]*78.233+
+            color*.000013+
+            len*4.17
+          )*
+          43758.5453
+        );
+
+  const rnd=n=>{
+    const x=
+      Math.sin(
+        seed*17.13+
+        n*91.71
+      )*
+      43758.5453;
+
+    return x-
+      Math.floor(x);
+  };
+
+  const paint=
+    shade(
+      color,
+      .92+
+      rnd(1)*.07
+    );
+
+  const dark=
+    shade(
+      paint,
+      .54
+    );
+
+  const edge=
+    shade(
+      paint,
+      .64
+    );
+
+  const rib=
+    shade(
+      paint,
+      .80
+    );
+
+  const recess=
+    shade(
+      paint,
+      .72
+    );
+
+  const faded=
+    shade(
+      paint,
+      1.08
+    );
+
+  const grime=
+    0x353734;
+
+  const rustDark=
+    0x593726;
+
+  const rustLight=
+    0x78452d;
+
+
+  // ─────────────────────────────
+  // 1. 본체
+  // ─────────────────────────────
+
+  mbox(
+    b,
+    center,
+    [
+      w,
+      h,
+      len
+    ],
+    paint,
+    m
+  );
+
+
+  // ─────────────────────────────
+  // 2. 옆면 골과 판넬 음영
+  // ─────────────────────────────
+
+  const step=.92;
+
+  const n=Math.max(
+    1,
+    Math.floor(
+      (len-.7)/
+      step
+    )
+  );
+
+  for(let k=0;k<=n;k++){
+    const dz=
+      -len/2+
+      .35+
+      k*step;
+
+    for(const side of[-1,1]){
+      mbox(
+        b,
+        r(
+          side*
+          (
+            w/2+
+            .018
+          ),
+          0,
+          dz
+        ),
+        [
+          .045,
+          h*.88,
+          .17
+        ],
+        rib,
+        m
+      );
+    }
   }
- }else{
-  mbox(b,r(0,0,len/2-.10),[w-.22,h-.22,.06],0x14171a,m);
-  if(doors==='open'){
-   const a=opt.doorAngle!=null?opt.doorAngle:1.85;
-   for(const s of[-1,1]){
-    const th=s*a,dm=mulBasis(m,th),hinge=r(s*w/2,0,len/2+.035),c=tb(hinge,dm,-s*w/4,0,0);
-    mbox(b,c,[w/2-.07,h-.16,.06],shade(color,.78),dm);
-    for(const dx of[-.34,.34])mbox(b,tb(c,dm,dx,0,.06),[.05,h-.5,.05],0x3a3e3c,dm);
-   }
+
+
+  // 골 사이의 판넬 색을 미세하게 달리해
+  // 옆면이 한 장짜리 평면처럼 보이지 않게 한다.
+  if(detail>0){
+    for(const side of[-1,1]){
+      for(let k=0;k<n;k+=2){
+        const dz=
+          -len/2+
+          .82+
+          k*step;
+
+        const tone=
+          k%4===0
+            ? recess
+            : shade(
+                paint,
+                .86
+              );
+
+        mbox(
+          b,
+          r(
+            side*
+            (
+              w/2+
+              .026
+            ),
+            -.02+
+            (
+              rnd(
+                20+
+                k+
+                (
+                  side>0
+                    ? 100
+                    : 0
+                )
+              )-.5
+            )*.05,
+            dz
+          ),
+          [
+            .024,
+            h*.69,
+            Math.min(
+              step*1.42,
+              len*.18
+            )
+          ],
+          tone,
+          m
+        );
+      }
+    }
   }
- }
- if(opt.rust)for(let i=0;i<Math.round(opt.rust*4)+1;i++){const s=i%2?1:-1,dz=-len/2+.8+(i*2.37)%(len-1.6);mbox(b,r(s*(w/2+.03),-h*.32+(i%3)*.5,dz),[.02,.5+(i%2)*.35,.9+(i%3)*.5],0x5a3a2a,m);}
- if(opt.cargo==='pallets')for(let i=0;i<3;i++)drawPalletDecor(b,r((i-1)*.02,-h/2+.02+i*.155,len/2-1.3),m,i%2?'aj':'kpp');
- if(opt.cargo==='boxes'){mbox(b,r(-.5,-h/2+.45,len/2-1.2),[1.0,.9,1.0],0x967750,m);mbox(b,r(.55,-h/2+.35,len/2-1.6),[.9,.7,.9],0x8a6d4a,m);mbox(b,r(-.3,-h/2+1.3,len/2-1.35),[.8,.6,.8],0x9a7c55,m);}
+
+
+  // ─────────────────────────────
+  // 3. 모서리 프레임과 레일
+  // ─────────────────────────────
+
+  for(const sx of[-1,1]){
+    for(const sz of[-1,1]){
+      mbox(
+        b,
+        r(
+          sx*w/2,
+          0,
+          sz*len/2
+        ),
+        [
+          .17,
+          h+.05,
+          .17
+        ],
+        dark,
+        m
+      );
+    }
+  }
+
+  for(const sx of[-1,1]){
+    for(const sy of[-1,1]){
+      mbox(
+        b,
+        r(
+          sx*w/2,
+          sy*h/2,
+          0
+        ),
+        [
+          .13,
+          .13,
+          len+.02
+        ],
+        edge,
+        m
+      );
+    }
+  }
+
+  for(const sz of[-1,1]){
+    for(const sy of[-1,1]){
+      mbox(
+        b,
+        r(
+          0,
+          sy*h/2,
+          sz*len/2
+        ),
+        [
+          w+.02,
+          .13,
+          .13
+        ],
+        edge,
+        m
+      );
+    }
+  }
+
+
+  // 실제 컨테이너 모서리의 주물 블록.
+  for(const sx of[-1,1]){
+    for(const sy of[-1,1]){
+      for(const sz of[-1,1]){
+        mbox(
+          b,
+          r(
+            sx*w/2,
+            sy*h/2,
+            sz*len/2
+          ),
+          [
+            .25,
+            .25,
+            .25
+          ],
+          0x343936,
+          m
+        );
+      }
+    }
+  }
+
+
+  // ─────────────────────────────
+  // 4. 지붕과 문 반대쪽 끝면
+  // ─────────────────────────────
+
+  if(detail>0){
+    // 지붕의 가로 이음선.
+    for(
+      let z=
+        -len/2+
+        .65;
+      z<
+        len/2-
+        .55;
+      z+=1.35
+    ){
+      mbox(
+        b,
+        r(
+          0,
+          h/2+.027,
+          z
+        ),
+        [
+          w-.23,
+          .035,
+          .085
+        ],
+        shade(
+          paint,
+          .69
+        ),
+        m
+      );
+    }
+
+
+    // 문이 없는 반대편 끝면의 골.
+    for(
+      let x=
+        -w/2+
+        .31;
+      x<
+        w/2-
+        .20;
+      x+=.37
+    ){
+      mbox(
+        b,
+        r(
+          x,
+          0,
+          -len/2-
+          .028
+        ),
+        [
+          .10,
+          h*.80,
+          .035
+        ],
+        rib,
+        m
+      );
+    }
+  }
+
+
+  // ─────────────────────────────
+  // 5. 바닥 때와 바랜 표식
+  // ─────────────────────────────
+
+  if(detail>0){
+    for(const side of[-1,1]){
+      // 바닥 근처의 먼지와 물때.
+      mbox(
+        b,
+        r(
+          side*
+          (
+            w/2+
+            .033
+          ),
+          -h*.39,
+          (
+            rnd(
+              60+
+              side
+            )-.5
+          )*
+          len*.12
+        ),
+        [
+          .025,
+          .30+
+          rnd(
+            61+
+            side
+          )*.15,
+          len*
+          (
+            .54+
+            rnd(
+              62+
+              side
+            )*.23
+          )
+        ],
+        grime,
+        m
+      );
+    }
+
+
+    // 페인트가 바랜 회사명 자리처럼 보이는 직사각형.
+    const markSide=
+      rnd(70)<.5
+        ? -1
+        : 1;
+
+    const markZ=
+      -len*.10+
+      (
+        rnd(71)-.5
+      )*
+      len*.32;
+
+    mbox(
+      b,
+      r(
+        markSide*
+        (
+          w/2+
+          .042
+        ),
+        h*.12,
+        markZ
+      ),
+      [
+        .024,
+        .34,
+        Math.min(
+          2.30,
+          len*.32
+        )
+      ],
+      shade(
+        faded,
+        .88
+      ),
+      m
+    );
+
+
+    // 표식 위에 남은 어두운 획.
+    mbox(
+      b,
+      r(
+        markSide*
+        (
+          w/2+
+          .048
+        ),
+        h*.12,
+        markZ
+      ),
+      [
+        .018,
+        .075,
+        Math.min(
+          1.42,
+          len*.21
+        )
+      ],
+      shade(
+        paint,
+        .47
+      ),
+      m
+    );
+  }
+
+
+  // 찌그러진 부분을 실제 곡면 대신
+  // 얕은 어두운 패치와 비뚤어진 골로 표현한다.
+  if(
+    detail>0&&
+    damage>.28
+  ){
+    const dents=
+      1+
+      Math.round(
+        damage*2
+      );
+
+    for(let i=0;i<dents;i++){
+      const side=
+        rnd(
+          80+i
+        )<.5
+          ? -1
+          : 1;
+
+      const z=
+        -len*.34+
+        rnd(
+          90+i
+        )*
+        len*.68;
+
+      const y=
+        -h*.15+
+        rnd(
+          100+i
+        )*
+        h*.34;
+
+      mbox(
+        b,
+        r(
+          side*
+          (
+            w/2+
+            .046
+          ),
+          y,
+          z
+        ),
+        [
+          .024,
+          .38+
+          rnd(
+            110+i
+          )*.38,
+          .72+
+          rnd(
+            120+i
+          )*.82
+        ],
+        shade(
+          paint,
+          .48
+        ),
+        m
+      );
+
+      mbox(
+        b,
+        r(
+          side*
+          (
+            w/2+
+            .052
+          ),
+          y+
+          .06,
+          z+
+          .08
+        ),
+        [
+          .018,
+          .07,
+          .58+
+          rnd(
+            130+i
+          )*.46
+        ],
+        shade(
+          paint,
+          1.03
+        ),
+        m
+      );
+    }
+  }
+
+
+  // ─────────────────────────────
+  // 6. 문
+  // ─────────────────────────────
+
+  function drawDoorLeaf(
+    c,
+    dm,
+    side,
+    doorSeed
+  ){
+    const leafW=
+      w/2-
+      .07;
+
+    const leafH=
+      h-
+      .16;
+
+    const rr=(x,y,z)=>
+      tb(
+        c,
+        dm,
+        x,y,z
+      );
+
+    // 문짝 본체.
+    mbox(
+      b,
+      c,
+      [
+        leafW,
+        leafH,
+        .065
+      ],
+      shade(
+        paint,
+        .75
+      ),
+      dm
+    );
+
+
+    // 문짝 테두리.
+    for(const sx of[-1,1]){
+      mbox(
+        b,
+        rr(
+          sx*
+          (
+            leafW/2-
+            .025
+          ),
+          0,
+          .054
+        ),
+        [
+          .055,
+          leafH-.04,
+          .045
+        ],
+        dark,
+        dm
+      );
+    }
+
+    for(const sy of[-1,1]){
+      mbox(
+        b,
+        rr(
+          0,
+          sy*
+          (
+            leafH/2-
+            .025
+          ),
+          .054
+        ),
+        [
+          leafW-.04,
+          .055,
+          .045
+        ],
+        dark,
+        dm
+      );
+    }
+
+
+    // 잠금바 두 개.
+    for(const dx of[
+      -.28,
+      .28
+    ]){
+      mbox(
+        b,
+        rr(
+          dx,
+          0,
+          .084
+        ),
+        [
+          .052,
+          leafH-.42,
+          .052
+        ],
+        0x343a38,
+        dm
+      );
+
+      // 잠금바 손잡이.
+      mbox(
+        b,
+        rr(
+          dx+
+          (
+            side<0
+              ? .07
+              : -.07
+          ),
+          -.23,
+          .115
+        ),
+        [
+          .23,
+          .055,
+          .055
+        ],
+        0x303634,
+        dm
+      );
+    }
+
+
+    // 바깥쪽 경첩 네 개.
+    const hingeX=
+      side*
+      (
+        leafW/2-
+        .025
+      );
+
+    for(const yy of[
+      -.78,
+      -.27,
+      .27,
+      .78
+    ]){
+      mbox(
+        b,
+        rr(
+          hingeX,
+          yy,
+          .082
+        ),
+        [
+          .12,
+          .16,
+          .10
+        ],
+        0x303634,
+        dm
+      );
+    }
+
+
+    // 한쪽 문에만 작은 식별판.
+    if(
+      detail>0&&
+      doorSeed%2===0
+    ){
+      mbox(
+        b,
+        rr(
+          -side*.12,
+          -.55,
+          .102
+        ),
+        [
+          .42,
+          .25,
+          .025
+        ],
+        0xb7b39f,
+        dm
+      );
+
+      mbox(
+        b,
+        rr(
+          -side*.12,
+          -.55,
+          .118
+        ),
+        [
+          .25,
+          .045,
+          .018
+        ],
+        0x3f4542,
+        dm
+      );
+    }
+  }
+
+
+  const doors=
+    opt.doors||
+    'closed';
+
+  if(doors==='closed'){
+    for(const side of[-1,1]){
+      drawDoorLeaf(
+        r(
+          side*w/4,
+          0,
+          len/2+
+          .045
+        ),
+        m,
+        side,
+        Math.floor(
+          seed+
+          side*11
+        )
+      );
+    }
+  }else{
+    // 내부가 단순 검은 페인트 판이 아니라
+    // 컨테이너 내부의 깊은 그늘처럼 보이게 한다.
+    mbox(
+      b,
+      r(
+        0,
+        0,
+        len/2-
+        .16
+      ),
+      [
+        w-.20,
+        h-.20,
+        .28
+      ],
+      0x111514,
+      m
+    );
+
+    mbox(
+      b,
+      r(
+        0,
+        -.38,
+        len/2-
+        .35
+      ),
+      [
+        w-.34,
+        .05,
+        .40
+      ],
+      0x2c302e,
+      m
+    );
+
+
+    if(doors==='open'){
+      const a=
+        opt.doorAngle!=null
+          ? opt.doorAngle
+          : 1.85;
+
+      for(const side of[-1,1]){
+        const th=
+          side*a;
+
+        const dm=
+          mulBasis(
+            m,
+            th
+          );
+
+        const hinge=
+          r(
+            side*w/2,
+            0,
+            len/2+
+            .04
+          );
+
+        const c=
+          tb(
+            hinge,
+            dm,
+            -side*w/4,
+            0,
+            0
+          );
+
+        drawDoorLeaf(
+          c,
+          dm,
+          side,
+          Math.floor(
+            seed+
+            side*19
+          )
+        );
+      }
+    }
+  }
+
+
+  // ─────────────────────────────
+  // 7. 녹과 빗물 자국
+  // ─────────────────────────────
+
+  if(rust>0){
+    const count=
+      2+
+      Math.round(
+        rust*7
+      );
+
+    for(let i=0;i<count;i++){
+      const side=
+        rnd(
+          160+i
+        )<.5
+          ? -1
+          : 1;
+
+      const z=
+        -len/2+
+        .75+
+        rnd(
+          180+i
+        )*
+        Math.max(
+          .2,
+          len-1.5
+        );
+
+      const streakH=
+        .45+
+        rnd(
+          200+i
+        )*
+        (
+          .65+
+          rust*1.05
+        );
+
+      const y=
+        h*.34-
+        streakH*.5-
+        rnd(
+          220+i
+        )*
+        h*.42;
+
+      mbox(
+        b,
+        r(
+          side*
+          (
+            w/2+
+            .058
+          ),
+          y,
+          z
+        ),
+        [
+          .025,
+          streakH,
+          .12+
+          rnd(
+            240+i
+          )*.24
+        ],
+        i%3
+          ? rustDark
+          : rustLight,
+        m
+      );
+
+      if(i%3===0){
+        mbox(
+          b,
+          r(
+            side*
+            (
+              w/2+
+              .060
+            ),
+            -h*.43,
+            z+
+            .12
+          ),
+          [
+            .024,
+            .13,
+            .55+
+            rnd(
+              260+i
+            )*.72
+          ],
+          rustDark,
+          m
+        );
+      }
+    }
+
+
+    // 문쪽 상단에서 아래로 내려온 긴 녹물.
+    if(rust>.48){
+      for(const x of[
+        -w*.27,
+        w*.24
+      ]){
+        mbox(
+          b,
+          r(
+            x,
+            .18,
+            len/2+
+            .134
+          ),
+          [
+            .12+
+            rust*.06,
+            .72+
+            rust*.70,
+            .025
+          ],
+          rustDark,
+          m
+        );
+      }
+    }
+  }
+
+
+  // ─────────────────────────────
+  // 8. 내부 화물
+  // ─────────────────────────────
+
+  if(opt.cargo==='pallets'){
+    for(let i=0;i<3;i++){
+      drawPalletDecor(
+        b,
+        r(
+          (i-1)*.02,
+          -h/2+
+          .02+
+          i*.155,
+          len/2-
+          1.3
+        ),
+        m,
+        i%2
+          ? 'aj'
+          : 'kpp'
+      );
+    }
+  }
+
+  if(opt.cargo==='boxes'){
+    mbox(
+      b,
+      r(
+        -.50,
+        -h/2+.45,
+        len/2-1.20
+      ),
+      [
+        1.0,.9,1.0
+      ],
+      0x967750,
+      m
+    );
+
+    mbox(
+      b,
+      r(
+        .55,
+        -h/2+.35,
+        len/2-1.60
+      ),
+      [
+        .9,.7,.9
+      ],
+      0x8a6d4a,
+      m
+    );
+
+    mbox(
+      b,
+      r(
+        -.30,
+        -h/2+1.30,
+        len/2-1.35
+      ),
+      [
+        .8,.6,.8
+      ],
+      0x9a7c55,
+      m
+    );
+  }
 }
+
+
+
 // 풍경용 파렛트 (죽은 색). center = 바닥 중심
 function drawPalletDecor(b,center,m=IDENT,kind='aj'){
  const c=PAL_DECOR[kind]||PAL_DECOR.aj,r=(x,y,z)=>tb(center,m,x,y,z);
@@ -9886,42 +10974,726 @@ function stepShards(dt){
   if(s.life<.4)s.m.scale.multiplyScalar(Math.max(0,1-dt*3));}
 }
 
-// ---- 컨테이너 벽: 통로 없이 도로 전폭을 막는다. 파렛트가 있으면 공성추처럼 뚫고(위쪽 파렛트가 단계적으로 날아감), 없으면 맨몸 충돌 후 뚫린다 ----
-const wall={z:CG_WALL,broken:false,t:0,pieces:[],drops:0,dropT:0,dropIdx:0};
-{const put=(m,u,dz,yaw,roll,lift)=>{const x=cx(CG_WALL)+u,z=CG_WALL+dz;m.position.set(x,H(x,z)+(lift||0),z);m.rotation.set(0,yaw,roll||0,'YXZ');scene.add(m);
-  wall.pieces.push({m,home:m.position.clone(),rot:m.rotation.clone(),side:u<0?-1:1,vx:0,vy:0,vz:0,ax:0,ay:0,az:0,rest:false});};
- const cont=(len,color,opt)=>batchMesh(b=>JWX.drawContainer(b,[0,JWX.CONT_H/2,0],len,color,JWX.basisYXZ(0,0,0),opt),'wall-container');
- put(cont(JWX.CONT_40,JWX.CONT.blue,{doors:'closed',rust:.5}),-6.4,1.6,Math.PI/2,0);                  // A: 40ft, 도로 -u 쪽 절반
- put(cont(JWX.CONT_20,JWX.CONT.red,{doors:'closed',rust:.6}),3.55,2.6,Math.PI/2+.14,0);                // B: 20ft
- put(cont(JWX.CONT_20,JWX.CONT.grey,{doors:'missing',rust:.7}),9.9,.6,Math.PI/2-.2,.10);                // C: 20ft, 살짝 기움
- put(cont(JWX.CONT_40,JWX.CONT.ochre,{doors:'closed',rust:.4}),-1.6,2.2,Math.PI/2+.08,-.05,JWX.CONT_H-.02); // D: A·B 위 2단
- put(batchMesh(b=>JWX.drawTractor(b,[0,0,0],JWX.basisYXZ(0,0,0),0x8b3a2c),'wall-tractor'),7.6,-1.8,.62,0);  // 잭나이프 트랙터
- put(batchMesh(b=>JWX.drawTrailer(b,[0,0,0],JWX.basisYXZ(0,0,0),{}),'wall-trailer'),13.8,-1.0,-.9,1.35,1.2);   // 옆으로 넘어진 섀시 (갓길)
+
+
+
+// ---- 컨테이너 벽:
+// 정면에서 한 번에 폭발하는 대신
+// 중앙이 먼저 뚫리고 위쪽 적재물이 한 박자 늦게 무너진다.
+const wall={
+  z:CG_WALL,
+  broken:false,
+  t:0,
+  pieces:[],
+  drops:0,
+  dropT:0,
+  dropIdx:0,
+  topBurst:false
+};
+
+{
+  const put=(
+    m,
+    u,
+    dz,
+    yaw,
+    roll,
+    lift,
+    role,
+    mass=1
+  )=>{
+    const x=
+      cx(CG_WALL)+u;
+
+    const z=
+      CG_WALL+dz;
+
+    m.position.set(
+      x,
+      H(x,z)+
+      (lift||0),
+      z
+    );
+
+    m.rotation.set(
+      0,
+      yaw,
+      roll||0,
+      'YXZ'
+    );
+
+    scene.add(m);
+
+    wall.pieces.push({
+      m,
+
+      home:
+        m.position.clone(),
+
+      rot:
+        m.rotation.clone(),
+
+      side:
+        u<0
+          ? -1
+          : 1,
+
+      role,
+      mass,
+
+      delay:0,
+      launched:false,
+
+      vx:0,
+      vy:0,
+      vz:0,
+
+      ax:0,
+      ay:0,
+      az:0,
+
+      rest:false
+    });
+  };
+
+
+  const cont=(
+    len,
+    color,
+    opt={}
+  )=>
+    batchMesh(
+      b=>
+        JWX.drawContainer(
+          b,
+          [
+            0,
+            JWX.CONT_H/2,
+            0
+          ],
+          len,
+          color,
+          JWX.basisYXZ(
+            0,0,0
+          ),
+          Object.assign(
+            {
+              detail:2,
+              damage:.58
+            },
+            opt
+          )
+        ),
+      'wall-container'
+    );
+
+
+  // 왼쪽 하단 40ft.
+  put(
+    cont(
+      JWX.CONT_40,
+      JWX.CONT.blue,
+      {
+        doors:'closed',
+        rust:.72
+      }
+    ),
+    -6.4,
+    1.6,
+    Math.PI/2,
+    0,
+    0,
+    'left',
+    1.20
+  );
+
+
+  // 중앙 오른쪽 하단 20ft.
+  put(
+    cont(
+      JWX.CONT_20,
+      JWX.CONT.red,
+      {
+        doors:'closed',
+        rust:.82
+      }
+    ),
+    3.55,
+    2.6,
+    Math.PI/2+.14,
+    0,
+    0,
+    'centre',
+    .86
+  );
+
+
+  // 오른쪽 하단 20ft.
+  put(
+    cont(
+      JWX.CONT_20,
+      JWX.CONT.grey,
+      {
+        doors:'missing',
+        rust:.88
+      }
+    ),
+    9.9,
+    .6,
+    Math.PI/2-.2,
+    .10,
+    0,
+    'right',
+    .92
+  );
+
+
+  // 위에 걸쳐진 40ft.
+  put(
+    cont(
+      JWX.CONT_40,
+      JWX.CONT.ochre,
+      {
+        doors:'closed',
+        rust:.68,
+        damage:.72
+      }
+    ),
+    -1.6,
+    2.2,
+    Math.PI/2+.08,
+    -.05,
+    JWX.CONT_H-.02,
+    'top',
+    1.28
+  );
+
+
+  // 잭나이프 트랙터.
+  put(
+    batchMesh(
+      b=>
+        JWX.drawTractor(
+          b,
+          [0,0,0],
+          JWX.basisYXZ(
+            0,0,0
+          ),
+          0x8b3a2c
+        ),
+      'wall-tractor'
+    ),
+    7.6,
+    -1.8,
+    .62,
+    0,
+    0,
+    'tractor',
+    1.75
+  );
+
+
+  // 옆으로 넘어진 섀시.
+  put(
+    batchMesh(
+      b=>
+        JWX.drawTrailer(
+          b,
+          [0,0,0],
+          JWX.basisYXZ(
+            0,0,0
+          ),
+          {}
+        ),
+      'wall-trailer'
+    ),
+    13.8,
+    -1.0,
+    -.9,
+    1.35,
+    1.2,
+    'trailer',
+    2.05
+  );
 }
-function wallKeep(n){return n<=2?n:n<=5?2:n<=9?3:4;}
+
+
+function wallKeep(n){
+  return n<=2
+    ? n
+    : n<=5
+      ? 2
+      : n<=9
+        ? 3
+        : 4;
+}
+
+
 function hitWall(){
- wall.broken=true;wall.t=0;
- const sp=Math.hypot(P.vx,P.vz),fx=sp>.5?P.vx/sp:0,fz=sp>.5?P.vz/sp:1;
- if(P.pallets>0){wall.drops=P.pallets-wallKeep(P.pallets);wall.dropT=.04;P.vx*=.90;P.vz*=.90;P.boost=Math.max(P.boost||0,.5);}
- else{wall.drops=0;crash(false);}
- P.inv=Math.max(P.inv||0,.95);P.shake=Math.max(P.shake||0,.9);
- for(let i=0;i<wall.pieces.length;i++){const q=wall.pieces[i],heavy=i>=4,top=i===3;
-  q.rest=false;q.vx=fx*sp*.35+q.side*(top?14+Math.random()*4:11+Math.random()*5)*(heavy?.85:1);q.vz=fz*sp*.35+2+Math.random()*3;
-  q.vy=top?7+Math.random()*3:2.5+Math.random()*3.5;q.ax=(Math.random()-.5)*2.4;q.ay=(Math.random()-.5)*1.6;q.az=q.side*(.8+Math.random()*1.4);}
- const y=H(P.x,P.z);
- shardBurst(cx(CG_WALL),y+2.2,CG_WALL,22,shardMats.cont.concat([shardMats.dark]),9,7,[fx*sp*.4,1,fz*sp*.4],1.1);
- shardBurst(cx(CG_WALL)+5,y+1.2,CG_WALL-1,10,[shardMats.card],6,5,[fx*sp*.3,0,fz*sp*.3],.7);
- sfx('smash',true);
+  wall.broken=true;
+  wall.t=0;
+  wall.topBurst=false;
+
+  const sp=Math.max(
+    8,
+    Math.hypot(
+      P.vx,
+      P.vz
+    )
+  );
+
+  const fx=
+    Math.abs(P.vx)+
+    Math.abs(P.vz)>.5
+      ? P.vx/sp
+      : 0;
+
+  const fz=
+    Math.abs(P.vx)+
+    Math.abs(P.vz)>.5
+      ? P.vz/sp
+      : 1;
+
+  // 도로 진행방향의 오른쪽 벡터.
+  const rx=fz;
+  const rz=-fx;
+
+
+  if(P.pallets>0){
+    wall.drops=
+      P.pallets-
+      wallKeep(
+        P.pallets
+      );
+
+    wall.dropT=.025;
+
+    // 돌파 감각을 유지한다.
+    P.vx*=.92;
+    P.vz*=.92;
+
+    // 실제 가속이 아니라 짧은 카메라 잔향.
+    P.boost=Math.max(
+      P.boost||0,
+      .22
+    );
+  }else{
+    wall.drops=0;
+    crash(false);
+  }
+
+
+  P.inv=Math.max(
+    P.inv||0,
+    .95
+  );
+
+  P.shake=Math.max(
+    P.shake||0,
+    1.0
+  );
+
+
+  const plans={
+    left:{
+      delay:.00,
+      kick:-11.5,
+      forward:.25,
+      extra:1.5,
+      up:3.1,
+      ax:.15,
+      ay:-.40,
+      az:-1.05
+    },
+
+    centre:{
+      delay:.015,
+      kick:12.5,
+      forward:.38,
+      extra:3.8,
+      up:4.6,
+      ax:-.28,
+      ay:.65,
+      az:1.55
+    },
+
+    right:{
+      delay:.065,
+      kick:8.4,
+      forward:.28,
+      extra:2.3,
+      up:3.5,
+      ax:.18,
+      ay:-.55,
+      az:1.05
+    },
+
+    top:{
+      delay:.145,
+      kick:-4.2,
+      forward:.18,
+      extra:1.0,
+      up:1.4,
+      ax:.35,
+      ay:.30,
+      az:-1.72
+    },
+
+    tractor:{
+      delay:.045,
+      kick:5.8,
+      forward:.24,
+      extra:1.8,
+      up:1.5,
+      ax:.08,
+      ay:.50,
+      az:.52
+    },
+
+    trailer:{
+      delay:.110,
+      kick:2.4,
+      forward:.12,
+      extra:.8,
+      up:.65,
+      ax:.06,
+      ay:.20,
+      az:.32
+    }
+  };
+
+
+  for(const q of wall.pieces){
+    const p=
+      plans[q.role];
+
+    q.rest=false;
+    q.launched=false;
+    q.delay=p.delay;
+
+    q.vx=
+      fx*sp*p.forward+
+      rx*p.kick+
+      (
+        Math.random()-.5
+      )*
+      1.8;
+
+    q.vz=
+      fz*
+      (
+        sp*p.forward+
+        p.extra
+      )+
+      rz*p.kick+
+      (
+        Math.random()-.5
+      )*
+      1.2;
+
+    q.vy=
+      p.up+
+      Math.random()*
+      (
+        q.mass>1.6
+          ? .45
+          : 1.25
+      );
+
+    q.ax=
+      p.ax+
+      (
+        Math.random()-.5
+      )*.25;
+
+    q.ay=
+      p.ay+
+      (
+        Math.random()-.5
+      )*.35;
+
+    q.az=
+      p.az+
+      (
+        Math.random()-.5
+      )*.28;
+  }
+
+
+  const y=
+    H(
+      P.x,
+      P.z
+    );
+
+
+  // 첫 충격은 중앙 하단의 철판과 문짝만 터진다.
+  shardBurst(
+    P.x,
+    y+1.6,
+    CG_WALL,
+
+    15,
+
+    shardMats.cont.concat([
+      shardMats.dark
+    ]),
+
+    7.2,
+    5.5,
+
+    [
+      fx*sp*.38,
+      1.0,
+      fz*sp*.38
+    ],
+
+    .82
+  );
+
+
+  // 박스류는 아래쪽으로 흩어진다.
+  shardBurst(
+    P.x+3.0,
+    y+.8,
+    CG_WALL-1,
+
+    7,
+
+    [
+      shardMats.card
+    ],
+
+    4.8,
+    3.6,
+
+    [
+      fx*sp*.27,
+      .4,
+      fz*sp*.27
+    ],
+
+    .55
+  );
+
+
+  sfx(
+    'smash',
+    true
+  );
 }
+
+
 function stepWall(dt){
- if(!wall.broken)return;wall.t+=dt;
- if(wall.drops>0){wall.dropT-=dt;if(wall.dropT<=0){const n=wall.drops>8?2:1;dropPallets(n);wall.drops-=n;wall.dropT=.11;wall.dropIdx++;P.shake=Math.max(P.shake||0,.35);sfx('shield',false);}}
- for(const q of wall.pieces){if(q.rest)continue;
-  q.vy-=20*dt;q.m.position.x+=q.vx*dt;q.m.position.y+=q.vy*dt;q.m.position.z+=q.vz*dt;
-  q.m.rotation.x+=q.ax*dt;q.m.rotation.y+=q.ay*dt;q.m.rotation.z+=q.az*dt;
-  const g=H(q.m.position.x,q.m.position.z);
-  if(q.m.position.y<g){q.m.position.y=g;if(Math.abs(q.vy)<2.2){q.vy=0;q.vx*=.78;q.vz*=.78;q.ax*=.5;q.ay*=.5;q.az*=.5;if(Math.hypot(q.vx,q.vz)<.5||wall.t>3.4)q.rest=true;}else{q.vy=Math.abs(q.vy)*.32;q.vx*=.86;q.vz*=.86;}}}
+  if(!wall.broken)return;
+
+  wall.t+=dt;
+
+
+  // 파렛트는 위에서부터 연속으로 날아간다.
+  if(wall.drops>0){
+    wall.dropT-=dt;
+
+    if(wall.dropT<=0){
+      const n=
+        wall.drops>8
+          ? 2
+          : 1;
+
+      dropPallets(n);
+
+      wall.drops-=n;
+      wall.dropT=.095;
+      wall.dropIdx++;
+
+      P.shake=Math.max(
+        P.shake||0,
+        .35
+      );
+
+      sfx(
+        'shield',
+        false
+      );
+    }
+  }
+
+
+  for(const q of wall.pieces){
+    if(q.rest)continue;
+
+
+    // 각 물체가 정해진 시점에 순서대로 움직인다.
+    if(!q.launched){
+      q.delay-=dt;
+
+      if(q.delay>0){
+        continue;
+      }
+
+      q.launched=true;
+
+
+      // 위 컨테이너가 떨어지기 시작할 때
+      // 두 번째 철판 파편과 충격음이 난다.
+      if(
+        q.role==='top'&&
+        !wall.topBurst
+      ){
+        wall.topBurst=true;
+
+        shardBurst(
+          q.m.position.x,
+          q.m.position.y+
+          1.0,
+          q.m.position.z,
+
+          11,
+
+          [
+            shardMats.cont[1],
+            shardMats.cont[3],
+            shardMats.dark
+          ],
+
+          6.3,
+          4.8,
+
+          [
+            q.vx*.22,
+            .8,
+            q.vz*.22
+          ],
+
+          .72
+        );
+
+        P.shake=Math.max(
+          P.shake||0,
+          .58
+        );
+
+        sfx(
+          'smash',
+          false
+        );
+      }
+    }
+
+
+    q.vy-=20*dt;
+
+    q.m.position.x+=
+      q.vx*dt;
+
+    q.m.position.y+=
+      q.vy*dt;
+
+    q.m.position.z+=
+      q.vz*dt;
+
+
+    q.m.rotation.x+=
+      q.ax*dt;
+
+    q.m.rotation.y+=
+      q.ay*dt;
+
+    q.m.rotation.z+=
+      q.az*dt;
+
+
+    const g=
+      H(
+        q.m.position.x,
+        q.m.position.z
+      );
+
+
+    if(q.m.position.y<g){
+      q.m.position.y=g;
+
+      const heavy=
+        q.mass>=1.55;
+
+      if(
+        Math.abs(q.vy)<
+        (
+          heavy
+            ? 1.05
+            : 1.75
+        )
+      ){
+        q.vy=0;
+
+        q.vx*=
+          heavy
+            ? .55
+            : .70;
+
+        q.vz*=
+          heavy
+            ? .55
+            : .70;
+
+        q.ax*=.38;
+        q.ay*=.38;
+        q.az*=.38;
+
+        if(
+          Math.hypot(
+            q.vx,
+            q.vz
+          )<
+          (
+            heavy
+              ? .28
+              : .42
+          )||
+          wall.t>4.4
+        ){
+          q.rest=true;
+        }
+      }else{
+        q.vy=
+          Math.abs(q.vy)*
+          (
+            heavy
+              ? .12
+              : .25
+          );
+
+        q.vx*=
+          heavy
+            ? .64
+            : .79;
+
+        q.vz*=
+          heavy
+            ? .64
+            : .79;
+
+        q.ax*=
+          heavy
+            ? .30
+            : .52;
+
+        q.ay*=
+          heavy
+            ? .30
+            : .52;
+
+        q.az*=
+          heavy
+            ? .30
+            : .52;
+      }
+    }
+  }
 }
+
+
+
 
 
 
@@ -10199,8 +11971,42 @@ function landmarkStep(dt){
 }
 function resetLandmarks(){
  activateField(null);
- for(const q of wall.pieces){q.m.position.copy(q.home);q.m.rotation.copy(q.rot);q.m.visible=true;q.rest=false;}
- wall.broken=false;wall.t=0;wall.drops=0;wall.dropIdx=0;
+
+
+for(const q of wall.pieces){
+  q.m.position.copy(
+    q.home
+  );
+
+  q.m.rotation.copy(
+    q.rot
+  );
+
+  q.m.visible=true;
+
+  q.rest=false;
+  q.launched=false;
+  q.delay=0;
+
+  q.vx=0;
+  q.vy=0;
+  q.vz=0;
+
+  q.ax=0;
+  q.ay=0;
+  q.az=0;
+}
+
+wall.broken=false;
+wall.t=0;
+wall.drops=0;
+wall.dropT=0;
+wall.dropIdx=0;
+wall.topBurst=false;
+
+
+
+
  gate.done=false;
 gate.active=false;
 gate.stage=0;
