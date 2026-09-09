@@ -2900,13 +2900,18 @@ const L=lz(z);
 
  // The abandoned cross street is a real cut through the embankment, not a folded terrain ribbon.
  const crossStreet=scenicBand(L,3482,3548,25)*smooth((Math.abs(u)-12.2)/8)*(1-smooth((Math.abs(u)-108)/18));
- y=lerp(y,rawH(cx(3515),3515)-.04,crossStreet);
+ y=lerp(y,rawH(wz(3515),3515)-.04,crossStreet);
  // Only the route corridor falls into the sinkhole; the surface remains above on both sides.
 const shipBasin=scenicBand(L,5780,6120,90)*smooth((u-14)/8)*(1-smooth((u-116)/18));
 
  y-=shipBasin*8.5;
- const shipX=cx(5960)+58,shipDx=Math.abs(x-shipX)-48,shipDz=Math.abs(z-5960)-125,shipPad=(1-smooth((shipDx+1)/16))*(1-smooth((shipDz+1)/30))*smooth((Math.abs(u)-20)/12);
- y=lerp(y,rawH(cx(5960),5960)-10.0,shipPad);
+
+ const cargoBay=smooth((z-(SF_A-10))/60)*(1-smooth((z-(SF_B-40))/60))*smooth((u-16)/9)*(1-smooth((u-150)/30));
+ y=lerp(y,roadBase-7.5+.3*Math.sin(z*.05),cargoBay);
+
+
+ const shipX=wz(5960),shipDx=Math.abs(x-shipX)-48,shipDz=wz(5960)-125,shipPad=(1-smooth((shipDx+1)/16))*(1-smooth((shipDz+1)/30))*smooth((Math.abs(u)-20)/12);
+ y=lerp(y,wz(5960)-10.0,shipPad);
  const storyDepth=JW.storyDepthAt(z),corridor=1-smooth((Math.abs(u)-14)/30);
  y-=storyDepth*corridor;
  // At the broken cavern ledge the floor falls away while the rider glides toward the pipe mouth.
@@ -3778,9 +3783,9 @@ function fillGround(c,z0){
     const grass=smooth(n1*1.6-0.5);
     let dr=lerp(0.82,0.66,grass)+n2*0.05, dg=lerp(0.68,0.62,grass)+n2*0.04, db=lerp(0.47,0.30,grass)+n2*0.02;
     dr-=st*0.16; dg-=st*0.14; db-=st*0.10;
-    const farm=smooth((z-1360)/180)*(1-smooth((z-2580)/260));
+    const farm=smooth((L-1360)/180)*(1-smooth((L-2580)/260));
     dr=lerp(dr,.45+n1*.09,farm);dg=lerp(dg,.43+n1*.12,farm);db=lerp(db,.25+n1*.04,farm);
-    const urban=smooth((z-3250)/220)*(1-smooth((z-4300)/180));
+    const urban=smooth((L-3250)/220)*(1-smooth((L-4300)/180));
     dr=lerp(dr,.43+n1*.05,urban);dg=lerp(dg,.43+n1*.05,urban);db=lerp(db,.42+n1*.05,urban);
     const day2=smooth((z-UNDER_END)/(DAY_RETURN_FULL-UNDER_END));
     const nightWild=smooth((z-4620)/300)*(1-day2);dr=lerp(dr,.27+n1*.05,nightWild*.42);dg=lerp(dg,.31+n1*.06,nightWild*.42);db=lerp(db,.29+n1*.05,nightWild*.42);
@@ -5919,7 +5924,240 @@ function inspectWorldAt(z){
 }
 function showWorldIntro(){
  if(!WORLD_TOUR)return;
- running=false;worldInspectPaused=true;reset();P.alive=false;poseT=1;introT=0;
+ running=false;worldInspectPaused=true;
+ 
+ 
+ /* ===== [G7] 랜드마크 블록 (게임 스크립트 맨 아래, 최초 reset() 호출 직전) ===== */
+{
+const sm01=t=>{t=Math.max(0,Math.min(1,t));return t*t*(3-2*t);},LM_STACK_MAX=40;
+/* ---- 7b. 랜드마크: 특별 파렛트 풀 · 컨테이너 벽 · 화물 게이트 · 공개 카메라 · 묘지 장애물 ---- */
+const sfx=(name,...a)=>{try{if(typeof SFX==='object'&&typeof SFX[name]==='function')SFX[name](...a);}catch(e){}};
+const lmMat=c=>new THREE.MeshLambertMaterial({color:c}),lmLerp=(a,b,t)=>a+(b-a)*t;
+const lmVertMat=(typeof warehousePropMaterial!=='undefined')?warehousePropMaterial:new THREE.MeshLambertMaterial({vertexColors:true});
+function batchMesh(build,name){
+ const b=new JWX.Batch(name);build(b);
+ const geo=new THREE.BufferGeometry();
+ geo.setAttribute('position',new THREE.Float32BufferAttribute(b.p,3));
+ geo.setAttribute('normal',new THREE.Float32BufferAttribute(b.n,3));
+ geo.setAttribute('color',new THREE.Float32BufferAttribute(b.c.map(v=>Math.pow(Math.max(0,v),2.2)),3));
+ geo.computeBoundingSphere();
+ const m=new THREE.Mesh(geo,lmVertMat);m.name=name;m.rotation.order='YXZ';return m;
+}
+const lmHash=n=>{let x=Math.sin(n*127.1+311.7)*43758.5453;return x-Math.floor(x);};
+
+// ---- 특별 파렛트 풀: 두 밭이 같이 보이는 일은 없으므로 30개를 돌려쓴다 ----
+const POOL_N=30,specialPool=[];
+for(let i=0;i<POOL_N;i++){const g=new THREE.Group(),aj=makePallet('aj'),kpp=makePallet('kpp');g.add(aj);g.add(kpp);g.userData.aj=aj;g.userData.kpp=kpp;g.visible=false;scene.add(g);specialPool.push(g);}
+const FIELDS=[
+ // 미니 밭: 14장, 완만한 S자. 조향이 서툴러도 7~12장은 먹힌다
+ {id:'container',a:CG_FIELD_A,b:CG_FIELD_B,n:14,layout:i=>({z:CG_FIELD_A+6+i*10.2,u:4.6*Math.sin(i*.55+.4)+((i*7)%3-1)*.35})},
+ // 본격 밭: 26장. 찢어진 컨테이너(도로 오른쪽 물가, +u)에서 대각선으로 흘러나와 도로 전체를 덮고, 뒤로 갈수록 진폭이 줄어 조향이 거의 필요 없음
+ {id:'ship',a:SF_FIELD_A,b:SF_FIELD_B,n:26,layout:i=>{const t=i/25,u=i<6?8.6-2.75*i:(5.2-3.6*t)*Math.sin((i-6)*.5+.2);return{z:SF_FIELD_A+i*10.0,u};}},
+ // 공동묘지: 보충용 두 장만 (묘지 구간은 원래 청크 이벤트를 끊으므로 여기서 놓는다)
+ {id:'grave',a:CG_GRAVE_A+150,b:CG_GRAVE_A+215,n:2,layout:i=>({z:CG_GRAVE_A+150+i*65,u:i?5.5:-5.5})}
+];
+let activeField=null;
+function activateField(f){
+ activeField=f;
+ for(let i=0;i<POOL_N;i++){const g=specialPool[i];
+  if(!f||i>=f.n){g.visible=false;continue;}
+  const lay=f.layout(i),kind=((i+(lmHash(i*17+f.a)<.2?1:0))%2)?'aj':'kpp';
+  g.userData.kind=kind;g.userData.aj.visible=kind==='aj';g.userData.kpp.visible=kind==='kpp';
+  const x=cx(lay.z)+lay.u;g.position.set(x,H(x,lay.z)+.01,lay.z);g.rotation.set(0,(lmHash(i*31+7)-.5)*.5,0);g.userData.taken=false;g.visible=true;}
+}
+function takePallet(kind){
+ stackKinds[P.pallets]=kind;P.pallets++;P.palMax=Math.max(P.palMax||0,P.pallets);setStack(P.pallets);sfx('pallet');
+}
+function poolPickup(){
+ if(!activeField)return;const lift=P.y-H(P.x,P.z);if(lift>1.5)return;
+ for(const g of specialPool){if(!g.visible||g.userData.taken)continue;const dz=g.position.z-P.z;if(dz>3||dz<-3)continue;
+  if(Math.hypot(g.position.x-P.x,dz)<1.9){if(P.pallets>=LM_STACK_MAX)return;g.userData.taken=true;g.visible=false;takePallet(g.userData.kind);}}
+}
+
+// ---- 공동묘지 실제 장애물: 도로 안으로 모서리가 들어온 컨테이너 둘 (풍경 컨테이너는 전부 도로 밖) ----
+const landmarkObstacles=[];
+function addLandmarkObstacle(m,x,z,yaw,roll,hits,h,shards){
+ m.position.set(x,H(x,z),z);m.rotation.set(0,yaw,roll,'YXZ');m.userData.hits=hits;m.userData.h=h;m.userData.shardMaterials=shards;m.userData.role='route-snag';
+ scene.add(m);landmarkObstacles.push(m);return m;}
+{const mk=(len,color,opt)=>batchMesh(b=>JWX.drawContainer(b,[0,JWX.CONT_H/2,0],len,color,JWX.basisYXZ(0,0,0),opt),'graveyard-container');
+ const h20=[{x:0,z:-1.9,r:1.6},{x:0,z:0,r:1.6},{x:0,z:1.9,r:1.6}];
+ addLandmarkObstacle(mk(JWX.CONT_20,JWX.CONT.red,{doors:'open',doorAngle:2.0,rust:.7}),cx(CG_GRAVE_A+64)-11.4,CG_GRAVE_A+64,.42,0,h20,2.6,[lmMat(JWX.CONT.red),lmMat(0x3a3e3c),lmMat(0x5a3a2a)]);
+ addLandmarkObstacle(mk(JWX.CONT_20,JWX.CONT.ochre,{doors:'missing',rust:.5}),cx(CG_GRAVE_A+178)+11.7,CG_GRAVE_A+178,-.5,.06,h20,2.6,[lmMat(JWX.CONT.ochre),lmMat(0x3a3e3c)]);}
+function landmarkHitTest(){
+ if(P.inv>0||!landmarkObstacles.length)return;
+ const lift=P.y-H(P.x,P.z);
+ for(const o of landmarkObstacles){
+  if(!o.visible||Math.abs(o.position.z-P.z)>10)continue;
+  if(lift>(o.userData.h||2.6)+.4)continue;
+  const cy=Math.cos(o.rotation.y),sy=Math.sin(o.rotation.y);
+  for(const h of o.userData.hits){const wx=o.position.x+(h.x*cy+h.z*sy),wzz=o.position.z+(-h.x*sy+h.z*cy);
+   if(Math.hypot(wx-P.x,wzz-P.z)<h.r+.62){if(P.power>0)smash(o);else crash(false);return;}}}
+}
+
+// ---- 파편(문짝·철판·박스): 벽·게이트 전용 소형 파편 풀 ----
+const SHARD_N=48,shards=[],shardGeo=new THREE.BoxGeometry(1,1,1);
+const shardMats={cont:[lmMat(JWX.CONT.blue),lmMat(JWX.CONT.red),lmMat(JWX.CONT.grey),lmMat(JWX.CONT.ochre)],dark:lmMat(0x3a3e3c),card:lmMat(0x967750),spark:lmMat(0xffd070)};
+for(let i=0;i<SHARD_N;i++){const m=new THREE.Mesh(shardGeo,shardMats.dark);m.visible=false;scene.add(m);shards.push({m,life:0,vx:0,vy:0,vz:0,ax:0,ay:0,az:0});}
+let shardCursor=0;
+function shardBurst(x,y,z,n,mats,spread,up,fwd,size){
+ for(let i=0;i<n;i++){const s=shards[shardCursor++%SHARD_N],a=Math.random()*6.283,r=Math.random();
+  s.m.material=mats[i%mats.length];s.m.visible=true;s.life=1.6+Math.random()*1.2;
+  s.m.position.set(x+(Math.random()-.5)*2,y+(Math.random()-.5)*1.5,z+(Math.random()-.5)*2);
+  s.m.scale.set(size*(.5+Math.random()),size*(.12+Math.random()*.4),size*(.5+Math.random()));
+  s.vx=Math.cos(a)*spread*r+fwd[0];s.vz=Math.sin(a)*spread*r+fwd[2];s.vy=up*(.4+Math.random()*.9)+fwd[1];
+  s.ax=(Math.random()-.5)*9;s.ay=(Math.random()-.5)*9;s.az=(Math.random()-.5)*9;}
+}
+function stepShards(dt){
+ for(const s of shards){if(!s.m.visible)continue;s.life-=dt;if(s.life<=0){s.m.visible=false;continue;}
+  s.vy-=22*dt;s.m.position.x+=s.vx*dt;s.m.position.y+=s.vy*dt;s.m.position.z+=s.vz*dt;
+  const g=H(s.m.position.x,s.m.position.z)+s.m.scale.y*.5;if(s.m.position.y<g){s.m.position.y=g;s.vy=Math.abs(s.vy)*.28;s.vx*=.6;s.vz*=.6;s.ax*=.4;s.az*=.4;}
+  s.m.rotation.x+=s.ax*dt;s.m.rotation.y+=s.ay*dt;s.m.rotation.z+=s.az*dt;
+  if(s.life<.4)s.m.scale.multiplyScalar(Math.max(0,1-dt*3));}
+}
+
+// ---- 컨테이너 벽: 통로 없이 도로 전폭을 막는다. 파렛트가 있으면 공성추처럼 뚫고(위쪽 파렛트가 단계적으로 날아감), 없으면 맨몸 충돌 후 뚫린다 ----
+const wall={z:CG_WALL,broken:false,t:0,pieces:[],drops:0,dropT:0,dropIdx:0};
+{const put=(m,u,dz,yaw,roll,lift)=>{const x=cx(CG_WALL)+u,z=CG_WALL+dz;m.position.set(x,H(x,z)+(lift||0),z);m.rotation.set(0,yaw,roll||0,'YXZ');scene.add(m);
+  wall.pieces.push({m,home:m.position.clone(),rot:m.rotation.clone(),side:u<0?-1:1,vx:0,vy:0,vz:0,ax:0,ay:0,az:0,rest:false});};
+ const cont=(len,color,opt)=>batchMesh(b=>JWX.drawContainer(b,[0,JWX.CONT_H/2,0],len,color,JWX.basisYXZ(0,0,0),opt),'wall-container');
+ put(cont(JWX.CONT_40,JWX.CONT.blue,{doors:'closed',rust:.5}),-6.4,1.6,Math.PI/2,0);                  // A: 40ft, 도로 -u 쪽 절반
+ put(cont(JWX.CONT_20,JWX.CONT.red,{doors:'closed',rust:.6}),3.55,2.6,Math.PI/2+.14,0);                // B: 20ft
+ put(cont(JWX.CONT_20,JWX.CONT.grey,{doors:'missing',rust:.7}),9.9,.6,Math.PI/2-.2,.10);                // C: 20ft, 살짝 기움
+ put(cont(JWX.CONT_40,JWX.CONT.ochre,{doors:'closed',rust:.4}),-1.6,2.2,Math.PI/2+.08,-.05,JWX.CONT_H-.02); // D: A·B 위 2단
+ put(batchMesh(b=>JWX.drawTractor(b,[0,0,0],JWX.basisYXZ(0,0,0),0x8b3a2c),'wall-tractor'),7.6,-1.8,.62,0);  // 잭나이프 트랙터
+ put(batchMesh(b=>JWX.drawTrailer(b,[0,0,0],JWX.basisYXZ(0,0,0),{}),'wall-trailer'),13.8,-1.0,-.9,1.35,1.2);   // 옆으로 넘어진 섀시 (갓길)
+}
+function wallKeep(n){return n<=2?n:n<=5?2:n<=9?3:4;}
+function hitWall(){
+ wall.broken=true;wall.t=0;
+ const sp=Math.hypot(P.vx,P.vz),fx=sp>.5?P.vx/sp:0,fz=sp>.5?P.vz/sp:1;
+ if(P.pallets>0){wall.drops=P.pallets-wallKeep(P.pallets);wall.dropT=.04;P.vx*=.90;P.vz*=.90;P.boost=Math.max(P.boost||0,.5);}
+ else{wall.drops=0;crash(false);}
+ P.inv=Math.max(P.inv||0,.95);P.shake=Math.max(P.shake||0,.9);
+ for(let i=0;i<wall.pieces.length;i++){const q=wall.pieces[i],heavy=i>=4,top=i===3;
+  q.rest=false;q.vx=fx*sp*.35+q.side*(top?14+Math.random()*4:11+Math.random()*5)*(heavy?.85:1);q.vz=fz*sp*.35+2+Math.random()*3;
+  q.vy=top?7+Math.random()*3:2.5+Math.random()*3.5;q.ax=(Math.random()-.5)*2.4;q.ay=(Math.random()-.5)*1.6;q.az=q.side*(.8+Math.random()*1.4);}
+ const y=H(P.x,P.z);
+ shardBurst(cx(CG_WALL),y+2.2,CG_WALL,22,shardMats.cont.concat([shardMats.dark]),9,7,[fx*sp*.4,1,fz*sp*.4],1.1);
+ shardBurst(cx(CG_WALL)+5,y+1.2,CG_WALL-1,10,[shardMats.card],6,5,[fx*sp*.3,0,fz*sp*.3],.7);
+ sfx('smash',true);
+}
+function stepWall(dt){
+ if(!wall.broken)return;wall.t+=dt;
+ if(wall.drops>0){wall.dropT-=dt;if(wall.dropT<=0){const n=wall.drops>8?2:1;dropPallets(n);wall.drops-=n;wall.dropT=.11;wall.dropIdx++;P.shake=Math.max(P.shake||0,.35);sfx('shield',false);}}
+ for(const q of wall.pieces){if(q.rest)continue;
+  q.vy-=20*dt;q.m.position.x+=q.vx*dt;q.m.position.y+=q.vy*dt;q.m.position.z+=q.vz*dt;
+  q.m.rotation.x+=q.ax*dt;q.m.rotation.y+=q.ay*dt;q.m.rotation.z+=q.az*dt;
+  const g=H(q.m.position.x,q.m.position.z);
+  if(q.m.position.y<g){q.m.position.y=g;if(Math.abs(q.vy)<2.2){q.vy=0;q.vx*=.78;q.vz*=.78;q.ax*=.5;q.ay*=.5;q.az*=.5;if(Math.hypot(q.vx,q.vz)<.5||wall.t>3.4)q.rest=true;}else{q.vy=Math.abs(q.vy)*.32;q.vx*=.86;q.vz*=.86;}}}
+}
+
+// ---- 화물 게이트(컨테이너선 밭 뒤): 매달린 컨테이너 밑면 3.25m. 라이더는 웅크려 통과하고 위쪽 파렛트만 3단계로 긁혀 나간다 (최종 6~10단) ----
+const gate={z:SF_STRUCT,done:false,stage:0,t:0,plan:[]};
+function gateKeep(n){return n<=8?n:n<=15?8:10;}
+function triggerGate(){
+ gate.done=true;const keep=gateKeep(P.pallets),total=P.pallets-keep;
+ if(total<=0){gate.plan=[];return;}
+ const a=Math.max(1,Math.round(total*.2)),b=Math.max(1,Math.round(total*.33)),c=Math.max(0,total-a-b);
+ gate.plan=[a,b,c].filter(n=>n>0);gate.stage=0;gate.t=0;P.inv=Math.max(P.inv||0,.7);P.crouch=1;
+}
+function stepGate(dt){
+ if(!gate.done||gate.stage>=gate.plan.length)return;gate.t-=dt;
+ if(gate.t<=0){const n=gate.plan[gate.stage++];dropPallets(n);P.crouch=1;P.vx*=.975;P.vz*=.975;P.shake=Math.max(P.shake||0,.28+.12*gate.stage);
+  const top=P.y+(typeof stackH==='number'?stackH:P.pallets*.15)+.3,sp=Math.hypot(P.vx,P.vz);
+  shardBurst(P.x,top,P.z,6+n,[shardMats.spark,shardMats.dark],5,5,[-P.vx*.15,2,-P.vz*.15],.32);
+  sfx('shield',false);sfx('smash',false);gate.t=.17;}
+}
+
+// ---- 공개 카메라: 밭이 끝난 빈 도로에서 잠깐 빠져 탑 전체를 보여준다 (조작은 끊지 않음) ----
+// container: 옆·뒤·위로 빠져 탑과 전방 도로를 함께. ship: 앞·물가 쪽으로 빠져 뒤돌아보며 탑 + 뒤편 좌초선을 한 프레임에 (직선·무장애물 구간이라 전방 시야 없어도 됨)
+const REVEALS=[{id:'container',z:CG_REVEAL,dur:1.9,back:false,dir:-1},{id:'ship',z:SF_REVEAL,dur:2.3,back:true,dir:1}];
+const reveal={t:-1,dur:0,back:false,dir:1,id:null,fov0:null},revealDone={};
+function revealK(){if(reveal.t<0)return 0;return sm01(Math.min(reveal.t/.55,1))*(1-sm01(Math.max(0,(reveal.t-(reveal.dur-.75))/.75)));}
+
+function landmarkStep(dt){
+ const f=FIELDS.find(f=>P.z>f.a-260&&P.z<f.b+40)||null;
+ if(f!==activeField)activateField(f);
+ if(reveal.t<0)for(const r of REVEALS)if(!revealDone[r.id]&&P.z>=r.z&&P.z<r.z+40&&P.pallets>=3){revealDone[r.id]=true;Object.assign(reveal,{t:0,dur:r.dur,back:r.back,dir:r.dir,id:r.id,fov0:null});}
+ if(reveal.t>=0){reveal.t+=dt;if(reveal.t>=reveal.dur)reveal.t=-1;}
+ if(!wall.broken&&P.z>=CG_WALL-3.2&&P.z<CG_WALL+30)hitWall();
+ stepWall(dt);
+ if(!gate.done&&P.z>=SF_STRUCT-1.0&&P.z<SF_STRUCT+30)triggerGate();
+ stepGate(dt);stepShards(dt);
+}
+function resetLandmarks(){
+ activateField(null);
+ for(const q of wall.pieces){q.m.position.copy(q.home);q.m.rotation.copy(q.rot);q.m.visible=true;q.rest=false;}
+ wall.broken=false;wall.t=0;wall.drops=0;wall.dropIdx=0;
+ gate.done=false;gate.stage=0;gate.plan=[];
+ reveal.t=-1;for(const k in revealDone)delete revealDone[k];
+ for(const o of landmarkObstacles)o.visible=true;
+ for(const s of shards)s.m.visible=false;
+}
+function inspectLandmarks(z){
+ resetLandmarks();
+ if(z>CG_WALL+5){wall.broken=true;wall.t=99;for(const q of wall.pieces)q.m.visible=false;}
+ if(z>SF_STRUCT+5)gate.done=true;
+ for(const r of REVEALS)if(z>r.z+40)revealDone[r.id]=true;
+ const demo=z>=CG_FIELD_B-20&&z<CG_WALL+40?9:z>=SF_FIELD_B-30&&z<SF_STRUCT+60?24:0;
+ if(demo>0){for(let i=0;i<demo;i++)stackKinds[i]=i%2?'kpp':'aj';P.pallets=demo;P.palMax=Math.max(P.palMax||0,demo);setStack(demo);}
+ landmarkStep(0);
+}
+// ---- 기존 루틴에 끼워 넣기 (원본 함수는 그대로 두고 감싼다) ----
+{const list=[];
+ try{const f0=reset;reset=function(...a){const r=f0(...a);resetLandmarks();return r;};}catch(e){list.push('reset');}
+ try{const f0=runStep;runStep=function(dt){f0(dt);landmarkStep(dt);};}catch(e){list.push('runStep');}
+ try{const f0=hitTest;hitTest=function(...a){const r=f0(...a);landmarkHitTest();return r;};}catch(e){list.push('hitTest');}
+ try{const f0=pickupTest;pickupTest=function(...a){const r=f0(...a);poolPickup();return r;};}catch(e){list.push('pickupTest');}
+ // 투어: 기존 버튼은 원래 좌표를 넘기므로 wz()로 변환, 새 버튼은 월드 좌표(isWorld=true)
+ try{const f0=inspectWorldAt;inspectWorldAt=function(z,isWorld,...a){const w=isWorld?z:wz(z);const r=f0(w,...a);inspectLandmarks(w);return r;};}catch(e){list.push('inspectWorldAt');}
+ try{const f0=recycle;
+  recycle=function(){
+   // 컨테이너선 밭~공개 카메라 구간: 뒤돌아보는 카메라를 위해 뒤쪽 청크를 240m까지 남긴다 (프레임당 1청크만 재활용해 끊김 방지)
+   if(!(P.z>SF_FIELD_A-40&&P.z<SF_REVEAL+140)){f0();return;}
+   let maxZ=-Infinity;for(const c of chunks)if(c.z0>maxZ)maxZ=c.z0;
+   let budget=1;for(const c of chunks){if(c.z0+CH_LEN<P.z-240){if(budget--<=0)break;maxZ+=CH_LEN;fillChunk(c,maxZ);}}
+   refreshRoadTail();};}catch(e){list.push('recycle');}
+ try{const f0=updateCamera;
+  updateCamera=function(...a){
+   f0(...a);const k=revealK();if(k<=0){if(reveal.fov0!=null){camera.fov=reveal.fov0;camera.updateProjectionMatrix();reveal.fov0=null;}return;}
+   if(reveal.fov0==null)reveal.fov0=camera.fov;
+   const sp=Math.hypot(P.vx,P.vz),fx=sp>.5?P.vx/sp:0,fz=sp>.5?P.vz/sp:1,rx=fz,rz=-fx;   // 전방 (fx,fz), 옆 (rx,rz)=+x 방향 기준
+   const top=P.y+(typeof stackH==='number'?stackH:P.pallets*.15),d=reveal.dir,back=reveal.back;
+   const side=d*(back?7:6.5)*k,up=(back?4:4.2)*k+(top-P.y)*.55*k,fwd=back?lmLerp(-8,7.5,sm01(k)):-(6.5+3.5*k);
+   const px=P.x+rx*side+fx*fwd,py=P.y+3+up,pz=P.z+rz*side+fz*fwd;
+   const la=back?-7:6,lx=P.x+fx*la+(back?rx*d*4*k:0),ly=P.y+1+(top-P.y)*.5*k,lzz=P.z+fz*la+(back?rz*d*4*k:0);
+   const q0=camera.quaternion.clone(),p0=camera.position.clone();
+   camera.position.set(px,py,pz).lerp(p0,1-k);camera.lookAt(lx,ly,lzz);camera.quaternion.slerp(q0,1-k);
+   camera.fov=reveal.fov0+6*k;camera.updateProjectionMatrix();};}catch(e){list.push('updateCamera');}
+ if(list.length)console.error('[자키 라이더] 감싸기 실패 — 아래 함수가 function 선언이 아니라 const로 되어 있습니다. 이름을 바꿔 감싸 주세요:',list.join(', '));
+}
+
+// ---- 월드 갱신 뒤처리: 관람차 회전, 배 공개 카메라 동안 안개 늘리기·뒤쪽 풍경 강제 표시 ----
+{const rotors=[];
+ try{for(const m of world3D.root.children){const pv=JWX.rotorPivots&&JWX.rotorPivots[m.name];if(!pv||!m.geometry)continue;
+  const pa=m.geometry.attributes.position.array;for(let i=0;i<pa.length;i+=3){pa[i]-=pv[0];pa[i+1]-=pv[1];pa[i+2]-=pv[2];}
+  m.geometry.attributes.position.needsUpdate=true;m.geometry.computeBoundingSphere();m.position.set(pv[0],pv[1],pv[2]);rotors.push(m);}}catch(e){}
+ const u0=world3D.update;
+ world3D.update=function(...a){
+  const r=u0.apply(world3D,a);
+  const t=performance.now()*.001;for(const m of rotors)m.rotation.z=t*.012;   // 관람차 한 바퀴 ≈ 9분: 알아차리기 힘든 속도
+  const k=revealK();
+  if(k>0&&reveal.back){
+   if(scene.fog){scene.fog.far=Math.max(scene.fog.far,lmLerp(scene.fog.far,820,k));scene.fog.near=Math.max(scene.fog.near,lmLerp(scene.fog.near,140,k));}
+   for(const m of world3D.root.children){const rg=m.userData&&m.userData.range;if(rg&&rg[1]>P.z-620&&rg[0]<P.z+20)m.visible=true;}}
+  return r;};}
+// ---- 투어(?tour=1) 버튼: 새 구간으로 바로 가기 ----
+if(/[?&]tour=1/.test(location.search)){
+ const bar=document.createElement('div');bar.style.cssText='position:fixed;right:8px;top:8px;z-index:99;display:flex;flex-direction:column;gap:4px;font:12px/1.2 system-ui,sans-serif';
+ for(const[label,z]of[['첫 컨테이너',CG_A+70],['미니 파렛트 밭',CG_FIELD_A-30],['탑 공개 지점(9단)',CG_REVEAL-20],['컨테이너 벽',CG_WALL-60],['공동묘지',CG_GRAVE_A+40],['유실 화물지대',SF_FIELD_A-40],['배 공개 지점(24단)',SF_REVEAL-25],['화물 게이트',SF_STRUCT-70]]){
+  const b=document.createElement('button');b.textContent=label;b.style.cssText='padding:6px 10px;background:#fff7e6;color:#3a2a10;border:1px solid #c9a86a;border-radius:6px;cursor:pointer;text-align:left';b.onclick=()=>inspectWorldAt(z,true);bar.appendChild(b);}
+ document.body.appendChild(bar);}
+// 디버깅용 노출 (콘솔에서 __landmarks.wall 등으로 상태 확인)
+window.__landmarks={wall,gate,reveal,REVEALS,FIELDS,specialPool,activateField,resetLandmarks,landmarkStep,inspectLandmarks,revealK};
+}
+ 
+ reset();P.alive=false;poseT=1;introT=0;
  introEl.classList.remove('hide');overEl.classList.add('hide');hudEl.classList.remove('on');
  animateRider(1,0);introCamera(1);
  const play=document.getElementById('worldTourPlay');if(play)play.textContent='▶ 시작';
