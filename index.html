@@ -7240,11 +7240,262 @@ try{const kicker0=kicker,nearKicker0=nearKicker;
 try{const bw0=blackWaterView;blackWaterView=function(z,u){return bw0(lz(z),u);};}catch(e){lmWrapFail.push('blackWaterView');}
 try{const sc0=shoreClear;shoreClear=function(z,u){return sc0(lz(z),u);};}catch(e){lmWrapFail.push('shoreClear');}
 try{const rf0=roadFurnitureSuppressed;roadFurnitureSuppressed=function(z){return rf0(z)||(z>CG_WALL-6&&z<CG_WALL+8);};}catch(e){lmWrapFail.push('roadFurnitureSuppressed');}
-try{const cb0=courseBeatAt;courseBeatAt=function(z){const ins=insertAt(z);if(!ins)return cb0(lz(z));
- if(ins.ins.name==='ship-cargo-field')return z<SF_FIELD_B+10?'ship-cargo-field':z<SF_STRUCT+5?'cargo-gate':'dust-approach';
- return z<CG_FIELD_A-20?'container-omen':z<CG_FIELD_B+10?'pallet-field':z<CG_WALL-2?'tower-reveal':z<CG_GRAVE_A?'container-wall':'graveyard';};}catch(e){lmWrapFail.push('courseBeatAt');}
-// 난이도 파도(coursePressureAt)는 원래 풍경 좌표 기준으로, 삽입 구간 안은 0. 청크 이벤트(courseEvents)는 삽입 구간 안에 떨어지는 것만 걷어낸다
-try{const cp0=coursePressureAt;coursePressureAt=function(z){return insertAt(z)?0:cp0(lz(z));};}catch(e){lmWrapFail.push('coursePressureAt');}
+
+
+try{
+  courseBeatAt=function(z){
+    const ins=insertAt(z);
+
+    // 새로 삽입한 두 구간은 자체 장면 이름을 사용한다.
+    if(ins){
+      if(
+        ins.ins.name===
+        'ship-cargo-field'
+      ){
+        return z<SF_FIELD_B+10
+          ? 'ship-cargo-field'
+          : z<SF_STRUCT+5
+            ? 'cargo-gate'
+            : 'dust-approach';
+      }
+
+      return z<CG_FIELD_A-20
+        ? 'container-omen'
+        : z<CG_FIELD_B+10
+          ? 'pallet-field'
+          : z<CG_WALL-2
+            ? 'tower-reveal'
+            : z<CG_GRAVE_A
+              ? 'container-wall'
+              : 'graveyard';
+    }
+
+    // 초반과 중반 풍경 판정에는 원래 저작 좌표를 사용한다.
+    const L=lz(z);
+
+    if(L<188)return 'warehouse';
+    if(L<245)return 'release';
+    if(L<325)return 'choice';
+    if(L<400)return 'breath';
+    if(L<492)return 'smash';
+    if(L<560)return 'tunnel-entry';
+    if(L<630)return 'tunnel';
+    if(L<725)return 'breath';
+    if(L<815)return 'choice';
+    if(L<920)return 'spiral-entry';
+    if(L<1125)return 'spiral';
+    if(L<1380)return 'release';
+
+    // 아래 상수들은 이미 실제 월드 좌표다.
+    // 여기서는 lz(z)가 아니라 실제 z로 비교한다.
+    if(
+      z>SINK_WARN&&
+      z<DAY_RETURN_FULL+120
+    ){
+      return z<UNDER_START+160
+        ? 'collapse'
+        : z<GLIDE_START
+          ? 'underground'
+          : z<PIPE_END
+            ? 'pipe'
+            : 'return';
+    }
+
+    if(z>END_QUIET_START){
+      return 'ending';
+    }
+
+    // 반드시 실제 월드 z를 넘긴다.
+    // 여기서 L을 넘기면 lz가 다시 적용돼 이중 변환된다.
+    const p=coursePressureAt(z);
+
+    return p<.12
+      ? 'release'
+      : p<.38
+        ? 'breath'
+        : p<.68
+          ? 'weave'
+          : 'pressure';
+  };
+
+}catch(e){
+  lmWrapFail.push(
+    'courseBeatAt'
+  );
+}
+
+
+
+
+try{
+  coursePressureAt=function(z){
+    // 새로 만든 랜드마크 구간에는
+    // 기존 랜덤 장애물을 넣지 않는다.
+    if(insertAt(z)){
+      return 0;
+    }
+
+    // SINK_WARN는 이미 월드 좌표이므로
+    // 실제 z로 비교해야 한다.
+    if(z>=SINK_WARN-520){
+      return 0;
+    }
+
+    // 풍경별 난이도 파도는 원래 저작 좌표 기준.
+    const L=lz(z);
+
+    if(L<1380){
+      return 1;
+    }
+
+    // 논밭·저수지.
+    if(L<2500){
+      return Math.min(
+        1,
+
+        .18+
+        .34*
+        courseWindow(
+          L,
+          1940,
+          2110,
+          70
+        )+
+
+        .26*
+        courseWindow(
+          L,
+          2310,
+          2460,
+          60
+        )
+      );
+    }
+
+    // 강 다리와 철도.
+    if(L<3220){
+      return Math.max(
+        .12,
+
+        .78*
+        courseWindow(
+          L,
+          2510,
+          2740,
+          80
+        ),
+
+        .92*
+        courseWindow(
+          L,
+          2980,
+          3220,
+          80
+        )
+      );
+    }
+
+    // 교차로·아파트·고가도로.
+    if(L<4320){
+      return Math.max(
+        .25,
+
+        .68*
+        courseWindow(
+          L,
+          3350,
+          3650,
+          90
+        ),
+
+        .80*
+        courseWindow(
+          L,
+          3870,
+          4260,
+          110
+        )
+      );
+    }
+
+    // 산악 터널.
+    if(L<4680){
+      return .88;
+    }
+
+    // 검은 수면과 좌초선.
+    if(L<5630){
+      return .08;
+    }
+
+    if(L<6150){
+      return .05;
+    }
+
+    // 먼지 전선.
+    if(L<6860){
+      return Math.max(
+        .18,
+
+        .55*
+        courseWindow(
+          L,
+          6300,
+          6540,
+          80
+        )
+      );
+    }
+
+    // 관람차 전후.
+    if(L<7350){
+      return .08;
+    }
+
+    // 스파이럴 3파동.
+    if(L<9200){
+      return Math.max(
+        .08,
+
+        .76*
+        courseWindow(
+          L,
+          7350,
+          7780,
+          100
+        ),
+
+        .88*
+        courseWindow(
+          L,
+          8150,
+          8520,
+          80
+        ),
+
+        1.00*
+        courseWindow(
+          L,
+          8780,
+          9200,
+          90
+        )
+      );
+    }
+
+    // 관측소와 깨진 달.
+    if(L<10450){
+      return .10;
+    }
+
+    return 0;
+  };
+
+}catch(e){
+  lmWrapFail.push(
+    'coursePressureAt'
+  );
+}
 try{const ce0=courseEvents;
  // 안전모·잔해(rubble)는 특정 풍경에 박아 둔 것이라 원래 좌표를 wz()로 옮겨 붙이고, 나머지(차·버스·파렛트 모듈)는 월드 좌표 그대로 이어간다
  const ANCHORED=e=>e&&(e.kind==='helmet'||e.kind==='rubble');
@@ -11919,26 +12170,138 @@ function stepGate(dt){
 
 
 
-// ---- 공개 카메라: 밭이 끝난 빈 도로에서 잠깐 빠져 탑 전체를 보여준다 (조작은 끊지 않음) ----
-// container: 옆·뒤·위로 빠져 탑과 전방 도로를 함께. ship: 앞·물가 쪽으로 빠져 뒤돌아보며 탑 + 뒤편 좌초선을 한 프레임에 (직선·무장애물 구간이라 전방 시야 없어도 됨)
 const REVEALS=[
   {
     id:'container',
-    z:CG_REVEAL,
-    dur:1.9,
+
+    // 기존보다 조금 일찍 시작해서
+    // 벽 충돌 전에 완전히 정상 카메라로 복귀한다.
+    z:CG_FIELD_B+8,
+
+    dur:1.20,
     back:false,
-    dir:-1
+    dir:-1,
+
+    // 너무 낮은 탑에는 별도 연출을 쓰지 않는다.
+    min:4
   },
+
   {
-  id:'ship',
-z:SF_REVEAL,
-dur:1.7,
+    id:'ship',
+    z:SF_REVEAL,
+
+    // 첫 화물 게이트와 충분한 간격을 확보한다.
+    dur:1.55,
     back:true,
-    dir:1
+    dir:1,
+
+    min:12
   }
 ];
-const reveal={t:-1,dur:0,back:false,dir:1,id:null,fov0:null},revealDone={};
-function revealK(){if(reveal.t<0)return 0;return sm01(Math.min(reveal.t/.55,1))*(1-sm01(Math.max(0,(reveal.t-(reveal.dur-.75))/.75)));}
+
+
+const reveal={
+  t:-1,
+  dur:0,
+  back:false,
+  dir:1,
+  id:null,
+  fov0:null,
+
+  // 카메라가 시작될 때의 도로 방향을 고정한다.
+  // 플레이어가 연출 중 조향해도 구도가 출렁이지 않는다.
+  frame:null
+};
+
+
+const revealDone={};
+
+
+const revealPos=
+  new THREE.Vector3();
+
+const revealLook=
+  new THREE.Vector3();
+
+const revealBasePos=
+  new THREE.Vector3();
+
+const revealBaseQuat=
+  new THREE.Quaternion();
+
+const revealShotQuat=
+  new THREE.Quaternion();
+
+
+function captureRevealFrame(){
+  const z=P.z;
+
+  const dx=
+    cx(z+8)-
+    cx(z-8);
+
+  const dz=16;
+
+  const len=
+    Math.hypot(
+      dx,
+      dz
+    )||1;
+
+  const fx=
+    dx/len;
+
+  const fz=
+    dz/len;
+
+  return{
+    fx,
+    fz,
+
+    // 도로 진행 방향의 오른쪽 벡터.
+    rx:fz,
+    rz:-fx
+  };
+}
+
+
+function revealK(){
+  if(reveal.t<0){
+    return 0;
+  }
+
+  const fadeIn=.32;
+  const fadeOut=.40;
+
+  const inK=
+    sm01(
+      Math.min(
+        reveal.t/fadeIn,
+        1
+      )
+    );
+
+  const outStart=
+    Math.max(
+      fadeIn,
+      reveal.dur-fadeOut
+    );
+
+  const outK=
+    1-
+    sm01(
+      Math.max(
+        0,
+        (
+          reveal.t-
+          outStart
+        )/
+        fadeOut
+      )
+    );
+
+  return inK*outK;
+}
 
 function landmarkStep(dt){
  const f=FIELDS.find(f=>{
@@ -11956,7 +12319,36 @@ function landmarkStep(dt){
   );
 })||null;
  if(f!==activeField)activateField(f);
- if(reveal.t<0)for(const r of REVEALS)if(!revealDone[r.id]&&P.z>=r.z&&P.z<r.z+40&&P.pallets>=3){revealDone[r.id]=true;Object.assign(reveal,{t:0,dur:r.dur,back:r.back,dir:r.dir,id:r.id,fov0:null});}
+if(reveal.t<0){
+  for(const r of REVEALS){
+    if(
+      revealDone[r.id]||
+      P.z<r.z||
+      P.z>=r.z+40||
+      P.pallets<(r.min||3)
+    ){
+      continue;
+    }
+
+    revealDone[r.id]=true;
+
+    Object.assign(
+      reveal,
+      {
+        t:0,
+        dur:r.dur,
+        back:r.back,
+        dir:r.dir,
+        id:r.id,
+        fov0:null,
+        frame:
+          captureRevealFrame()
+      }
+    );
+
+    break;
+  }
+}
  if(reveal.t>=0){reveal.t+=dt;if(reveal.t>=reveal.dur)reveal.t=-1;}
  if(!wall.broken&&P.z>=CG_WALL-3.2&&P.z<CG_WALL+30)hitWall();
  stepWall(dt);
@@ -12011,7 +12403,22 @@ wall.topBurst=false;
 gate.active=false;
 gate.stage=0;
 gate.plan=[0,0,0];
- reveal.t=-1;for(const k in revealDone)delete revealDone[k];
+if(reveal.fov0!=null){
+  camera.fov=
+    reveal.fov0;
+
+  camera.updateProjectionMatrix();
+}
+
+reveal.t=-1;
+reveal.dur=0;
+reveal.id=null;
+reveal.fov0=null;
+reveal.frame=null;
+
+for(const k in revealDone){
+  delete revealDone[k];
+}
  for(const o of landmarkObstacles)o.visible=true;
  for(const s of shards)s.m.visible=false;
 }
@@ -12047,19 +12454,19 @@ if(z>SF_STRUCT+32){
  
  
  
- try{
+try{
   const f0=updateCamera;
 
   updateCamera=function(...a){
+    // 먼저 원래 추격 카메라를 계산한다.
     f0(...a);
 
     const k=
       revealK();
 
     if(k<=0){
-      if(
-        reveal.fov0!=null
-      ){
+      // 연출이 끝난 프레임에 원래 화각으로 되돌린다.
+      if(reveal.fov0!=null){
         camera.fov=
           reveal.fov0;
 
@@ -12071,63 +12478,66 @@ if(z>SF_STRUCT+32){
       return;
     }
 
-    if(
-      reveal.fov0==null
-    ){
+
+    if(reveal.fov0==null){
       reveal.fov0=
         camera.fov;
     }
 
 
-    const q0=
-      camera.quaternion.clone();
+    // 원래 카메라 상태를 보관한다.
+    revealBasePos.copy(
+      camera.position
+    );
 
-    const p0=
-      camera.position.clone();
-
-
-    // ─────────────────────────────
-    // 화물선 전용 공개 카메라
-    // ─────────────────────────────
-
-    if(
-      reveal.id==='ship'
-    ){
-      // 라이더의 현재 조향 방향이 아니라
-      // 실제 도로 축을 기준으로 카메라 방향을 정한다.
-      const roadDx=
-        cx(P.z+8)-
-        cx(P.z-8);
-
-      const roadDz=16;
-
-      const roadLen=
-        Math.hypot(
-          roadDx,
-          roadDz
-        )||1;
-
-      const fx=
-        roadDx/
-        roadLen;
-
-      const fz=
-        roadDz/
-        roadLen;
-
-      const rx=fz;
-      const rz=-fx;
+    revealBaseQuat.copy(
+      camera.quaternion
+    );
 
 
-      const stack=
+    const fr=
+      reveal.frame||
+      captureRevealFrame();
+
+    const fx=fr.fx;
+    const fz=fr.fz;
+    const rx=fr.rx;
+    const rz=fr.rz;
+
+    const portrait=
+      camera.aspect<.82;
+
+    const stack=
+      Math.max(
+        0,
+
         typeof stackH===
         'number'
           ? stackH
-          : P.pallets*.15;
+          : P.pallets*.15
+      );
+
+    const roadX=
+      cx(P.z);
+
+    const roadY=
+      H(
+        roadX,
+        P.z
+      );
 
 
-      // 원래 화물선의 legacy 좌표를
-      // 삽입 이후 실제 월드 좌표로 변환한다.
+    let targetFov;
+
+
+    // ─────────────────────────────
+    // 화물선 공개
+    //
+    // 파렛트 탑을 전경 왼쪽에,
+    // 좌초선을 후경 오른쪽에 둔다.
+    // ─────────────────────────────
+
+    if(reveal.id==='ship'){
       const shipZ=
         wz(5960);
 
@@ -12137,233 +12547,212 @@ if(z>SF_STRUCT+32){
       const shipX=
         shipRoadX+58;
 
+      // 배의 갑판과 컨테이너 적재부 사이를 겨냥한다.
       const shipY=
         H(
           shipRoadX,
           shipZ
         )+
-        25.5;
+        22.5;
 
 
-      // 카메라는 라이더보다 앞쪽,
-      // 도로의 왼쪽으로 빠진다.
-      //
-      // 전경 아래쪽: 파렛트 탑
-      // 후경 오른쪽: 좌초선
-      const px=
-        P.x-
-        rx*7.5+
-        fx*26;
+      // 세로 화면에서는 옆 이동을 줄여
+      // 파렛트 탑이 화면 바깥으로 밀리지 않게 한다.
+      const side=
+        portrait
+          ? 4.6
+          : 8.2;
 
-      const py=
-        P.y+
-        5.4+
-        stack*.38;
+      const ahead=
+        portrait
+          ? 18.0
+          : 25.5;
 
-      const pz=
+
+      // 라이더보다 앞쪽·왼쪽으로 이동해 뒤를 바라본다.
+      revealPos.set(
+        roadX-
+        rx*side+
+        fx*ahead,
+
+        roadY+
+        4.7+
+        Math.min(
+          stack,
+          5.2
+        )*.40,
+
         P.z-
-        rz*7.5+
-        fz*26;
-
-
-      camera.position
-        .set(
-          px,
-          py,
-          pz
-        )
-        .lerp(
-          p0,
-          1-k
-        );
-
-
-      // 현재 라이더 방향을 보지 않고
-      // 배의 실제 갑판 중심을 직접 바라본다.
-      camera.lookAt(
-        shipX-4,
-        shipY,
-        shipZ
+        rz*side+
+        fz*ahead
       );
 
 
-      camera.quaternion.slerp(
-        q0,
-        1-k
-      );
-
-
-      // 넓은 화면에서는 망원 느낌을 줘
-      // 멀리 있는 배를 크게 압축한다.
-      //
-      // 세로 화면에서는 탑이 잘리지 않도록
-      // 조금 더 넓은 화각을 쓴다.
-      const targetFov=
-        camera.aspect<.82
-          ? 57
-          : 50;
-
-
-      camera.fov=
+      // 배만 쳐다보지 않고
+      // 라이더 탑과 배 사이의 지점을 바라본다.
+      const riderX=
         lmLerp(
-          reveal.fov0,
-          targetFov,
-          k
+          P.x,
+          roadX,
+          .22
         );
 
-      camera.updateProjectionMatrix();
+      const riderY=
+        P.y+
+        1.08+
+        stack*.56;
 
-      return;
+      const riderZ=
+        P.z;
+
+      const shipWeight=
+        portrait
+          ? .28
+          : .38;
+
+
+      revealLook.set(
+        lmLerp(
+          riderX,
+          shipX-5.5,
+          shipWeight
+        ),
+
+        lmLerp(
+          riderY,
+          shipY,
+          shipWeight
+        ),
+
+        lmLerp(
+          riderZ,
+          shipZ,
+          shipWeight
+        )
+      );
+
+
+      targetFov=
+        portrait
+          ? 63
+          : 54;
     }
 
 
     // ─────────────────────────────
-    // 초반 파렛트 탑 공개 카메라
-    // 기존 동작 유지
+    // 초반 미니 파렛트 밭 공개
+    //
+    // 탑은 크게 유지하고,
+    // 전방의 컨테이너 벽도 배경에 남긴다.
     // ─────────────────────────────
 
-    const sp=
-      Math.hypot(
-        P.vx,
-        P.vz
+    else{
+      const side=
+        portrait
+          ? 4.5
+          : 7.3;
+
+      const back=
+        portrait
+          ? 10.8
+          : 9.2;
+
+
+      // 라이더 뒤·왼쪽의 3/4 구도.
+      revealPos.set(
+        roadX-
+        rx*side-
+        fx*back,
+
+        roadY+
+        4.0+
+        Math.min(
+          stack,
+          4.0
+        )*.48,
+
+        P.z-
+        rz*side-
+        fz*back
       );
 
-    const fx=
-      sp>.5
-        ? P.vx/sp
-        : 0;
 
-    const fz=
-      sp>.5
-        ? P.vz/sp
-        : 1;
+      // 벽 바로 앞을 보지 않고,
+      // 라이더와 벽 사이의 열린 도로를 바라본다.
+      const lookZ=
+        Math.min(
+          CG_WALL-10,
 
-    const rx=fz;
-    const rz=-fx;
-
-    const top=
-      P.y+
-      (
-        typeof stackH===
-        'number'
-          ? stackH
-          : P.pallets*.15
-      );
-
-    const d=
-      reveal.dir;
-
-    const back=
-      reveal.back;
-
-    const side=
-      d*
-      (
-        back
-          ? 7
-          : 6.5
-      )*
-      k;
-
-    const up=
-      (
-        back
-          ? 4
-          : 4.2
-      )*
-      k+
-      (
-        top-P.y
-      )*
-      .55*
-      k;
-
-    const fwd=
-      back
-        ? lmLerp(
-            -8,
-            7.5,
-            sm01(k)
+          P.z+
+          (
+            portrait
+              ? 18
+              : 24
           )
-        : -(
-            6.5+
-            3.5*k
-          );
+        );
+
+      const lookRoadX=
+        cx(lookZ);
 
 
-    const px=
-      P.x+
-      rx*side+
-      fx*fwd;
+      revealLook.set(
+        lmLerp(
+          P.x,
+          lookRoadX,
+          .46
+        ),
 
-    const py=
-      P.y+
-      3+
-      up;
+        P.y+
+        1.05+
+        stack*.54,
 
-    const pz=
-      P.z+
-      rz*side+
-      fz*fwd;
-
-    const la=
-      back
-        ? -7
-        : 6;
-
-    const lx=
-      P.x+
-      fx*la+
-      (
-        back
-          ? rx*d*4*k
-          : 0
-      );
-
-    const ly=
-      P.y+
-      1+
-      (
-        top-P.y
-      )*
-      .5*
-      k;
-
-    const lzz=
-      P.z+
-      fz*la+
-      (
-        back
-          ? rz*d*4*k
-          : 0
+        lookZ
       );
 
 
-    camera.position
-      .set(
-        px,
-        py,
-        pz
-      )
-      .lerp(
-        p0,
-        1-k
-      );
+      targetFov=
+        portrait
+          ? 68
+          : 61;
+    }
 
-    camera.lookAt(
-      lx,
-      ly,
-      lzz
+
+    // 연출 카메라의 순수한 위치와 회전.
+    camera.position.copy(
+      revealPos
     );
 
-    camera.quaternion.slerp(
-      q0,
+    camera.lookAt(
+      revealLook
+    );
+
+    revealShotQuat.copy(
+      camera.quaternion
+    );
+
+
+    // k값으로 원래 카메라와 부드럽게 혼합한다.
+    camera.position.lerp(
+      revealBasePos,
       1-k
     );
 
+    camera.quaternion
+      .copy(
+        revealShotQuat
+      )
+      .slerp(
+        revealBaseQuat,
+        1-k
+      );
+
+
     camera.fov=
-      reveal.fov0+
-      6*k;
+      lmLerp(
+        reveal.fov0,
+        targetFov,
+        k
+      );
 
     camera.updateProjectionMatrix();
   };
@@ -12373,7 +12762,6 @@ if(z>SF_STRUCT+32){
     'updateCamera'
   );
 }
-
 
 
  if(list.length)console.error('[자키 라이더] 감싸기 실패 — 아래 함수가 function 선언이 아니라 const로 되어 있습니다. 이름을 바꿔 감싸 주세요:',list.join(', '));
