@@ -363,39 +363,6 @@ The original copyright header is also retained in the embedded script.
 (function(global){
 'use strict';
 
-/* ===== [G1] 월드 모듈 참조·새 구간 상수·킥커 억제 (게임 스크립트 맨 앞) ===== */
-const JWX=window.JockeyWorldData;
-const wz=JWX.wz,lz=JWX.lz,insertAt=JWX.insertAt;
-const CG_A=JWX.CG_A,CG_FIELD_A=JWX.CG_FIELD_A,CG_FIELD_B=JWX.CG_FIELD_B,CG_REVEAL=JWX.CG_REVEAL,CG_WALL=JWX.CG_WALL,CG_GRAVE_A=JWX.CG_GRAVE_A,CG_GRAVE_B=JWX.CG_GRAVE_B;
-const SF_A=JWX.SF_A,SF_B=JWX.SF_B,SF_FIELD_A=JWX.SF_FIELD_A,SF_FIELD_B=JWX.SF_FIELD_B,SF_REVEAL=JWX.SF_REVEAL,SF_STRUCT=JWX.SF_STRUCT;
-{
-const sm01=t=>{t=Math.max(0,Math.min(1,t));return t*t*(3-2*t);};
-// 파렛트 밭·벽·게이트 구간에서는 도로 킥커(점프대)를 부드럽게 0으로 (밭에서 튀어오르거나 벽을 공중에서 맞지 않게)
-function kickerCalm(z){const w=(a,b)=>sm01((z-(a-20))/20)*(1-sm01((z-b)/20));return Math.max(w(CG_FIELD_A-15,CG_WALL+40),w(SF_FIELD_A-15,SF_STRUCT+40));}
-const lmWrapFail=[];
-try{const kicker0=kicker,nearKicker0=nearKicker;
- kicker=function(u,z){const k=kickerCalm(z);return k>=1?0:kicker0(u,z)*(1-k);};
- nearKicker=function(u,z){return kickerCalm(z)>.5?false:nearKicker0(u,z);};}catch(e){lmWrapFail.push('kicker/nearKicker');}
-// 기존 좌표(legacy)로 쓰인 판정 함수들을 월드 좌표로 감싼다
-try{const bw0=blackWaterView;blackWaterView=function(z,u){return bw0(lz(z),u);};}catch(e){lmWrapFail.push('blackWaterView');}
-try{const sc0=shoreClear;shoreClear=function(z,u){return sc0(lz(z),u);};}catch(e){lmWrapFail.push('shoreClear');}
-try{const rf0=roadFurnitureSuppressed;roadFurnitureSuppressed=function(z){return rf0(z)||(z>CG_WALL-6&&z<CG_WALL+8);};}catch(e){lmWrapFail.push('roadFurnitureSuppressed');}
-try{const cb0=courseBeatAt;courseBeatAt=function(z){const ins=insertAt(z);if(!ins)return cb0(lz(z));
- if(ins.ins.name==='ship-cargo-field')return z<SF_FIELD_B+10?'ship-cargo-field':z<SF_STRUCT+5?'cargo-gate':'dust-approach';
- return z<CG_FIELD_A-20?'container-omen':z<CG_FIELD_B+10?'pallet-field':z<CG_WALL-2?'tower-reveal':z<CG_GRAVE_A?'container-wall':'graveyard';};}catch(e){lmWrapFail.push('courseBeatAt');}
-// 난이도 파도(coursePressureAt)는 원래 풍경 좌표 기준으로, 삽입 구간 안은 0. 청크 이벤트(courseEvents)는 삽입 구간 안에 떨어지는 것만 걷어낸다
-try{const cp0=coursePressureAt;coursePressureAt=function(z){return insertAt(z)?0:cp0(lz(z));};}catch(e){lmWrapFail.push('coursePressureAt');}
-try{const ce0=courseEvents;
- // 안전모·잔해(rubble)는 특정 풍경에 박아 둔 것이라 원래 좌표를 wz()로 옮겨 붙이고, 나머지(차·버스·파렛트 모듈)는 월드 좌표 그대로 이어간다
- const ANCHORED=e=>e&&(e.kind==='helmet'||e.kind==='rubble');
- courseEvents=function(a,b){
-  let ev=ce0(a,b);if(!Array.isArray(ev))return ev;
-  ev=ev.filter(e=>!(e&&typeof e.z==='number'&&(insertAt(e.z)||ANCHORED(e))));
-  const la=lz(a),lb=lz(b);
-  if(lb>la){try{const lev=ce0(la,lb);if(Array.isArray(lev))for(const e of lev)if(ANCHORED(e)&&typeof e.z==='number'){const z=wz(e.z);if(z>=a&&z<b)ev.push(Object.assign({},e,{z}));}}catch(err){}}
-  return ev;};}catch(e){lmWrapFail.push('courseEvents');}
-if(lmWrapFail.length)console.error('[자키 라이더] 상단 감싸기 실패 — 아래 이름이 function 선언이 아닙니다(const/let). 선언을 function으로 바꾸거나 이름을 알려주세요:',lmWrapFail.join(', '));
-}
 
 
 const TAU=Math.PI*2;
@@ -2673,6 +2640,42 @@ global.JockeyWorld3D={create:createWorld};
 (function(){
 "use strict";
 
+/* ===== [G1] 월드 모듈 참조·새 구간 상수·킥커 억제 (게임 스크립트 맨 앞) ===== */
+const JWX=window.JockeyWorldData;
+const wz=JWX.wz,lz=JWX.lz,insertAt=JWX.insertAt;
+const CG_A=JWX.CG_A,CG_FIELD_A=JWX.CG_FIELD_A,CG_FIELD_B=JWX.CG_FIELD_B,CG_REVEAL=JWX.CG_REVEAL,CG_WALL=JWX.CG_WALL,CG_GRAVE_A=JWX.CG_GRAVE_A,CG_GRAVE_B=JWX.CG_GRAVE_B;
+const SF_A=JWX.SF_A,SF_B=JWX.SF_B,SF_FIELD_A=JWX.SF_FIELD_A,SF_FIELD_B=JWX.SF_FIELD_B,SF_REVEAL=JWX.SF_REVEAL,SF_STRUCT=JWX.SF_STRUCT;
+{
+const sm01=t=>{t=Math.max(0,Math.min(1,t));return t*t*(3-2*t);};
+// 파렛트 밭·벽·게이트 구간에서는 도로 킥커(점프대)를 부드럽게 0으로 (밭에서 튀어오르거나 벽을 공중에서 맞지 않게)
+function kickerCalm(z){const w=(a,b)=>sm01((z-(a-20))/20)*(1-sm01((z-b)/20));return Math.max(w(CG_FIELD_A-15,CG_WALL+40),w(SF_FIELD_A-15,SF_STRUCT+40));}
+const lmWrapFail=[];
+try{const kicker0=kicker,nearKicker0=nearKicker;
+ kicker=function(u,z){const k=kickerCalm(z);return k>=1?0:kicker0(u,z)*(1-k);};
+ nearKicker=function(u,z){return kickerCalm(z)>.5?false:nearKicker0(u,z);};}catch(e){lmWrapFail.push('kicker/nearKicker');}
+// 기존 좌표(legacy)로 쓰인 판정 함수들을 월드 좌표로 감싼다
+try{const bw0=blackWaterView;blackWaterView=function(z,u){return bw0(lz(z),u);};}catch(e){lmWrapFail.push('blackWaterView');}
+try{const sc0=shoreClear;shoreClear=function(z,u){return sc0(lz(z),u);};}catch(e){lmWrapFail.push('shoreClear');}
+try{const rf0=roadFurnitureSuppressed;roadFurnitureSuppressed=function(z){return rf0(z)||(z>CG_WALL-6&&z<CG_WALL+8);};}catch(e){lmWrapFail.push('roadFurnitureSuppressed');}
+try{const cb0=courseBeatAt;courseBeatAt=function(z){const ins=insertAt(z);if(!ins)return cb0(lz(z));
+ if(ins.ins.name==='ship-cargo-field')return z<SF_FIELD_B+10?'ship-cargo-field':z<SF_STRUCT+5?'cargo-gate':'dust-approach';
+ return z<CG_FIELD_A-20?'container-omen':z<CG_FIELD_B+10?'pallet-field':z<CG_WALL-2?'tower-reveal':z<CG_GRAVE_A?'container-wall':'graveyard';};}catch(e){lmWrapFail.push('courseBeatAt');}
+// 난이도 파도(coursePressureAt)는 원래 풍경 좌표 기준으로, 삽입 구간 안은 0. 청크 이벤트(courseEvents)는 삽입 구간 안에 떨어지는 것만 걷어낸다
+try{const cp0=coursePressureAt;coursePressureAt=function(z){return insertAt(z)?0:cp0(lz(z));};}catch(e){lmWrapFail.push('coursePressureAt');}
+try{const ce0=courseEvents;
+ // 안전모·잔해(rubble)는 특정 풍경에 박아 둔 것이라 원래 좌표를 wz()로 옮겨 붙이고, 나머지(차·버스·파렛트 모듈)는 월드 좌표 그대로 이어간다
+ const ANCHORED=e=>e&&(e.kind==='helmet'||e.kind==='rubble');
+ courseEvents=function(a,b){
+  let ev=ce0(a,b);if(!Array.isArray(ev))return ev;
+  ev=ev.filter(e=>!(e&&typeof e.z==='number'&&(insertAt(e.z)||ANCHORED(e))));
+  const la=lz(a),lb=lz(b);
+  if(lb>la){try{const lev=ce0(la,lb);if(Array.isArray(lev))for(const e of lev)if(ANCHORED(e)&&typeof e.z==='number'){const z=wz(e.z);if(z>=a&&z<b)ev.push(Object.assign({},e,{z}));}}catch(err){}}
+  return ev;};}catch(e){lmWrapFail.push('courseEvents');}
+if(lmWrapFail.length)console.error('[자키 라이더] 상단 감싸기 실패 — 아래 이름이 function 선언이 아닙니다(const/let). 선언을 function으로 바꾸거나 이름을 알려주세요:',lmWrapFail.join(', '));
+}
+
+
+
 /* ==================================================================
    1. 상수 / 유틸
    ================================================================== */
@@ -2900,7 +2903,7 @@ const L=lz(z);
 
  // The abandoned cross street is a real cut through the embankment, not a folded terrain ribbon.
  const crossStreet=scenicBand(L,3482,3548,25)*smooth((Math.abs(u)-12.2)/8)*(1-smooth((Math.abs(u)-108)/18));
- y=lerp(y,rawH(wz(3515),3515)-.04,crossStreet);
+ y=lerp(y,rawH(cx(wz(3515)),wz(3515))-.04,crossStreet);
  // Only the route corridor falls into the sinkhole; the surface remains above on both sides.
 const shipBasin=scenicBand(L,5780,6120,90)*smooth((u-14)/8)*(1-smooth((u-116)/18));
 
@@ -2910,8 +2913,8 @@ const shipBasin=scenicBand(L,5780,6120,90)*smooth((u-14)/8)*(1-smooth((u-116)/18
  y=lerp(y,roadBase-7.5+.3*Math.sin(z*.05),cargoBay);
 
 
- const shipX=wz(5960),shipDx=Math.abs(x-shipX)-48,shipDz=wz(5960)-125,shipPad=(1-smooth((shipDx+1)/16))*(1-smooth((shipDz+1)/30))*smooth((Math.abs(u)-20)/12);
- y=lerp(y,wz(5960)-10.0,shipPad);
+ const shipX=cx(wz(5960))+58,shipDx=Math.abs(x-shipX)-48,shipDz=Math.abs(z-wz(5960))-125,shipPad=(1-smooth((shipDx+1)/16))*(1-smooth((shipDz+1)/30))*smooth((Math.abs(u)-20)/12);
+ y=lerp(y,rawH(cx(wz(5960)),wz(5960))-10.0,shipPad);
  const storyDepth=JW.storyDepthAt(z),corridor=1-smooth((Math.abs(u)-14)/30);
  y-=storyDepth*corridor;
  // At the broken cavern ledge the floor falls away while the rider glides toward the pipe mouth.
@@ -3763,7 +3766,8 @@ function fillGround(c,z0){
   const nor=c.geo.attributes.normal;
   for(let i=0;i<n;i++){
     const x=pos.getX(i), z=z0+pos.getZ(i)+CH_LEN*0.5;
-    const u=x-cx(z), au=Math.abs(u);
+        const u=x-cx(z), au=Math.abs(u);
+    const L=lz(z);
     const ny=Math.max(0.2,nor.getY(i));
     const slope=Math.sqrt(Math.max(0,1-ny*ny))/ny;
     const st=clamp((slope-0.16)/0.30,0,1);
@@ -3788,7 +3792,7 @@ function fillGround(c,z0){
     const urban=smooth((L-3250)/220)*(1-smooth((L-4300)/180));
     dr=lerp(dr,.43+n1*.05,urban);dg=lerp(dg,.43+n1*.05,urban);db=lerp(db,.42+n1*.05,urban);
     const day2=smooth((z-UNDER_END)/(DAY_RETURN_FULL-UNDER_END));
-    const nightWild=smooth((z-4620)/300)*(1-day2);dr=lerp(dr,.27+n1*.05,nightWild*.42);dg=lerp(dg,.31+n1*.06,nightWild*.42);db=lerp(db,.29+n1*.05,nightWild*.42);
+    const nightWild=smooth((L-4620)/300)*(1-day2);dr=lerp(dr,.27+n1*.05,nightWild*.42);dg=lerp(dg,.31+n1*.06,nightWild*.42);db=lerp(db,.29+n1*.05,nightWild*.42);
     const under=smooth((z-(SINK_START+120))/180)*(1-smooth((z-(UNDER_END-160))/200));
     ar=lerp(ar,.20+n1*.04,under);ag=lerp(ag,.22+n1*.04,under);ab=lerp(ab,.23+n1*.04,under);
     dr=lerp(dr,.18+n1*.04,under);dg=lerp(dg,.21+n1*.04,under);db=lerp(db,.20+n1*.035,under);
@@ -5926,6 +5930,70 @@ function showWorldIntro(){
  if(!WORLD_TOUR)return;
  running=false;worldInspectPaused=true;
  
+
+ 
+ reset();P.alive=false;poseT=1;introT=0;
+ introEl.classList.remove('hide');overEl.classList.add('hide');hudEl.classList.remove('on');
+ animateRider(1,0);introCamera(1);
+ const play=document.getElementById('worldTourPlay');if(play)play.textContent='▶ 시작';
+}
+if(WORLD_TOUR){
+ const tourStyle=document.createElement('style');tourStyle.textContent='@media(max-width:600px){.heroBottom{display:none}}';document.head.appendChild(tourStyle);
+ const bar=document.createElement('div');bar.id='worldTourBar';
+ bar.style.cssText='position:fixed;z-index:40;bottom:12px;left:50%;transform:translateX(-50%);display:flex;gap:5px;max-width:calc(100vw - 90px);width:max-content;flex-wrap:wrap;justify-content:center;padding:7px;background:#20312be8;border:1px solid #6e8177;border-radius:6px;backdrop-filter:blur(5px)';
+ const makeButton=(label,fn)=>{const b=document.createElement('button');b.textContent=label;b.type='button';
+  b.style.cssText='margin:0;width:auto;min-width:0;flex:0 0 auto;height:32px;padding:6px 9px;border:1px solid #718578;background:#31473b;color:#eef1e5;border-radius:3px;touch-action:manipulation;font:11px system-ui;letter-spacing:0;box-shadow:none';
+  b.addEventListener('pointerdown',e=>e.stopPropagation());b.addEventListener('click',e=>{e.stopPropagation();fn();});bar.appendChild(b);return b;};
+ makeButton('인트로',showWorldIntro);
+ for(const[label,z]of [['창고',12],['첫 비',352],['약한 뒤틀림',990],['논밭',1600],['저수지',2050],['강 다리',2760],['철길',3125],['교차로',3515],['아파트',3720],['고가도로',3970],['산악 터널',4450],['검은 수면',5350],['좌초선',5900],['관람차',6740],['진짜 나선',7900],['관측소',9550],['싱크홀 전조',11040],['싱크홀',11320],['지하차도',11880],['자연동굴',12820],['활강',13480],['배수관',14250],['관 출구',15150],['다시 낮',15800],['부서진 길',17500],['자키 벌판',18350]])makeButton(label,()=>inspectWorldAt(z));
+ const play=makeButton('▶ 시작',()=>{
+  if(!running){start();worldInspectPaused=false;}else worldInspectPaused=!worldInspectPaused;
+  play.textContent=worldInspectPaused?'▶ 주행':'Ⅱ 정지';
+ });play.id='worldTourPlay';document.body.appendChild(bar);
+ const tag=document.createElement('div');tag.textContent='구간 미리보기 · 순위 미등록';tag.style.cssText='position:fixed;top:115px;right:14px;z-index:39;color:#eee;font:10px system-ui;background:#243330bb;padding:4px 7px;border-radius:3px;pointer-events:none';document.body.appendChild(tag);
+}
+
+let last=performance.now();
+function frame(now){
+  requestAnimationFrame(frame);
+    const gap=now-last;
+  if(gap>70&&running&&!gamePaused&&!worldInspectPaused&&!document.hidden){
+    const hit=perfTrace.lastHit;
+    perfTrace.frames.push({
+      z:Math.round(P.z),gap:Math.round(gap),
+      hitAgo:hit?Math.round(now-hit.at):null,
+      hitMs:hit?+hit.ms.toFixed(2):null
+    });
+    if(perfTrace.frames.length>30)perfTrace.frames.shift();
+  }
+  let dt=Math.max(0,Math.min(gap/1000,.05));
+  last=now;
+  const sp0=Math.hypot(P.vx,P.vz);
+  const frozen=(worldInspectPaused||gamePaused)&&!story.ending,animDt=frozen?0:dt;
+  if(running&&!worldInspectPaused&&!gamePaused&&!story.ending){
+    if(P.crouchT>.5)P.hold=Math.min(.6,P.hold+dt);
+    runStep(dt);
+  }
+  stepPieces(animDt);
+  const sp=Math.hypot(P.vx,P.vz);
+  stepParticles(dust,animDt); stepParticles(sparks,animDt);
+    revealIntroItems();
+  animateRider(animDt,sp);
+    if(!window.__freeCam){
+    updateCamera(animDt,sp);
+    keepCameraInsidePipe();
+  }
+  if(running&&!story.ending)updateHud(dt,(worldInspectPaused||gamePaused)?0:sp);
+  audioUpdate(running&&!gamePaused?sp:0,dt);
+  world3D.update(animDt,sp);
+  renderer.clear();
+  world3D.renderSky(renderer,camera);
+  renderer.clearDepth();
+  renderer.render(scene,camera);
+  markIntroFrameReady();
+}
+
+
  
  /* ===== [G7] 랜드마크 블록 (게임 스크립트 맨 아래, 최초 reset() 호출 직전) ===== */
 {
@@ -6156,67 +6224,10 @@ if(/[?&]tour=1/.test(location.search)){
 // 디버깅용 노출 (콘솔에서 __landmarks.wall 등으로 상태 확인)
 window.__landmarks={wall,gate,reveal,REVEALS,FIELDS,specialPool,activateField,resetLandmarks,landmarkStep,inspectLandmarks,revealK};
 }
- 
- reset();P.alive=false;poseT=1;introT=0;
- introEl.classList.remove('hide');overEl.classList.add('hide');hudEl.classList.remove('on');
- animateRider(1,0);introCamera(1);
- const play=document.getElementById('worldTourPlay');if(play)play.textContent='▶ 시작';
-}
-if(WORLD_TOUR){
- const tourStyle=document.createElement('style');tourStyle.textContent='@media(max-width:600px){.heroBottom{display:none}}';document.head.appendChild(tourStyle);
- const bar=document.createElement('div');bar.id='worldTourBar';
- bar.style.cssText='position:fixed;z-index:40;bottom:12px;left:50%;transform:translateX(-50%);display:flex;gap:5px;max-width:calc(100vw - 90px);width:max-content;flex-wrap:wrap;justify-content:center;padding:7px;background:#20312be8;border:1px solid #6e8177;border-radius:6px;backdrop-filter:blur(5px)';
- const makeButton=(label,fn)=>{const b=document.createElement('button');b.textContent=label;b.type='button';
-  b.style.cssText='margin:0;width:auto;min-width:0;flex:0 0 auto;height:32px;padding:6px 9px;border:1px solid #718578;background:#31473b;color:#eef1e5;border-radius:3px;touch-action:manipulation;font:11px system-ui;letter-spacing:0;box-shadow:none';
-  b.addEventListener('pointerdown',e=>e.stopPropagation());b.addEventListener('click',e=>{e.stopPropagation();fn();});bar.appendChild(b);return b;};
- makeButton('인트로',showWorldIntro);
- for(const[label,z]of [['창고',12],['첫 비',352],['약한 뒤틀림',990],['논밭',1600],['저수지',2050],['강 다리',2760],['철길',3125],['교차로',3515],['아파트',3720],['고가도로',3970],['산악 터널',4450],['검은 수면',5350],['좌초선',5900],['관람차',6740],['진짜 나선',7900],['관측소',9550],['싱크홀 전조',11040],['싱크홀',11320],['지하차도',11880],['자연동굴',12820],['활강',13480],['배수관',14250],['관 출구',15150],['다시 낮',15800],['부서진 길',17500],['자키 벌판',18350]])makeButton(label,()=>inspectWorldAt(z));
- const play=makeButton('▶ 시작',()=>{
-  if(!running){start();worldInspectPaused=false;}else worldInspectPaused=!worldInspectPaused;
-  play.textContent=worldInspectPaused?'▶ 주행':'Ⅱ 정지';
- });play.id='worldTourPlay';document.body.appendChild(bar);
- const tag=document.createElement('div');tag.textContent='구간 미리보기 · 순위 미등록';tag.style.cssText='position:fixed;top:115px;right:14px;z-index:39;color:#eee;font:10px system-ui;background:#243330bb;padding:4px 7px;border-radius:3px;pointer-events:none';document.body.appendChild(tag);
-}
 
-let last=performance.now();
-function frame(now){
-  requestAnimationFrame(frame);
-    const gap=now-last;
-  if(gap>70&&running&&!gamePaused&&!worldInspectPaused&&!document.hidden){
-    const hit=perfTrace.lastHit;
-    perfTrace.frames.push({
-      z:Math.round(P.z),gap:Math.round(gap),
-      hitAgo:hit?Math.round(now-hit.at):null,
-      hitMs:hit?+hit.ms.toFixed(2):null
-    });
-    if(perfTrace.frames.length>30)perfTrace.frames.shift();
-  }
-  let dt=Math.max(0,Math.min(gap/1000,.05));
-  last=now;
-  const sp0=Math.hypot(P.vx,P.vz);
-  const frozen=(worldInspectPaused||gamePaused)&&!story.ending,animDt=frozen?0:dt;
-  if(running&&!worldInspectPaused&&!gamePaused&&!story.ending){
-    if(P.crouchT>.5)P.hold=Math.min(.6,P.hold+dt);
-    runStep(dt);
-  }
-  stepPieces(animDt);
-  const sp=Math.hypot(P.vx,P.vz);
-  stepParticles(dust,animDt); stepParticles(sparks,animDt);
-    revealIntroItems();
-  animateRider(animDt,sp);
-    if(!window.__freeCam){
-    updateCamera(animDt,sp);
-    keepCameraInsidePipe();
-  }
-  if(running&&!story.ending)updateHud(dt,(worldInspectPaused||gamePaused)?0:sp);
-  audioUpdate(running&&!gamePaused?sp:0,dt);
-  world3D.update(animDt,sp);
-  renderer.clear();
-  world3D.renderSky(renderer,camera);
-  renderer.clearDepth();
-  renderer.render(scene,camera);
-  markIntroFrameReady();
-}
+
+
+
 reset(); P.alive=false;poseT=1;
 animateRider(1,0);introCamera(1);
 requestAnimationFrame(frame);
