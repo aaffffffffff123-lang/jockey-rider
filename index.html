@@ -362,6 +362,42 @@ The original copyright header is also retained in the embedded script.
    Pure mesh data is shared by the Three.js game and the dependency-free inspection viewer. */
 (function(global){
 'use strict';
+
+/* ===== [G1] 월드 모듈 참조·새 구간 상수·킥커 억제 (게임 스크립트 맨 앞) ===== */
+const JWX=window.JockeyWorldData;
+const wz=JWX.wz,lz=JWX.lz,insertAt=JWX.insertAt;
+const CG_A=JWX.CG_A,CG_FIELD_A=JWX.CG_FIELD_A,CG_FIELD_B=JWX.CG_FIELD_B,CG_REVEAL=JWX.CG_REVEAL,CG_WALL=JWX.CG_WALL,CG_GRAVE_A=JWX.CG_GRAVE_A,CG_GRAVE_B=JWX.CG_GRAVE_B;
+const SF_A=JWX.SF_A,SF_B=JWX.SF_B,SF_FIELD_A=JWX.SF_FIELD_A,SF_FIELD_B=JWX.SF_FIELD_B,SF_REVEAL=JWX.SF_REVEAL,SF_STRUCT=JWX.SF_STRUCT;
+{
+const sm01=t=>{t=Math.max(0,Math.min(1,t));return t*t*(3-2*t);};
+// 파렛트 밭·벽·게이트 구간에서는 도로 킥커(점프대)를 부드럽게 0으로 (밭에서 튀어오르거나 벽을 공중에서 맞지 않게)
+function kickerCalm(z){const w=(a,b)=>sm01((z-(a-20))/20)*(1-sm01((z-b)/20));return Math.max(w(CG_FIELD_A-15,CG_WALL+40),w(SF_FIELD_A-15,SF_STRUCT+40));}
+const lmWrapFail=[];
+try{const kicker0=kicker,nearKicker0=nearKicker;
+ kicker=function(u,z){const k=kickerCalm(z);return k>=1?0:kicker0(u,z)*(1-k);};
+ nearKicker=function(u,z){return kickerCalm(z)>.5?false:nearKicker0(u,z);};}catch(e){lmWrapFail.push('kicker/nearKicker');}
+// 기존 좌표(legacy)로 쓰인 판정 함수들을 월드 좌표로 감싼다
+try{const bw0=blackWaterView;blackWaterView=function(z,u){return bw0(lz(z),u);};}catch(e){lmWrapFail.push('blackWaterView');}
+try{const sc0=shoreClear;shoreClear=function(z,u){return sc0(lz(z),u);};}catch(e){lmWrapFail.push('shoreClear');}
+try{const rf0=roadFurnitureSuppressed;roadFurnitureSuppressed=function(z){return rf0(z)||(z>CG_WALL-6&&z<CG_WALL+8);};}catch(e){lmWrapFail.push('roadFurnitureSuppressed');}
+try{const cb0=courseBeatAt;courseBeatAt=function(z){const ins=insertAt(z);if(!ins)return cb0(lz(z));
+ if(ins.ins.name==='ship-cargo-field')return z<SF_FIELD_B+10?'ship-cargo-field':z<SF_STRUCT+5?'cargo-gate':'dust-approach';
+ return z<CG_FIELD_A-20?'container-omen':z<CG_FIELD_B+10?'pallet-field':z<CG_WALL-2?'tower-reveal':z<CG_GRAVE_A?'container-wall':'graveyard';};}catch(e){lmWrapFail.push('courseBeatAt');}
+// 난이도 파도(coursePressureAt)는 원래 풍경 좌표 기준으로, 삽입 구간 안은 0. 청크 이벤트(courseEvents)는 삽입 구간 안에 떨어지는 것만 걷어낸다
+try{const cp0=coursePressureAt;coursePressureAt=function(z){return insertAt(z)?0:cp0(lz(z));};}catch(e){lmWrapFail.push('coursePressureAt');}
+try{const ce0=courseEvents;
+ // 안전모·잔해(rubble)는 특정 풍경에 박아 둔 것이라 원래 좌표를 wz()로 옮겨 붙이고, 나머지(차·버스·파렛트 모듈)는 월드 좌표 그대로 이어간다
+ const ANCHORED=e=>e&&(e.kind==='helmet'||e.kind==='rubble');
+ courseEvents=function(a,b){
+  let ev=ce0(a,b);if(!Array.isArray(ev))return ev;
+  ev=ev.filter(e=>!(e&&typeof e.z==='number'&&(insertAt(e.z)||ANCHORED(e))));
+  const la=lz(a),lb=lz(b);
+  if(lb>la){try{const lev=ce0(la,lb);if(Array.isArray(lev))for(const e of lev)if(ANCHORED(e)&&typeof e.z==='number'){const z=wz(e.z);if(z>=a&&z<b)ev.push(Object.assign({},e,{z}));}}catch(err){}}
+  return ev;};}catch(e){lmWrapFail.push('courseEvents');}
+if(lmWrapFail.length)console.error('[자키 라이더] 상단 감싸기 실패 — 아래 이름이 function 선언이 아닙니다(const/let). 선언을 function으로 바꾸거나 이름을 알려주세요:',lmWrapFail.join(', '));
+}
+
+
 const TAU=Math.PI*2;
 const clamp=(x,a=0,b=1)=>Math.max(a,Math.min(b,x));
 const mix=(a,b,t)=>a+(b-a)*t;
@@ -2176,6 +2212,10 @@ function buildMoon(){
  b.min=[-90,-90,-90];b.max=[100,100,100];return b;
 }
 global.JockeyWorldData={Batch,buildWorld,buildMoon,driveBounds,weatherAt,roofed,warp,warpGLSL,rgb,rng,smooth,smoother,spiralExit,twistField,storyDepthAt,undergroundAt,cavernAt,glideAt,pipeAt,wastelandBump,TUNNEL_START,TUNNEL_END,DEEP_SPIRAL_START,DEEP_SPIRAL_END,SINK_WARN,SINK_START,UNDER_START,CAVERN_START,GLIDE_START,GLIDE_END,PIPE_START,PIPE_RIDE_START,PIPE_END,PIPE_RADIUS,PIPE_RIDE_RADIUS,UNDER_EXIT_START,UNDER_END,DAY_RETURN_FULL,END_QUIET_START,END_ROAD_FADE,END_FIELD,ENDING_AT,clamp,mix};
+
+global.JockeyWorldData=makeExports(global.JockeyWorldData,{weatherAt,driveBounds,roofed,twistField,storyDepthAt,glideAt,wastelandBump,undergroundAt:typeof undergroundAt==='function'?undergroundAt:null,cavernAt:typeof cavernAt==='function'?cavernAt:null,pipeAt:typeof pipeAt==='function'?pipeAt:null});
+
+
 })(typeof window!=='undefined'?window:globalThis);
 
 /* Three.js adapter — one world, one frame loop. No full-screen weather layer. */
@@ -2830,6 +2870,8 @@ const WORLD_PADS=[[-1,218,63,65,98],[1,296,78,79,123],[-1,406,80,82,110],
  [1,472,104,105,127],[-1,720,116,90,120],[1,1340,150,95,140]];
 function scenicBand(z,a,b,fade){return smooth((z-(a-fade))/fade)*(1-smooth((z-b)/fade));}
 function H(x,z){
+const L=lz(z);
+
  const u=x-cx(z);let y=rawH(x,z);
  const interior=(1-smooth((z-155)/30))*smooth((38-Math.abs(u))/5);
  y=lerp(y,-baseDrop(z),interior);
@@ -2843,24 +2885,24 @@ function H(x,z){
  }
  // Only the land outside the guardrails drops. The playable road and all obstacle coordinates stay identical.
  const roadBase=rawH(cx(z),z);
- const farmLake=scenicBand(z,1810,2320,95)*smooth((u-12.8)/7);
+ const farmLake=scenicBand(L,1810,2320,95)*smooth((u-12.8)/7);
  y=lerp(y,roadBase-3.45-.22*Math.sin(z*.018),farmLake);
- const river=scenicBand(z,2580,2960,90)*smooth((Math.abs(u)-12.8)/10);
+ const river=scenicBand(L,2580,2960,90)*smooth((Math.abs(u)-12.8)/10);
  y=lerp(y,roadBase-5.55-.28*Math.sin(x*.018),river);
  
  
 // 검은 수면은 이 구간에서 끝나며, 뒤의 배와 연결되지 않는다.
- const nightLake=scenicBand(z,4920,5560,70)
+ const nightLake=scenicBand(L,4920,5560,70)
    *smooth((-u-12.5)/3.2)*(1-smooth((-u-145)/28));
  y=lerp(y,roadBase-3.4,nightLake);
 
 
 
  // The abandoned cross street is a real cut through the embankment, not a folded terrain ribbon.
- const crossStreet=scenicBand(z,3482,3548,25)*smooth((Math.abs(u)-12.2)/8)*(1-smooth((Math.abs(u)-108)/18));
+ const crossStreet=scenicBand(L,3482,3548,25)*smooth((Math.abs(u)-12.2)/8)*(1-smooth((Math.abs(u)-108)/18));
  y=lerp(y,rawH(cx(3515),3515)-.04,crossStreet);
  // Only the route corridor falls into the sinkhole; the surface remains above on both sides.
-const shipBasin=scenicBand(z,5780,6120,90)*smooth((u-14)/8)*(1-smooth((u-116)/18));
+const shipBasin=scenicBand(L,5780,6120,90)*smooth((u-14)/8)*(1-smooth((u-116)/18));
 
  y-=shipBasin*8.5;
  const shipX=cx(5960)+58,shipDx=Math.abs(x-shipX)-48,shipDz=Math.abs(z-5960)-125,shipPad=(1-smooth((shipDx+1)/16))*(1-smooth((shipDz+1)/30))*smooth((Math.abs(u)-20)/12);
