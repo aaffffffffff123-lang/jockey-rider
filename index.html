@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Jockey Rider v4 - rhythmic course and breakable dispatch dock.
+<!-- Jockey Rider v7 - visible waterways and crossings, compressed second act, cavern glide, 360-degree storm pipe, rare helmets and quiet ending.
      Embedded Three.js license: 
 The MIT License
 
@@ -46,16 +46,8 @@ The original copyright header is also retained in the embedded script.
   html,body{height:100%;overflow:hidden;background:#F3DDC0;
     font-family:"Pretendard","Apple SD Gothic Neo","Noto Sans KR","Malgun Gothic",system-ui,sans-serif;
     color:var(--ink);touch-action:none;overscroll-behavior:none;user-select:none}
- #app{
-  position:fixed;
-  inset:0;
-  opacity:0;
-  transition:opacity .45s ease;
-}
-
-body.scene-ready #app{
-  opacity:1;
-}
+  #app{position:fixed;inset:0;opacity:0;transition:opacity .45s ease}
+  body.scene-ready #app{opacity:1}
   canvas{display:block;width:100%;height:100%}
 
   /* ---------- HUD ---------- */
@@ -220,14 +212,8 @@ body.scene-ready #app{
   cursor:pointer;
 }
 
-.startBtn:disabled{
-  opacity:.58;
-  cursor:default;
-  filter:saturate(.45);
-  transform:none;
-}
-
 .startBtn:active{transform:translateY(2px)}
+  .startBtn:disabled{opacity:.58;cursor:default;filter:saturate(.45);transform:none}
 
 .startHint{
   margin-top:12px;
@@ -254,12 +240,7 @@ body.scene-ready #app{
 .pkeys em{font-style:normal;color:var(--ink-soft)}
 
 @media (max-width:640px){
-  /* 시작 버튼을 조금 더 아래로 */
-  .heroBottom{
-    bottom:calc(20px + env(safe-area-inset-bottom));
-  }
-
-  /* 설명 박스는 조금 더 위로 */
+  .heroBottom{bottom:calc(20px + env(safe-area-inset-bottom))}
   .pkeys{
     left:50%;
     transform:translateX(-50%);
@@ -267,23 +248,34 @@ body.scene-ready #app{
     width:min(92vw,360px);
     font-size:12px;
   }
-
-  .pkeys div{
-    gap:8px;
-  }
+  .pkeys div{gap:8px}
 }
 
+
   @media (prefers-reduced-motion:reduce){ .press{animation:none} }
-  #sound{position:fixed;right:calc(14px + env(safe-area-inset-right));bottom:calc(14px + env(safe-area-inset-bottom));
-    width:44px;height:44px;background:var(--paper);color:var(--ink);
+  #sound,#pause{position:fixed;right:calc(14px + env(safe-area-inset-right));
+    width:44px;height:44px;margin:0;padding:0;border:0;border-radius:0;background:var(--paper);color:var(--ink);
     box-shadow:0 6px 18px rgba(59,42,28,.2);display:flex;align-items:center;justify-content:center;
-    font-size:19px;pointer-events:auto;cursor:pointer;z-index:5}
+    font-size:19px;pointer-events:auto;cursor:pointer;z-index:25}
+  #sound{bottom:calc(14px + env(safe-area-inset-bottom))}
+  #pause{bottom:calc(66px + env(safe-area-inset-bottom));display:none;font-size:17px}
+  body.game-on #pause{display:flex}
+  #pause.paused{background:#2f3d38;color:#fff3c7;box-shadow:0 0 0 2px rgba(255,243,199,.25),0 6px 18px rgba(0,0,0,.28)}
 
   @media (max-width:420px){ .spd{font-size:46px} .title{font-size:44px} .tip,.pow{width:130px} }
   @media (prefers-reduced-motion:reduce){ *{transition:none!important} }
 
 
-
+  /* ---------- 스토리 엔딩: 설명 없이 풍경과 다시하기만 남긴다 ---------- */
+  #ending{position:fixed;inset:0;z-index:30;display:flex;align-items:flex-end;justify-content:center;
+    padding:0 20px calc(30px + env(safe-area-inset-bottom));pointer-events:none;opacity:0;
+    background:linear-gradient(180deg,rgba(3,5,4,0) 48%,rgba(3,5,4,.08) 68%,rgba(3,5,4,.58) 100%);
+    transition:opacity 1.7s ease}
+  #ending.hide{display:none}
+  #ending.show{display:flex;opacity:1;pointer-events:auto}
+  #ending .endInner{text-align:center;width:min(420px,90vw)}
+  #ending button{width:auto;min-width:150px;margin:0;padding:14px 30px;border-radius:999px;
+    background:#d7bc75;color:#211c16;box-shadow:inset 0 -4px 0 rgba(0,0,0,.25),0 10px 28px rgba(0,0,0,.32)}
 
 </style>
 </head>
@@ -307,6 +299,7 @@ body.scene-ready #app{
 <div id="stick"><div class="ring"></div><div class="nub" id="nub"></div></div>
 <div id="flash"></div>
 <div id="boostfx"></div>
+<button id="pause" type="button" aria-label="일시정지">Ⅱ</button>
 <div id="sound">♪</div>
 
 
@@ -319,9 +312,7 @@ body.scene-ready #app{
 </div>
 
   <div class="heroBottom">
-   <button id="go" class="startBtn" type="button" disabled>
-  로딩 중…
-</button>
+    <button id="go" class="startBtn" type="button" disabled>장면 준비 중…</button>
     <div class="startHint">터치 · 클릭 · Enter · Space</div>
   </div>
 
@@ -354,6 +345,12 @@ body.scene-ready #app{
   </div>
 </div>
 
+<div id="ending" class="hide">
+  <div class="endInner">
+    <button id="endAgain" type="button">다시</button>
+  </div>
+</div>
+
 <script>
 /**
  * @license
@@ -373,12 +370,40 @@ const clamp=(x,a=0,b=1)=>Math.max(a,Math.min(b,x));
 const mix=(a,b,t)=>a+(b-a)*t;
 const smooth=(a,b,x)=>{const t=clamp((x-a)/(b-a));return t*t*(3-2*t);};
 const windowAt=(x,a,b,f)=>smooth(a,a+f,x)*(1-smooth(b-f,b,x));
-// C2-continuous exit: distant road relaxes first; the near bank follows later.
-// The lead is eased in only at the end, preserving the existing main spiral.
+// Distance-based world acts. The early road only hints at the anomaly;
+// the full spiral is saved for the far-night section.
 const smoother=(a,b,x)=>{const t=clamp((x-a)/(b-a));return t*t*t*(t*(t*6-15)+10);};
+const TUNNEL_START=4380,TUNNEL_END=4620;
+const DEEP_SPIRAL_START=7350,DEEP_SPIRAL_FULL=7720,DEEP_SPIRAL_RELAX=8820,DEEP_SPIRAL_END=9200;
+// The last unique night landmark ends near 10.2 km. One short quiet run remains,
+// then the second act begins instead of repeating empty modules for another four kilometres.
+const SINK_WARN=10980,SINK_START=11180,UNDER_START=11480;
+const CAVERN_START=12620,GLIDE_START=13340,GLIDE_END=13820;
+const PIPE_START=13740,PIPE_RIDE_START=13830,PIPE_END=15120;
+const UNDER_EXIT_START=15020,UNDER_END=15360;
+const DAY_RETURN_FULL=15640,END_QUIET_START=17020,END_ROAD_FADE=17260,END_FIELD=17920,ENDING_AT=18640;
+const PIPE_RADIUS=9.4,PIPE_RIDE_RADIUS=9.0;
+function storyDepthAt(z){
+ const down=smoother(SINK_START,UNDER_START,z),up=smoother(PIPE_END-70,UNDER_END,z);
+ return 35*down*(1-up);
+}
+function undergroundAt(z){return windowAt(z,SINK_START+90,UNDER_END+20,150);}
+function cavernAt(z){return windowAt(z,CAVERN_START-100,PIPE_START+80,160);}
+function glideAt(z){return windowAt(z,GLIDE_START,GLIDE_END,85);}
+function pipeAt(z){return smooth(PIPE_START,PIPE_RIDE_START,z)*(1-smooth(PIPE_END-110,PIPE_END,z));}
+function wastelandBump(z){
+ if(z<END_ROAD_FADE+70||z>END_FIELD-90)return 0;
+ const q=(z-(END_ROAD_FADE+70))/44,i=Math.round(q),d=Math.abs(q-i);
+ return d<.20?(.72*Math.pow(1-d/.20,1.65))*.84:0;
+}
+function twistField(z){
+ const early=.026*smooth(760,980,z)*(1-smooth(1180,1560,z));
+ const deep=1.12*smooth(DEEP_SPIRAL_START,DEEP_SPIRAL_FULL,z)*(1-smooth(DEEP_SPIRAL_RELAX,DEEP_SPIRAL_END,z));
+ return Math.max(early,deep);
+}
 function spiralExit(z,d=0){
- const lead=180*smoother(18,260,d)*smoother(1040,1120,z);
- return 1-smoother(1130,1365,z+lead);
+ // Retained as a compatibility/debug helper; the actual shader uses twistField at each vertex.
+ return twistField(z+d);
 }
 const norm=v=>{const l=Math.hypot(...v)||1;return v.map(x=>x/l);};
 const cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
@@ -406,13 +431,18 @@ class Batch{
 // Centre-relative traversable bounds. Only the dispatch doorway narrows the tutorial route.
 function driveBounds(z){
  const k=smooth(105,150,z)*(1-smooth(164,188,z));
- return[mix(-11.65,2.30,k),mix(11.65,8.70,k)];
+ let lo=mix(-11.65,2.30,k),hi=mix(11.65,8.70,k);
+ const open=smooth(END_ROAD_FADE,END_FIELD,z);
+ lo=mix(lo,-70,open);hi=mix(hi,70,open);
+ return[lo,hi];
 }
 function buildWorld(H,cx,seed=0){
  const batches=[],R=rng(94721+seed);const make=(name,kind)=>{const b=new Batch(name,kind);batches.push(b);return b;};
  const Y=(x,z)=>H(x,z), base=z=>H(cx(z),z);
  const at=(b,x,y,z,w,h,d,c,r)=>b.box([x,Y(x,z)+y,z],[w,h,d],c,r);
  function strip(b,u0,u1,a,e,color,raise=.025,step=3){for(let z=a;z<e;z+=step){const zz=Math.min(e,z+step);b.quad([cx(z)+u0,Y(cx(z)+u0,z)+raise,z],[cx(zz)+u0,Y(cx(zz)+u0,zz)+raise,zz],[cx(zz)+u1,Y(cx(zz)+u1,zz)+raise,zz],[cx(z)+u1,Y(cx(z)+u1,z)+raise,z],rgb(color));}}
+ function flatStrip(b,u0,u1,a,e,level,color,raise=.025,step=6){for(let z=a;z<e;z+=step){const zz=Math.min(e,z+step);b.quad([cx(z)+u0,level+raise,z],[cx(zz)+u0,level+raise,zz],[cx(zz)+u1,level+raise,zz],[cx(z)+u1,level+raise,z],rgb(color));}}
+ function gradedStrip(b,u0,u1,a,e,levelAt,color,raise=.025,step=6){for(let z=a;z<e;z+=step){const zz=Math.min(e,z+step),y0=levelAt(z)+raise,y1=levelAt(zz)+raise;b.quad([cx(z)+u0,y0,z],[cx(zz)+u0,y1,zz],[cx(zz)+u1,y1,zz],[cx(z)+u1,y0,z],rgb(color));}}
  // START: repeated aisles, not an empty shell over a motorway.
  const shell=make('dispatch-shell'),racks=make('dispatch-racks'),stock=make('dispatch-stock'),lamps=make('dispatch-lamps','emissive');
  for(let z=-36,i=0;z<156;z+=6,i++){
@@ -624,76 +654,558 @@ function buildWorld(H,cx,seed=0){
   // Low service gantries do not compete with the distant sky.
   if(idx===0||idx===2)for(const zz of[z-l/2+3,z+l/2-5])b.beam([front-s*4,yy,zz],[front-s*4,yy+7,zz],.25,.25,C.steel);
  });
- // TUNNEL: a continuous elliptical concrete volume sampled against the road.
- const tb=make('tunnel-shell'),tl=make('tunnel-lamps','emissive');
- const ts=505,te=670,arc=24;
+ // BEYOND THE LOGISTICS PARK: familiar Korean outskirts first, then increasingly strange landmarks.
+ function lineAcross(b,z,u0,u1,yLift,width,color){
+  const n=16;
+  for(let i=0;i<n;i++){
+   const a=mix(u0,u1,i/n),q=mix(u0,u1,(i+1)/n),x1=cx(z)+a,x2=cx(z)+q;
+   b.beam([x1,Y(x1,z)+yLift,z],[x2,Y(x2,z)+yLift,z],width,width,color);
+  }
+ }
+ function pole(b,x,z,h=8,color=C.dark){const y=Y(x,z);b.beam([x,y,z],[x,y+h,z],.18,.18,color);return y;}
+ function greenhouse(z,side,idx){
+  const b=make('greenhouse-skeleton-'+idx),x0=cx(z)+side*(43+idx*5),len=34,w=15;
+  for(let dz=-len/2;dz<=len/2;dz+=5.5){
+   const zz=z+dz,yy=Y(x0,zz);
+   for(const dx of[-w/2,w/2])b.beam([x0+dx,yy,zz],[x0+dx,yy+4.2,zz],.08,.08,0x6d7770);
+   b.beam([x0-w/2,yy+4.2,zz],[x0,yy+6.0,zz],.08,.08,0x6d7770);
+   b.beam([x0,yy+6.0,zz],[x0+w/2,yy+4.2,zz],.08,.08,0x6d7770);
+  }
+  for(const dx of[-w/2,0,w/2])b.beam([x0+dx,Y(x0+dx,z-len/2)+4.1,z-len/2],[x0+dx,Y(x0+dx,z+len/2)+4.1,z+len/2],.07,.07,0x5d6861);
+  // Torn pieces remain on only a few roof bays; most plastic is gone.
+  if(idx%2===0){const skin=make('greenhouse-torn-plastic-'+idx,'wet');skin.box([x0+side*2,Y(x0,z)+5.0,z+4],[5.5,.035,8],0x97a69e,[.18,0,side*.20]);}
+ }
+ // 1.4–2.5 km: dry rice fields, irrigation channels, reservoir and stripped greenhouse frames.
+ for(let r=0;r<3;r++){
+  const a=1420+r*340,e=a+340,b=make('country-fields-'+r),canal=make('country-canals-'+r,'water');
+  for(let z=a;z<e;z+=42){
+   const c0=(Math.floor(z/42)+r)%3===0?0x6f7247:(Math.floor(z/42)+r)%3===1?0x8a7044:0x5f6b48;
+   strip(b,-79,-18,z,Math.min(e,z+39),c0,.016,7);strip(b,18,79,z,Math.min(e,z+39),c0,.016,7);
+   for(const side of[-1,1]){
+    const x=cx(z)+side*(25+(Math.floor(z/42)%3)*13),y=Y(x,z);
+    b.box([x,y+.12,z],[26,.24,.55],0x4f4b35,[0,(R()-.5)*.08,0]);
+   }
+  }
+  for(let z=a+24;z<e;z+=86){strip(canal,-24,-22,z,z+58,0x405c58,.035,6);strip(canal,22,24,z+18,z+74,0x405c58,.035,6);}
+ }
+ greenhouse(1545,-1,0);greenhouse(1750,1,1);greenhouse(2160,-1,2);greenhouse(2380,1,3);
+ const rural=make('country-roadside');
+ for(let z=1460,i=0;z<2490;z+=76,i++)for(const side of[-1,1]){
+  const x=cx(z)+side*(22+(i%3)*6),y=pole(rural,x,z,7.5+(i%2)*2,0x4d4c43);
+  rural.beam([x,y+7.2,z],[x+side*8,y+6.7,z+1.5],.045,.045,0x333632);
+  if(i%4===1)rural.box([x+side*2.2,y+4.3,z],[3.6,.08,2.3],0x62594b,[0,.2*side,.25*side]);
+ }
+ const reservoir=make('country-reservoir','water'),dam=make('reservoir-bank'),reservoirEdge=make('reservoir-reeds'),reservoirSheen=make('reservoir-surface-highlights','emissive');
+ const reservoirLevelAt=z=>base(z)-1.92;
+ // The surface now sits close enough to the road to be read as water, with a hard shoreline and objects crossing it.
+ gradedStrip(reservoir,13.0,170,1810,2320,reservoirLevelAt,0x286c79,.026,5);
+ for(let z=1810,i=0;z<2320;z+=18,i++){
+  const bankX=cx(z)+13.05,bankY=Y(bankX,z);
+  dam.box([bankX,bankY+.30,z],[2.0,.60,17.2],i%3?0x66675b:0x74715f,[0,.025*Math.sin(i),0]);
+  for(let k=0;k<7;k++){
+   const rx=cx(z)+14.8+k*.72,ry=Y(rx,z),lean=(k-3)*.035;
+   reservoirEdge.beam([rx,ry,z-4.5],[rx+lean,ry+.55+(k%3)*.18,z-4.25],.022,.022,k%2?0x70754a:0x8a7c47);
+  }
+  if(i%5===1){
+   const sx=cx(z)+22+(i%3)*7,sy=reservoirLevelAt(z);
+   reservoirEdge.beam([sx,sy-.75,z-2],[sx+.45,sy+2.5,z+1],.09,.11,0x4a493d);
+  }
+ }
+ // A short maintenance pier and a half-sunken rowboat make the surface unmistakable at speed.
+ {const z=2070,y=reservoirLevelAt(z),x=cx(z)+24;
+  dam.box([x,y+.18,z],[18,.34,2.2],0x6f6049,[0,.18,0]);
+  for(const dx of[-7,-2,3,8])dam.beam([x+dx,y-3.2,z],[x+dx,y+.35,z],.16,.16,0x4b4337);
+  dam.box([x+11,y+.20,z+9],[4.6,.40,1.9],0x6d5a42,[.05,-.35,.12]);
+  dam.box([x+11,y+.48,z+9],[3.8,.22,1.3],0x333b38,[.05,-.35,.12]);
+ }
+ for(let z=1870,i=0;z<2290;z+=42,i++){
+  const x=cx(z)+16+(i%4)*8,y=reservoirLevelAt(z)+.045;
+  reservoirSheen.box([x,y,z],[7+(i%3)*4,.014,1.35],i%2?0x9fc4c9:0x7eabb4,[0,.16*Math.sin(i),0]);
+ }
+
+ // 2.6–3.0 km: a visible river bridge, with water, banks and side trusses all readable from the chase camera.
+ const river=make('river-crossing','water'),riverBank=make('river-banks'),bridge=make('river-bridge-structure'),bridgeMarks=make('bridge-reflectors','emissive');
+ const riverLevelAt=z=>base(z)-3.65;
+ gradedStrip(river,-230,230,2550,2985,riverLevelAt,0x286b80,.024,6);
+ // Muddy banks at both ends keep the water from looking like a loose blue sheet.
+ for(const z0 of[2555,2945])for(let i=0;i<8;i++){
+  const z=z0+(z0<2700?i*8:-i*8),w=45+i*16,y=riverLevelAt(z)+.18+i*.34;
+  riverBank.box([cx(z),y,z],[w,.7,7.5],i%2?0x665b48:0x74664d,[0,(i-3.5)*.018,0]);
+ }
+ for(const side of[-1,1]){
+  // Blue-grey lattice trusses instantly identify the span as a bridge without narrowing the road.
+  let prev=null;
+  for(let z=2590,i=0;z<=2950;z+=18,i++){
+   const x=cx(z)+side*13.8,y=base(z);
+   bridge.beam([x,y+.25,z],[x,y+4.7,z],.26,.28,0x536a70);
+   bridge.box([x,y+4.8,z],[.42,.30,1.0],0x6f8689);
+   if(prev){
+    bridge.beam([prev.x,prev.y+4.55,prev.z],[x,y+4.55,z],.24,.26,0x536a70);
+    bridge.beam([prev.x,prev.y+.65,prev.z],[x,y+4.45,z],.18,.20,0x60777a);
+    bridge.beam([prev.x,prev.y+4.45,prev.z],[x,y+.65,z],.18,.20,0x60777a);
+   }
+   if(i%3===0)bridgeMarks.box([x-side*.09,y+1.15,z],[.11,.18,.36],0xf2d77b);
+   prev={x,y,z};
+  }
+  for(let z=2630;z<2925;z+=48){const x=cx(z)+side*10.8,top=base(z)-1.2;bridge.beam([x,riverLevelAt(z)-.3,z],[x,top,z],1.1,1.1,0x525b59);}
+ }
+ // Cross-beams and expansion joints are flush with the deck rather than floating bars.
+ for(let z=2610;z<2935;z+=54){
+  bridge.beam([cx(z)-13.8,base(z)-1.65,z],[cx(z)+13.8,base(z)-1.65,z],.48,.58,0x454c4a);
+  lineAcross(bridge,z,-11.8,11.8,.032,.042,0x252a2a);
+ }
+ // Tall entry/exit portals announce the bridge before the player is already on it.
+ for(const z of[2600,2940]){
+  const y=base(z),cc=cx(z);
+  for(const side of[-1,1])bridge.beam([cc+side*14.5,y,z],[cc+side*14.5,y+12.8,z],.62,.62,0x5d7073);
+  bridge.beam([cc-14.5,y+12.8,z],[cc+14.5,y+12.8,z],.62,.62,0x5d7073);
+  bridge.box([cc,y+11.8,z],[7.2,1.15,.55],0x3f565b);
+ }
+ // Piers, driftwood and one abandoned fishing boat give the river scale.
+ for(let z=2620,i=0;z<2950;z+=36,i++){
+  const x=cx(z)+(i%2?1:-1)*(42+(i%4)*26),yy=riverLevelAt(z)+.3;
+  riverBank.box([x,yy,z],[2+R()*7,.45+R()*.75,1+R()*4],i%3?0x514b3f:0x72736b,[R()*.8,R()*3,R()*.8]);
+ }
+ {const z=2825,x=cx(z)-70,y=riverLevelAt(z)+.12;riverBank.box([x,y,z],[7.5,.55,2.7],0x5f5140,[.10,.42,.08]);riverBank.box([x,y+.38,z],[6.2,.22,1.8],0x283535,[.10,.42,.08]);}
+
+ // 3.1 km: a full railway level crossing, not two thin lines on the road.
+ const railway=make('railway-crossing'),railLights=make('railway-signal-lights','pulse-emissive'),train=make('stranded-freight-train'),trainLight=make('train-cab-light','night-emissive');
+ const railZ=3125,railSkew=.31,railYaw=-Math.atan(railSkew);
+ const railPoint=(u,normal=0)=>{const nn=1/Math.sqrt(1+railSkew*railSkew),xOff=-railSkew*nn*normal,zOff=nn*normal,z=railZ+u*railSkew+zOff,x=cx(z)+u+xOff;return[x,Y(x,z),z];};
+ // A wide pale ballast bed and black sleepers remain legible for several frames.
+ 
+ 
+ for(let u=-155;u<155;u+=4){
+  if(Math.abs(u)<17)continue;
+  const p0=railPoint(u,-5.0),p1=railPoint(u+4,-5.0),p2=railPoint(u+4,5.0),p3=railPoint(u,5.0);
+  railway.quad(
+    [p0[0],p0[1]+.035,p0[2]],
+    [p1[0],p1[1]+.035,p1[2]],
+    [p2[0],p2[1]+.035,p2[2]],
+    [p3[0],p3[1]+.035,p3[2]],
+    rgb((Math.floor(u/8)&1)?0xa09584:0x8d8478)
+  );
+}
+
+
+
+
+ for(let u=-150;u<=150;u+=2.55){if(Math.abs(u)<17)continue;const p=railPoint(u);railway.box([p[0],p[1]+.10,p[2]],[.38,.16,4.45],0x44372e,[0,railYaw,0]);}
+ for(const n of[-1.08,1.08])for(let u=-155;u<155;u+=4){const p=railPoint(u,n),q=railPoint(u+4,n);railway.beam([p[0],p[1]+.24,p[2]],[q[0],q[1]+.24,q[2]],.115,.115,0xd0d4d1);}
+ // One flush rubber crossing deck reads as a railway crossing without a stack of ghost slabs.
+
+
+{const p=railPoint(0);railway.box([p[0],p[1]+.072,p[2]],[32,.035,6.0],0x4c5451,[0,railYaw,0]);}
+
+
+
+ for(const n of[-6.2,6.2]){const p=railPoint(0,n);lineAcross(railway,p[2],-11.6,11.6,.05,.13,0xd6bb4a);}
+ for(const side of[-1,1]){
+  const z=railZ-32,x=cx(z)+side*5.5,y=Y(x,z)+.045;
+  railway.beam([x-side*2.2,y,z-2.5],[x+side*2.2,y,z+2.5],.11,.035,0xe2dcca);
+  railway.beam([x+side*2.2,y,z-2.5],[x-side*2.2,y,z+2.5],.11,.035,0xe2dcca);
+ }
+ // Big crossbuck signs and red-white barriers on both approaches.
+ for(const side of[-1,1]){
+  const u=side*16.0,p=railPoint(u,-side*6.0),x=p[0],z=p[2],y=pole(railway,x,z,5.8,0x444b49);
+  railway.beam([x-side*1.35,y+4.1,z],[x+side*1.35,y+5.45,z],.18,.18,0xf0e8d5);railway.beam([x+side*1.35,y+4.1,z],[x-side*1.35,y+5.45,z],.18,.18,0xf0e8d5);
+  railway.box([x,y+3.55,z],[.55,1.35,.52],0x303634,[0,railYaw,0]);
+  for(let q=0;q<9;q++){
+   const a=q/8,xa=x+side*(.8+a*7.2),ya=y+3.05+a*1.65,zz=z+side*a*.8;
+   railway.beam([xa,ya,zz],[xa+side*.72,ya+.16,zz+side*.08],.16,.16,q%2?0xf4eee1:0xd64d42);
+  }
+  railLights.box([x-side*.38,y+4.05,z-.31],[.31,.31,.11],0xff2f22);railLights.box([x+side*.38,y+3.48,z-.31],[.31,.31,.11],0xff2f22);
+ }
+ // Electrification gantries and sagging wire sell the railway from far away.
+ for(const u of[-92,92]){
+  const p=railPoint(u),x=p[0],z=p[2],y=p[1];
+  for(const n of[-4.8,4.8]){const q=railPoint(u,n);railway.beam([q[0],q[1],q[2]],[q[0],q[1]+9.2,q[2]],.22,.22,0x56605d);}
+  const l=railPoint(u,-4.8),r=railPoint(u,4.8);railway.beam([l[0],l[1]+8.7,l[2]],[r[0],r[1]+8.7,r[2]],.18,.18,0x56605d);
+ }
+ // The locomotive is close enough to identify immediately; wagons continue into the distance.
+ {const u=34,p=railPoint(u),x=p[0],y=p[1],z=p[2];
+  train.box([x,y+3.35,z],[17.5,6.7,5.1],0x596b68,[0,railYaw,0]);train.box([x-4.8,y+5.4,z],[7.2,2.8,5.2],0x7b6952,[0,railYaw,0]);
+  train.box([x-8.9,y+2.3,z],[.35,3.4,4.25],0x2f3837,[0,railYaw,0]);
+  for(const du of[-6.1,5.4]){const wp=railPoint(u+du);for(const n of[-1.7,1.7])train.box([wp[0],wp[1]+.62,wp[2]],[1.2,1.2,.42],0x242928,[0,railYaw,0]);}
+  trainLight.box([x-8.98,y+3.55,z-.95],[.08,.60,.60],0xe8d7a4,[0,railYaw,0]);
+ }
+ for(let i=0;i<7;i++){
+  const u=54+i*19.5,p=railPoint(u),x=p[0],y=p[1],z=p[2];
+  train.box([x,y+2.55,z],[17.8,5.1,4.4],i%3===0?0x596b70:i%2?0x6d654f:0x79564b,[0,railYaw,.012*(i-3)]);
+  for(const du of[-6.2,6.2]){const wp=railPoint(u+du);train.box([wp[0],wp[1]+.55,wp[2]],[1.25,1.08,.38],0x242928,[0,railYaw,0]);}
+ }
+
+ // 3.4–4.3 km: an unmistakable abandoned four-way intersection, then apartments and an overhead expressway.
+ const junction=make('abandoned-intersection'),junctionLights=make('intersection-signal-lights','pulse-emissive');
+ const jz=3515,jw=34;
+ // Broad side road extending far beyond both verges.
+ const junctionY=base(jz)+.025;
+ for(let x=cx(jz)-112;x<cx(jz)+112;x+=4){
+  const x2=Math.min(cx(jz)+112,x+4);
+
+  for(let z=jz-jw*.5;z<jz+jw*.5;z+=1){
+   const z2=Math.min(jz+jw*.5,z+1);
+
+   junction.quad(
+    [x,Y(x,z)+.025,z],
+    [x2,Y(x2,z)+.025,z],
+    [x2,Y(x2,z2)+.025,z2],
+    [x,Y(x,z2)+.025,z2],
+    rgb(0x4b4f50)
+   );
+  }
+ }
+ // Crosswalks, stop lines and side-road lane markings.
+ 
+ for(const zz of[jz-12,jz+12])for(let i=-5;i<=5;i+=2){
+  strip(
+   junction,
+   i*2-.575,i*2+.575,
+   zz-2.4,zz+2.4,
+   0xd8d5cb,.035,.4
+  );
+ }
+
+
+
+ for(const zz of[jz-17,jz+17])lineAcross(junction,zz,-11.5,11.5,.052,.17,0xe5e1d7);
+ for(const side of[-1,1]){
+  const y=junctionY,x0=cx(jz)+side*60;
+  junction.box([x0,y+.018,jz-4.8],[78,.025,.18],0xe4e0d7);junction.box([x0,y+.018,jz+4.8],[78,.025,.18],0xe4e0d7);
+ }
+ // Four mast arms with hanging signals: impossible to miss even on mobile.
+ for(const side of[-1,1])for(const ahead of[-1,1]){
+  const z=jz+ahead*20,x=cx(z)+side*14.4,y=pole(junction,x,z,8.4,0x424a49);
+  junction.beam([x,y+8.0,z],[x-side*10.8,y+8.0,z],.22,.22,0x424a49);
+  const sx=x-side*9.4;
+  junction.box([sx,y+7.45,z],[1.05,1.9,.58],0x252b2b);
+  junctionLights.box([sx,y+7.98,z-.31],[.32,.32,.10],ahead===-1?0xff3a2b:0x87512a);
+  junctionLights.box([sx,y+7.43,z-.31],[.32,.32,.10],0xd6a32f);
+  junctionLights.box([sx,y+6.88,z-.31],[.32,.32,.10],ahead===1?0x55b96d:0x294f38);
+ }
+ // One stalled side-road car and a bent bus stop remain outside the playable corridor.
+ junction.box([cx(jz)+52,junctionY+.68,jz-5.8],[4.2,1.4,2.0],0x5b6f75,[0,.18,.04]);
+ junction.beam([cx(jz)-33,junctionY,jz+8],[cx(jz)-31,junctionY+4.5,jz+7],.16,.16,0x545c59);
+ junction.box([cx(jz)-30.2,junctionY+4.3,jz+7],[3.4,.9,.18],0x4f765b,[0,.06,.10]);
+
+
+ function apartments(z,side,idx){
+  const b=make('apartment-cluster-'+idx),win=make('apartment-lit-windows-'+idx,'night-emissive');
+  for(let i=0;i<4;i++){
+   const zz=z+(i-1.5)*42,xx=cx(zz)+side*(80+(i%2)*35),yy=Y(xx,zz),h=42+((i+idx)%3)*10,w=18+(i%2)*4,d=19;
+   b.box([xx,yy+h*.5,zz],[w,h,d],i%2?0x777b78:0x898a82,[0,(i-1.5)*.025,0]);
+   b.box([xx-side*(w*.5+.08),yy+h*.52,zz],[.15,h*.84,d*.86],0x555d5c);
+   for(let floor=5;floor<h-4;floor+=4.1)for(const dz of[-6.3,-2.1,2.1,6.3]){
+    if((Math.round(floor*10)+i*13+Math.round(dz*7))%11===0)win.box([xx-side*(w*.5+.17),yy+floor,zz+dz],[.05,1.25,1.45],0xf0c77d);
+    else if(floor%8.2<1)b.box([xx-side*(w*.5+.16),yy+floor,zz+dz],[.04,.72,1.25],0x313a3b);
+   }
+   b.box([xx,yy+h+.65,zz],[w*.35,1.3,d*.25],0x4a5250);
+  }
+ }
+ apartments(3660,-1,0);apartments(4040,1,1);
+ const overpass=make('broken-overpass'),overpassLight=make('overpass-bus-light','night-emissive');
+ {const z=3970,y=base(z)+11.5,x=cx(z);overpass.box([x,y,z],[245,1.45,13],0x595f5e,[0,.01,-.012]);overpass.box([x,y+.95,z-6.3],[245,.8,.45],0x747a77);overpass.box([x,y+.95,z+6.3],[245,.8,.45],0x747a77);
+  for(const u of[-88,-43,43,88])overpass.beam([x+u,Y(x+u,z),z],[x+u,y-.75,z],1.1,1.1,0x4b5251);
+  for(let i=0;i<5;i++){const xx=x-72+i*30;overpass.box([xx,y+1.5,z+(i%2?2:-2)],[7,2.3,3],i===2?0x695146:0x434b4a,[0,.4*(i-2),0]);}
+  overpassLight.box([x-12,y+2.2,z-2],[4.6,1.2,.08],0xc5d7bc);
+ }
+
+ // 4.38–4.62 km: a concrete tunnel genuinely buried in a mountain.
+ const tb=make('mountain-tunnel-shell'),tl=make('mountain-tunnel-lamps','emissive'),mountain=make('tunnel-mountain');
+ const ts=TUNNEL_START,te=TUNNEL_END,arc=24;
  function section(z,a,outer=0){const t=a*Math.PI/arc,x=cx(z)+(14.15+outer)*Math.cos(t);return[x,base(z)+.1+(10.7+outer)*Math.sin(t),z];}
  for(let z=ts;z<te;z+=3){const zz=Math.min(te,z+3);for(let a=0;a<arc;a++){
-  let col=rgb(C.concrete,(a===0||a===arc-1)?.61:.76);
-  tb.quad(section(z,a),section(z,a+1),section(zz,a+1),section(zz,a),col);
-  tb.quad(section(z,a,1),section(zz,a,1),section(zz,a+1,1),section(z,a+1,1),rgb(C.concrete,.78));
+  const col=rgb(C.concrete,(a===0||a===arc-1)?.57:.71);tb.quad(section(z,a),section(z,a+1),section(zz,a+1),section(zz,a),col);
+  tb.quad(section(z,a,1),section(zz,a,1),section(zz,a+1,1),section(z,a+1,1),rgb(C.concrete,.73));
  }}
  for(const z of[ts,te])for(let a=0;a<arc;a++)tb.quad(section(z,a),section(z,a,1),section(z,a+1,1),section(z,a+1),rgb(C.concrete));
  for(let z=ts;z<=te;z+=12){
-  for(let a=0;a<arc;a++)tb.beam(section(z,a),section(z,a+1),.13,.17,0x515c56);
-  if(Math.round((z-ts)/12)%4!==2)tl.box([cx(z),base(z)+10.35,z],[.35,.08,1.8],0xc3b78c);
-  if(Math.round((z-ts)/12)%4===0)tl.box([cx(z)-13.4,base(z)+2.7,z],[.12,.13,.36],0x9b4336);
-  for(const s of[-1,1])tb.beam([cx(z)+s*13.4,base(z)+1.1,z],[cx(z+12)+s*13.4,base(z+12)+1.1,z+12],.09,.10,C.dark);
+  for(let a=0;a<arc;a++)tb.beam(section(z,a),section(z,a+1),.13,.17,0x424c48);
+  if(Math.round((z-ts)/12)%4!==2)tl.box([cx(z),base(z)+10.35,z],[.35,.08,1.8],0xc7b98e);
+  if(Math.round((z-ts)/12)%4===0)tl.box([cx(z)-13.4,base(z)+2.7,z],[.12,.13,.36],0xb44636);
+  for(const side of[-1,1])tb.beam([cx(z)+side*13.4,base(z)+1.1,z],[cx(z+12)+side*13.4,base(z+12)+1.1,z+12],.09,.10,C.dark);
  }
- // Entrance earth berm surrounds, never blocks, the portal.
- for(const z of[ts,te])for(const s of[-1,1]){
-  const x=cx(z)+s*22,by=base(z);
-  tb.box([x,by+6,z+s*1.2],[15,12,7],0x797c6b);
-  tb.box([cx(z),by+12.1,z],[44,2.3,6],0x777c6c);
+ // Massive side slopes and an overhead crown hide the manufactured tube from outside.
+ for(let z=ts-150,i=0;z<=te+150;z+=18,i++){
+  const k=smooth(ts-150,ts+28,z)*(1-smooth(te-28,te+150,z)),by=base(z),cc=cx(z);
+  for(const side of[-1,1]){
+   const h=10+24*k+5*Math.sin(i*.7+side),off=42+8*(1-k)+3*Math.sin(i*.49);
+   mountain.box([cc+side*off,by+h*.42-1,z],[30+8*k,h,25],i%3?0x5d6555:0x6b6d58,[.05*Math.sin(i),.07*Math.sin(i*.3),side*(.12+.05*Math.sin(i*.6))]);
+   mountain.box([cc+side*(off+18),by+h*.30-2,z+5],[26,h*.72,29],0x505948,[.1,.08*i,side*.18]);
+  }
+  if(z>ts+12&&z<te-12)mountain.box([cc,by+25.0+2*Math.sin(i*.43),z],[75,16+3*Math.sin(i*.5),25],i%2?0x56604f:0x626653,[.02*Math.sin(i),0,.025*Math.cos(i)]);
  }
- // Damp surfaces are world geometry. No full-screen rain/puddle layer.
+ for(const z of[ts,te]){
+  const by=base(z),cc=cx(z);mountain.box([cc,by+13.8,z],[47,7.5,8],0x51594d);
+  mountain.box([cc,by+12.0,z+(z===ts?-4:4)],[38,3.0,9],0x6c7063);
+ }
+
+ // 4.9–5.9 km: full night opens over a black sea on the right, leading directly to the ship.
+ const nightSea=make('black-night-sea','water'),nightGlint=make('night-moon-reflection','moon-glint'),nightShore=make('black-sea-shore');
+ const nightSeaLevelAt=z=>base(z)-2.08;
+ gradedStrip(nightSea,-330,-16.0,4900,5940,nightSeaLevelAt,0x061923,.024,6);
+ // A broken silver path from the moon, wide enough to remain visible from the road.
+ for(let z=4970,i=0;z<5900;z+=15,i++){
+  const x=cx(z)-22-Math.sin(z*.018)*6-(i%4)*3.2,w=6.5+14*Math.pow(i/62,.60);
+  nightGlint.box([x,nightSeaLevelAt(z)+.055,z],[w,.016,9+(i%3)*4],i%2?0xc5e2eb:0x91b9c8,[0,.10*Math.sin(i*.7),0]);
+ }
+ // Jagged rocks, drowned posts and a tiny abandoned jetty define the shoreline.
+ for(let z=4920,i=0;z<5950;z+=24,i++){
+  const x=cx(z)-13.0-(i%3)*.8,y=Y(x,z);
+  nightShore.box([x,y+.35,z],[4.5+(i%4)*2.3,.70,9+(i%3)*6],i%2?0x252b29:0x33362f,[R()*.12,R()*2.6,(R()-.5)*.12]);
+  if(i%5===1){const sx=cx(z)-20-(i%2)*7,sy=nightSeaLevelAt(z);nightShore.beam([sx,sy-1.0,z],[sx-.3,sy+3.2,z+.8],.10,.12,0x252825);}
+ }
+ {const z=5480,x=cx(z)-19,y=nightSeaLevelAt(z);
+  nightShore.box([x-13,y+.20,z],[27,.34,2.4],0x4a4137,[0,.06,0]);
+  for(const dx of[1,8,15,22,27])nightShore.beam([x-dx,y-4.0,z],[x-dx,y+.35,z],.17,.17,0x302d28);
+ }
+ // A few almost invisible shapes below the surface make the water feel bottomless rather than decorative.
+ for(let i=0;i<9;i++){const z=5100+i*82,x=cx(z)-105-(i%3)*37,y=nightSeaLevelAt(z)-.8-(i%2)*1.4;nightShore.box([x,y,z],[8+i%4*5,.35,16+i%3*8],0x061015,[.04,R()*2.7,.02]);}
+
+ // 5.8–6.1 km: a stranded container ship. It sits close to the road, before the dust front.
+ const ship=make('stranded-container-ship'),shipGlow=make('ship-emergency-light','night-emissive');
+ {const z=5960,side=-1,x=cx(z)+side*58,y=base(z)-3.2,ry=.18,c=Math.cos(ry),sn=Math.sin(ry);
+  const p=(dx,dy,dz)=>[x+c*(dx*side)+sn*dz,y+dy,z-sn*(dx*side)+c*dz];
+  // Long tapered hull and a pale road-facing stripe keep the silhouette readable in moonlight.
+  ship.box(p(0,8,-8),[48,16,142],0x557681,[0,ry,.025]);ship.box(p(0,9,73),[42,14,28],0x587984,[0,ry,.07]);ship.box(p(0,10,94),[31,12,18],0x5d7f88,[0,ry,.10]);ship.box(p(0,11,108),[18,9,12],0x64858d,[0,ry,.13]);
+  ship.box(p(-24.15,12,-10),[.34,3.0,134],0xd8d2b9,[0,ry,0]);ship.box(p(-24.34,17,-34),[.24,4.0,48],0x9b4d3d,[0,ry,0]);
+  ship.box(p(-2,15,-61),[40,9,45],0x8c8b79,[0,ry,.025]);ship.box(p(-13,25,-67),[23,21,30],0xd0c9ae,[0,ry,.02]);ship.box(p(-13,37,-67),[13,6,18],0x9da49b,[0,ry,.02]);
+  for(let row=0;row<5;row++)for(let i=0;i<6;i++)for(let j=0;j<4;j++){
+   if(row===4&&(i+j)%3===0)continue;const dx=-15+j*10.5,dz=-34+i*18.5,yy=18+row*5.5;
+   ship.box(p(dx,yy,dz),[9.4,5.1,16.5],(i+j+row)%4===0?0xb56750:(i+j)%3===0?0x5790a0:0x9d915d,[0,ry,0]);
+  }
+  // Two huge deck cranes make it readable as a ship rather than another warehouse.
+  for(const dz of[-27,29]){ship.beam(p(15,19,dz),p(41,52,dz+8),1.35,1.35,0x69736c);ship.beam(p(41,52,dz+8),p(32,55,dz+48),.82,.82,0x69736c);}
+  shipGlow.box(p(-18,40,-82),[.8,.8,.8],0xff4a35);shipGlow.box(p(37,53,37),[.65,.65,.65],0xff4a35);shipGlow.box(p(39,53,-21),[.65,.65,.65],0xff4a35);
+ }
+
+ // 6.7 km: only one machine still moves in the abandoned fairground.
+ const fair=make('abandoned-ferris-wheel'),fairGlow=make('ferris-single-cabin-light','night-emissive');
+ {const z=6820,x=cx(z)-115,y=Y(x,z),r=30;
+  for(let i=0;i<28;i++){const a=i*Math.PI*2/28,b=(i+1)*Math.PI*2/28;fair.beam([x+Math.cos(a)*r,y+35+Math.sin(a)*r,z],[x+Math.cos(b)*r,y+35+Math.sin(b)*r,z],.42,.42,0x485452);}
+  for(let i=0;i<12;i++){const a=i*Math.PI*2/12;fair.beam([x,y+35,z],[x+Math.cos(a)*r,y+35+Math.sin(a)*r,z],.22,.22,0x485452);const cx0=x+Math.cos(a)*r,cy=y+35+Math.sin(a)*r;fair.box([cx0,cy-1.8,z],[3.8,3.2,2.6],0x5d5f55);if(i===3)fairGlow.box([cx0,cy-1.6,z-1.34],[2.4,1.2,.06],0xe2c184);}
+  fair.beam([x-20,y,z],[x,y+35,z],1.2,1.2,0x3c4644);fair.beam([x+20,y,z],[x,y+35,z],1.2,1.2,0x3c4644);
+ }
+
+ // 7.35–9.2 km: the real spiral. Surrounding debris confirms that the sky and road share the anomaly.
+ for(let r=0;r<5;r++){
+  const a=7350+r*370,b=make('anomaly-floating-debris-'+r),gl=make('anomaly-cold-lights-'+r,'night-emissive');
+  for(let i=0;i<20;i++){
+   const z=a+R()*360,side=R()<.5?-1:1,x=cx(z)+side*(25+R()*75),y=base(z)+8+R()*38;
+   b.box([x,y,z],[1+R()*8,.25+R()*2,2+R()*13],i%3?0x4b5553:0x756b57,[R()*2,R()*3,R()*2]);
+   if(i%7===0)gl.box([x,y+2,z],[.4,.4,.4],0x9ed7e7);
+  }
+ }
+ const moonShadows=make('moon-cast-road-shadows','night-shadow');
+ for(let z=4680;z<10300;z+=24){
+  const cc=cx(z),phase=Math.sin(z*.013)*2.2,p0=[cc-12,z-1.0],p1=[cc-11.2,z+1.0],p2=[cc+5+phase,z-8],p3=[cc+4+phase,z-9.6];
+  moonShadows.quad([p0[0],H(p0[0],p0[1])+.032,p0[1]],[p1[0],H(p1[0],p1[1])+.032,p1[1]],[p2[0],H(p2[0],p2[1])+.032,p2[1]],[p3[0],H(p3[0],p3[1])+.032,p3[1]],rgb(0x000000));
+ }
+
+ // 9.4–10.2 km: abandoned dishes all point at the broken moon.
+ const observatory=make('moon-observatory'),obsGlow=make('observatory-beacons','night-emissive');
+ for(let i=0;i<8;i++){
+  const z=9460+i*86,side=i%2?1:-1,x=cx(z)+side*(52+(i%3)*25),y=Y(x,z),yaw=side*.55;
+  observatory.box([x,y+2.2,z],[6,4.4,6],0x555d59);observatory.beam([x,y+4,z],[x-side*3,y+14,z+3],.65,.65,0x626b66);
+  // Low-poly tilted dish: a shallow stepped array of panels.
+  for(let u=-2;u<=2;u++)for(let v=-2;v<=2;v++){
+   const px=x-side*3+u*2.25,py=y+14+v*1.75-Math.abs(u)*.38-Math.abs(v)*.22,pz=z+3+v*1.4;
+   observatory.box([px,py,pz],[2.1,.22,2.1],0x8b918b,[.72,side*yaw,.08*u]);
+  }
+  obsGlow.box([x,y+18,z],[.45,.45,.45],0xff493d);
+ }
+
+ // 11 km onward: the long repeated night finally gives way to a second act.
+ // The entrance remains a collapsed motorway, but it reads as a vast open sink rather than a prop blocking the lane.
+ const sinkRim=make('sinkhole-collapsed-road'),sinkVoid=make('sinkhole-dark-earth'),sinkGlow=make('sinkhole-falling-sparks','night-emissive');
+ const surfaceY=z=>base(z)+storyDepthAt(z);
+ for(let i=0;i<19;i++){
+  const z=SINK_WARN+i*27,cc=cx(z),roadY=base(z),surface=surfaceY(z),open=smooth(SINK_START-55,UNDER_START,z);
+  for(let k=0;k<2+(i>5?2:0);k++){
+   const side=(k&1)?1:-1,u=side*(3.5+R()*9.8),zz=z+(R()-.5)*12,x=cc+u,y=Y(x,zz)+.045;
+   sinkRim.box([x,y,zz],[3.5+R()*8,.045,.08+R()*.11],0x252927,[0,(R()-.5)*1.7,(R()-.5)*.11]);
+  }
+  if(open>.04){
+   // Jagged shoulders stay high while the central road dives between them.
+   for(const side of[-1,1]){
+    const wallX=cc+side*(16.5+R()*4.5),wallY=(surface+roadY)*.5;
+    sinkVoid.box([wallX,wallY,z],[7+R()*7,Math.max(5,surface-roadY+5),29],i%2?0x171b19:0x22231f,[.04*(R()-.5),R()*.5,side*(.12+.18*open)]);
+    sinkRim.box([cc+side*(13.2+R()*4),surface-.35-R()*1.2,z],[5+R()*5,.7+R()*1.5,9+R()*10],i%3?0x494b46:0x5a584f,[side*(.08+R()*.20),(R()-.5)*.6,side*(.06+R()*.22)]);
+   }
+   if(i>8&&i%3===0)sinkGlow.box([cc+(R()-.5)*16,roadY+3+R()*6,z],[.17,.17,.17],0xe2b05b);
+  }
+ }
+ // A rough, widening throat surrounds the downhill road. There is deliberately no wall across the route.
+ for(let z=SINK_START+80;z<UNDER_START+145;z+=23){
+  const cc=cx(z),y=base(z),k=smooth(SINK_START+80,UNDER_START+80,z),r=18.5+4*k;
+  for(const side of[-1,1]){
+   sinkVoid.box([cc+side*r,y+5.2,z],[7+R()*5,11+R()*7,25],0x171b18,[R()*.10,R()*.7,side*(.12+R()*.15)]);
+   if((Math.floor(z/23)&1)===0)sinkRim.box([cc+side*(r-3),y+1.0,z],[4+R()*4,2+R()*3,8+R()*8],0x44453f,[R()*.25,R()*2,side*.2]);
+  }
+ }
+
+ // 11.5–12.6 km: a failed civil-defence underpass. Large collapses really occupy one lane.
+ const underShell=make('underground-civil-defence-road'),underLights=make('underground-emergency-lights','emissive'),underWater=make('underground-drainage','water');
+ for(let z=UNDER_START-30,i=0;z<CAVERN_START+25;z+=24,i++){
+  const cc=cx(z),y=base(z),damage=smooth(UNDER_START+460,CAVERN_START,z);
+  for(const side of[-1,1]){
+   const wobble=Math.sin(i*.73+side)*.7;
+   underShell.box([cc+side*(18.8+wobble),y+5.0,z],[4.0+damage*2.5,10.8+damage*4.0,27],i%3?0x4b5350:0x5a5f59,[0,.018*Math.sin(i),side*(.02+.08*damage)]);
+   underShell.box([cc+side*16.0,y+.32,z],[2.2,.65,26],0x303836);
+   if(i%4===1)underLights.box([cc+side*15.75,y+2.5,z],[.12,.20,.35],0xc94335);
+  }
+  underShell.box([cc,y+10.6+damage*2.0,z],[39.5+damage*8,2.3+damage*2.5,27],i%2?0x404745:0x4a4e49,[.018*Math.sin(i*.7),0,.015*Math.cos(i)]);
+  if(i%2===0){
+   underShell.beam([cc-16.6,y+9.45,z],[cc+16.6,y+9.45,z],.22,.28,0x2a3230);
+   underLights.box([cc,y+9.30,z-1],[3.8,.07,.28],i%8===0?0xd85944:0xc9bd89);
+  }
+  const side=i%2?1:-1;
+  underWater.box([cc+side*15.0,y+.045,z],[4.4,.025,25],0x20383b,[0,.015*side,0]);
+ }
+
+ // 12.6–13.35 km: the man-made tunnel ruptures into a cavern whose scale is impossible to mistake.
+ const cavernRock=make('vast-natural-cavern'),cavernWater=make('black-underground-lake','water'),cavernGlow=make('cavern-work-lights','emissive'),cavernSheen=make('cavern-water-sheen','moon-glint');
+ const cavernFloor=z=>base(z)-11.8;
+ // A black lake far below the surviving road and glide route.
+ gradedStrip(cavernWater,-92,92,CAVERN_START-40,GLIDE_END+80,z=>cavernFloor(z)+.18,0x15343a,.018,12);
+ for(let z=CAVERN_START-60,i=0;z<GLIDE_END+85;z+=31,i++){
+  const cc=cx(z),roadY=base(z),floor=cavernFloor(z),width=39+8*Math.sin(i*.39)+R()*9;
+  // Broken, irregular walls. Their lower masses begin at the lake, not at road level.
+  for(const side of[-1,1]){
+   const x=cc+side*(width+R()*8),h=24+R()*19;
+   cavernRock.box([x,floor+h*.48,z],[17+R()*15,h,35],i%3?0x303833:0x40443a,[R()*.24,R()*2.7,side*(.14+R()*.30)]);
+   cavernRock.box([x+side*(10+R()*9),floor+h*.72,z+5],[18+R()*18,h*.72,40],0x252d29,[R()*.25,R()*2.4,side*.27]);
+   if(i%3===0)cavernRock.beam([cc+side*(12+R()*15),roadY+19+R()*10,z-9],[cc+side*(18+R()*24),floor+2+R()*6,z+8],.30+R()*.32,.30+R()*.32,i%6===0?0x584936:0x303833);
+  }
+  // Irregular roof plates overlap, creating a natural vaulted ceiling without a geometric tube outline.
+  const openVault=smooth(GLIDE_START-300,GLIDE_START+20,z),roofY=roadY+34+openVault*34+5*Math.sin(i*.57)+R()*5;
+  cavernRock.box([cc+(R()-.5)*10,roofY,z],[72+R()*26,5+R()*7,38],i%2?0x28302c:0x363a32,[R()*.18,R()*2.2,(R()-.5)*.22]);
+  if(i%3===1){const side=i%6<3?-1:1;cavernGlow.box([cc+side*(16+R()*7),roadY+6+R()*5,z],[1.2,.34,1.2],0x79b5ae);cavernGlow.box([cc-side*(19+R()*7),floor+.38,z+7],[10+R()*7,.024,1.35],0x62abb0);}
+  // Reeds of stone and half-drowned rubble make the lake edge readable.
+  if(i%2===0)for(const side of[-1,1])for(let q=0;q<3;q++)cavernRock.beam([cc+side*(19+q*5),floor+.2,z-7+q*4],[cc+side*(18+q*6),floor+3+R()*7,z-4+q*4],.22+R()*.18,.22+R()*.18,0x38413b);
+ }
+ for(let z=CAVERN_START+30,i=0;z<GLIDE_END+30;z+=38,i++){
+  const y=cavernFloor(z)+.21,x=cx(z)+(i%2?-1:1)*(15+(i%4)*8);
+  cavernSheen.box([x,y,z],[11+(i%3)*5,.018,1.5],i%2?0x6caaa9:0x477b82,[0,.18*Math.sin(i),0]);
+ }
+ // The surviving road becomes a visibly fractured ledge and then simply ends over the cavern.
+ const ledge=make('cavern-broken-road-ledge');
+ for(let z=CAVERN_START-30;z<GLIDE_START;z+=2){
+  const z2=Math.min(GLIDE_START,z+2);
+  const w=q=>12.5*(1-.42*smooth(GLIDE_START-180,GLIDE_START+20,q));
+
+  const p=(q,side)=>{
+   const x=cx(q)+side*w(q);
+   return[x,Y(x,q)+.035,q];
+  };
+
+  ledge.quad(
+   p(z,-1),p(z2,-1),p(z2,1),p(z,1),
+   rgb(0x494c47)
+  );
+ }
+ for(let i=0;i<12;i++){const z=GLIDE_START-85+R()*150,x=cx(z)+(R()-.5)*28,y=cavernFloor(z)+4+R()*12;ledge.box([x,y,z],[2+R()*7,.5+R()*2,2+R()*8],i%2?0x40433c:0x55554b,[R()*2,R()*3,R()*2]);}
+ // A broken elevated railway and hanging wagon are silhouetted over the underground lake.
+ {const z=CAVERN_START+330,cc=cx(z),y=base(z);cavernRock.beam([cc-39,y+18,z-24],[cc+43,y+21,z+24],.68,.68,0x343b39);cavernRock.beam([cc-38,y+18.6,z-23],[cc+42,y+21.6,z+25],.31,.31,0x8b8e86);cavernRock.box([cc+29,y+22,z+16],[16,5.2,4.4],0x4d5a5b,[.38,.55,.16]);}
+
+ // 13.34–13.82 km: the rider leaves the road and glides across the open cavern toward a giant pipe mouth.
+ const pipeMouth=make('giant-storm-pipe-mouth'),pipePortalGlow=make('storm-pipe-mouth-lights','emissive'),pipeShell=make('giant-storm-pipe-interior'),pipeMarks=make('storm-pipe-seams'),pipeWet=make('storm-pipe-wet-bottom','water');
+ const pipeBottom=z=>base(z)+18*glideAt(z),
+      pipeCenterY=z=>pipeBottom(z)+PIPE_RADIUS;
+ // Massive concrete mouth, deliberately irregular and partly buried in rock.
+ {const z=PIPE_START,cc=cx(z),cy=pipeCenterY(z);for(let i=0;i<32;i++){const a=i*Math.PI*2/32,b=(i+1)*Math.PI*2/32,ra=PIPE_RADIUS+1.0+.45*Math.sin(i*1.7),rb=PIPE_RADIUS+1.0+.45*Math.sin((i+1)*1.7);const p1=[cc+Math.sin(a)*ra,cy-Math.cos(a)*ra,z-1.6],p2=[cc+Math.sin(b)*rb,cy-Math.cos(b)*rb,z-1.6],p3=[cc+Math.sin(b)*(rb+1.7),cy-Math.cos(b)*(rb+1.7),z+1.3],p4=[cc+Math.sin(a)*(ra+1.7),cy-Math.cos(a)*(ra+1.7),z+1.3];pipeMouth.quad(p1,p2,p3,p4,rgb(i%3?0x6b6c65:0x85837a));if(i%4!==2){const rg=PIPE_RADIUS-.10;pipePortalGlow.quad([cc+Math.sin(a)*rg,cy-Math.cos(a)*rg,z-1.78],[cc+Math.sin(b)*rg,cy-Math.cos(b)*rg,z-1.78],[cc+Math.sin(b)*(rg-.22),cy-Math.cos(b)*(rg-.22),z-1.72],[cc+Math.sin(a)*(rg-.22),cy-Math.cos(a)*(rg-.22),z-1.72],rgb(i%3?0x8bd0c9:0xe3c27a));}}for(const side of[-1,1])pipeMouth.box([cc+side*(15+R()*5),cy-1,z],[11+R()*8,19+R()*8,20],0x343a35,[R()*.18,R()*2.3,side*.28]);}
+ // Smooth 360-degree interior. Radial facets are numerous enough to read as round but not perfectly sterile.
+ const tubeStep=12,radial=28;
+ for(let z=PIPE_START;z<PIPE_END;z+=tubeStep){
+  const z2=Math.min(PIPE_END,z+tubeStep),c0=cx(z),c1=cx(z2),y0=pipeCenterY(z),y1=pipeCenterY(z2);
+  for(let i=0;i<radial;i++){
+  const a=i*Math.PI*2/radial,b=(i+1)*Math.PI*2/radial,
+      r0=PIPE_RADIUS,r1=PIPE_RADIUS;
+   const A=[c0+Math.sin(a)*r0,y0-Math.cos(a)*r0,z],B=[c0+Math.sin(b)*r0,y0-Math.cos(b)*r0,z],C=[c1+Math.sin(b)*r1,y1-Math.cos(b)*r1,z2],D=[c1+Math.sin(a)*r1,y1-Math.cos(a)*r1,z2];
+   pipeShell.quad(A,B,C,D,rgb((i+Math.floor(z/48))%5===0?0x555a56:0x686b65));
+  }
+  if(Math.floor((z-PIPE_START)/tubeStep)%4===0){
+   for(let i=0;i<radial;i++){const a=i*Math.PI*2/radial,b=(i+1)*Math.PI*2/radial,r=PIPE_RADIUS-.035;pipeMarks.quad([c0+Math.sin(a)*r,y0-Math.cos(a)*r,z+.05],[c0+Math.sin(b)*r,y0-Math.cos(b)*r,z+.05],[c0+Math.sin(b)*(r-.11),y0-Math.cos(b)*(r-.11),z+.14],[c0+Math.sin(a)*(r-.11),y0-Math.cos(a)*(r-.11),z+.14],rgb(0x333936));}
+  }
+ }
+ // A thin stream stays on the physical bottom and bends with the pipe rather than floating as a rectangle.
+ for(let z=PIPE_START+18;z<PIPE_END-20;z+=12){const z2=z+12,c0=cx(z),c1=cx(z2),y0=pipeBottom(z)+.055,y1=pipeBottom(z2)+.055;pipeWet.quad([c0-2.1,y0,z],[c1-2.1,y1,z2],[c1+2.1,y1,z2],[c0+2.1,y0,z],rgb(0x263d40));}
+
+ // The open end is real geometry. No flat yellow light-card blocks the view.
+ const underExit=make('storm-pipe-daylight-exit');
+ {const z=PIPE_END,cc=cx(z),cy=pipeCenterY(z);for(let i=0;i<28;i++){const a=i*Math.PI*2/28,b=(i+1)*Math.PI*2/28,r=PIPE_RADIUS+1.0;underExit.quad([cc+Math.sin(a)*r,cy-Math.cos(a)*r,z-1.0],[cc+Math.sin(b)*r,cy-Math.cos(b)*r,z-1.0],[cc+Math.sin(b)*(r+1.6),cy-Math.cos(b)*(r+1.6),z+1.8],[cc+Math.sin(a)*(r+1.6),cy-Math.cos(a)*(r+1.6),z+1.8],rgb(i%4?0x716f65:0x8b8778));}}
+ for(let z=UNDER_EXIT_START-40,i=0;z<UNDER_END+210;z+=24,i++)for(const side of[-1,1]){
+  const cc=cx(z),y=base(z),h=10+18*smooth(UNDER_EXIT_START,UNDER_END,z);underExit.box([cc+side*(22+R()*7),y+h*.34,z],[14+R()*10,h,28],i%2?0x7d7864:0x676e5e,[.06,R()*1.8,side*(.14+R()*.17)]);
+ }
+
+ // 15.4–17.2 km: clear daylight and a quieter basin before the road itself starts to disappear.
+ const dayReturn=make('daylight-return-basin');
+ for(let z=UNDER_END+80,i=0;z<END_QUIET_START+50;z+=62,i++)for(const side of[-1,1]){
+  const x=cx(z)+side*(27+(i%4)*14),y=Y(x,z);
+  if(i%4===0){dayReturn.beam([x,y,z],[x+side*(1+R()*2),y+5+R()*5,z+(R()-.5)*4],.17,.22,0x796955);dayReturn.beam([x,y+3,z],[x-side*(2+R()*2),y+6+R()*3,z+1],.08,.11,0x796955);}
+  else dayReturn.box([x,y+.38,z],[7+R()*13,.8+R()*1.1,12+R()*20],i%2?0xa09270:0x817c68,[R()*.18,R()*2.7,side*R()*.16]);
+ }
+ // Side debris only: the actual low ridges are part of H(), so every one can launch the rider instead of being ghost scenery.
+ const brokenRoadSides=make('wasteland-road-shoulder-debris');
+ for(let z=END_ROAD_FADE+40;z<END_FIELD+90;z+=30)for(const side of[-1,1]){const x=cx(z)+side*(18+R()*11),y=Y(x,z);brokenRoadSides.box([x,y+.10,z],[1.2+R()*3.1,.24+R()*.55,1.5+R()*4.0],R()<.55?0x595a53:0x7a715f,[R()*.35,R()*3,R()*.28]);}
+
+ // Damp surfaces continue through later rain zones instead of stopping after the tutorial.
  const wet=make('wet-asphalt','wet');
- for(let z=230;z<1450;z+=19){
-  if(z>490&&z<687)continue;
+ for(let z=230;z<END_QUIET_START;z+=23){
+  if(z>TUNNEL_START-20&&z<TUNNEL_END+20)continue;
   const x=cx(z)+(R()<.5?-1:1)*(7+R()*3),lz=2+R()*4,lx=.6+R()*1.2;
   wet.quad([x-lx,Y(x-lx,z-lz)+.04,z-lz],[x-lx*.65,Y(x-lx*.65,z+lz)+.04,z+lz],[x+lx,Y(x+lx,z+lz*.7)+.04,z+lz*.7],[x+lx*.5,Y(x+lx*.5,z-lz)+.04,z-lz],rgb(0x869594));
  }
  return batches;
 }
 function weatherAt(z,t=0){
- const first=windowAt(z,270,455,60),loop=z>1260?windowAt((z-1260)%1100,80,390,85):0;
- const rain=Math.max(first,loop),dust=z>1400?windowAt((z-1260)%1100,680,945,70):0;
- const indoor=(1-smooth(151,164,z))*(z>-70?1:0),tunnel=windowAt(z,503,673,10);
- const spiral=smooth(825,920,z)*spiralExit(z);
- return{rain,dust,indoor,tunnel,spiral,cloud:clamp(rain*.92+dust*.45+.13)};
+ const underground=undergroundAt(z),cavern=cavernAt(z),glide=glideAt(z),pipe=pipeAt(z),day2=smooth(PIPE_END-190,PIPE_END+95,z),sink=windowAt(z,SINK_WARN,UNDER_START+120,100);
+ const first=windowAt(z,270,455,60);
+ const rainRaw=Math.max(first,windowAt(z,2080,2480,90),windowAt(z,4860,5310,100),windowAt(z,6480,6880,90),z>10000?windowAt((z-10000)%2700,760,1260,110):0);
+ const dustRaw=Math.max(windowAt(z,3240,3520,75),windowAt(z,6120,6420,85),z>10400?windowAt((z-10400)%3100,1900,2320,100):0);
+ const rain=rainRaw*(1-underground)*(1-day2),dust=dustRaw*(1-underground)*(1-day2);
+ const indoor=(1-smooth(151,164,z))*(z>-70?1:0),tunnel=windowAt(z,TUNNEL_START-2,TUNNEL_END+2,18);
+ const night=smooth(4140,4625,z)*(1-day2),dusk=smooth(2850,4140,z)*(1-night)*(1-day2);
+ const spiral=twistField(z),warpActive=Math.max(spiral,twistField(z+140),twistField(z+300),twistField(z+470));
+ const deepSpiral=smooth(DEEP_SPIRAL_START,DEEP_SPIRAL_FULL,z)*(1-smooth(DEEP_SPIRAL_RELAX,DEEP_SPIRAL_END,z));
+ const anomaly=clamp(.12*smooth(5150,6600,z)+.88*windowAt(z,6800,9380,780)+.34*smooth(9300,10100,z))*(1-day2);
+ const silence=Math.max(windowAt(z,9190,9305,20),windowAt(z,SINK_START-110,SINK_START+50,20));
+ const stars=night*(1-rain*.82)*(1-dust*.68)*(1-underground);
+ const shadow=night*(1-rain*.78)*(1-dust*.58)*(1-tunnel*.88)*(1-underground);
+ return{rain,dust,indoor,tunnel,underground,cavern,glide,pipe,day2,sink,spiral,warpActive,deepSpiral,anomaly,silence,dusk,night,stars,shadow,cloud:clamp(rain*.92+dust*.45+.10+night*.03)};
 }
-function roofed(x,z,cx){if(z>=505&&z<=670&&Math.abs(x-cx(z))<14.2)return true;if(z>=-40&&z<=156&&Math.abs(x)<35){const i=Math.floor((z+40)/12),p=Math.round(x/10)*10;return !((i===8&&p>-10)||(i===13&&p<0)||(i===10&&p===20));}return false;}
+function roofed(x,z,cx){if(z>=TUNNEL_START&&z<=TUNNEL_END&&Math.abs(x-cx(z))<14.2)return true;if(z>=SINK_START+80&&z<=PIPE_END&&Math.abs(x-cx(z))<36)return true;if(z>=-40&&z<=156&&Math.abs(x)<35){const i=Math.floor((z+40)/12),p=Math.round(x/10)*10;return !((i===8&&p>-10)||(i===13&&p<0)||(i===10&&p===20));}return false;}
 function warp(p,origin,strength,time,seed=0){
- const d=p[2]-origin[2];if(d<=2.5||strength<=.000001)return p.slice();
- // 'strength' contains the near envelope; replace it with the local envelope.
- strength*=spiralExit(origin[2],d)/Math.max(.000001,spiralExit(origin[2]));
+ const d=p[2]-origin[2],localTwist=twistField(p[2]);if(d<=2.5||strength<=.000001||localTwist<=.000001)return p.slice();
  const near=smooth(2.5,13,d),run=smooth(2.5,58,d);
- const a=strength*(near*(.40+.11*Math.sin(time*.30))+run*((d-2.5)*.027+Math.sin(time*.22)*.22));
+ const irregular=localTwist>.2?.16*Math.sin(p[2]*.019+p[0]*.028)+.085*Math.sin(p[2]*.007-p[0]*.041):0;
+ const a=localTwist*(near*(.40+.11*Math.sin(time*.30))+run*((d-2.5)*.027+Math.sin(time*.22)*.22+irregular));
  const amp=.04+.96*smooth(180,1200,p[2]);
  const center=amp*(18*Math.sin(p[2]*.006+seed*1.37)+7*Math.sin(p[2]*.014+1.7+seed*1.37));
- const axis=origin[1]-.175*d+4+27*smooth(18,120,d),x=p[0]-center,y=p[1]-axis,c=Math.cos(a),s=Math.sin(a);
- return[center+c*x-s*y,axis+s*x+c*y,p[2]];
+ const axis=origin[1]-.175*d+4+27*smooth(18,120,d);let x=p[0]-center,y=p[1]-axis;
+ if(localTwist>.2){x*=1+localTwist*(.085*Math.sin(p[2]*.021)+.045*Math.sin(p[0]*.073));y*=1+localTwist*(.065*Math.cos(p[2]*.017-p[0]*.039));}
+ const c=Math.cos(a),sn=Math.sin(a);return[center+c*x-sn*y,axis+sn*x+c*y,p[2]];
 }
 const warpGLSL=`
 uniform vec3 jwOrigin;
 uniform float jwTwist, jwTime, jwSeed;
-float jwEase5(float a,float b,float x){
- float t=clamp((x-a)/(b-a),0.0,1.0);
- return t*t*t*(t*(t*6.0-15.0)+10.0);
+float jwEase(float a,float b,float x){float t=clamp((x-a)/(b-a),0.0,1.0);return t*t*(3.0-2.0*t);}
+float jwTwistField(float z){
+ float early=.026*jwEase(760.0,980.0,z)*(1.0-jwEase(1180.0,1560.0,z));
+ float deep=1.12*jwEase(7350.0,7720.0,z)*(1.0-jwEase(8820.0,9200.0,z));
+ return max(early,deep);
 }
 vec3 jwWarp(vec3 p){
- float d=p.z-jwOrigin.z;
- if(jwTwist<=0.000001 || d<=2.5)return p;
- float lead=180.0*jwEase5(18.0,260.0,d)*jwEase5(1040.0,1120.0,jwOrigin.z);
- float exitNear=1.0-jwEase5(1130.0,1365.0,jwOrigin.z);
- float exitHere=1.0-jwEase5(1130.0,1365.0,jwOrigin.z+lead);
- float localTwist=jwTwist*exitHere/max(0.000001,exitNear);
+ float d=p.z-jwOrigin.z,localTwist=jwTwistField(p.z);
+ if(jwTwist<=0.000001 || localTwist<=0.000001 || d<=2.5)return p;
  float nearRamp=smoothstep(2.5,13.0,d),run=smoothstep(2.5,58.0,d);
- float a=localTwist*(nearRamp*(0.40+0.11*sin(jwTime*0.30))+run*((d-2.5)*0.027+sin(jwTime*0.22)*0.22));
+ float irregular=localTwist>.2 ? 0.16*sin(p.z*0.019+p.x*0.028)+0.085*sin(p.z*0.007-p.x*0.041) : 0.0;
+ float a=localTwist*(nearRamp*(0.40+0.11*sin(jwTime*0.30))+run*((d-2.5)*0.027+sin(jwTime*0.22)*0.22+irregular));
  float amp=0.04+0.96*smoothstep(180.0,1200.0,p.z);
  float cx=amp*(18.0*sin(p.z*0.006+jwSeed*1.37)+7.0*sin(p.z*0.014+1.7+jwSeed*1.37));
  float axis=jwOrigin.y-0.175*d+4.0+27.0*smoothstep(18.0,120.0,d);
  vec2 q=p.xy-vec2(cx,axis);
+ if(localTwist>.2){q.x*=1.0+localTwist*(0.085*sin(p.z*0.021)+0.045*sin(p.x*0.073));q.y*=1.0+localTwist*(0.065*cos(p.z*0.017-p.x*0.039));}
  return vec3(vec2(cx,axis)+mat2(cos(a),sin(a),-sin(a),cos(a))*q,p.z);
 }
 `;
@@ -736,7 +1248,7 @@ function buildMoon(){
  }
  b.min=[-90,-90,-90];b.max=[100,100,100];return b;
 }
-global.JockeyWorldData={Batch,buildWorld,buildMoon,driveBounds,weatherAt,roofed,warp,warpGLSL,rgb,rng,smooth,smoother,spiralExit,clamp,mix};
+global.JockeyWorldData={Batch,buildWorld,buildMoon,driveBounds,weatherAt,roofed,warp,warpGLSL,rgb,rng,smooth,smoother,spiralExit,twistField,storyDepthAt,undergroundAt,cavernAt,glideAt,pipeAt,wastelandBump,TUNNEL_START,TUNNEL_END,DEEP_SPIRAL_START,DEEP_SPIRAL_END,SINK_WARN,SINK_START,UNDER_START,CAVERN_START,GLIDE_START,GLIDE_END,PIPE_START,PIPE_RIDE_START,PIPE_END,PIPE_RADIUS,PIPE_RIDE_RADIUS,UNDER_EXIT_START,UNDER_END,DAY_RETURN_FULL,END_QUIET_START,END_ROAD_FADE,END_FIELD,ENDING_AT,clamp,mix};
 })(typeof window!=='undefined'?window:globalThis);
 
 /* Three.js adapter — one world, one frame loop. No full-screen weather layer. */
@@ -748,6 +1260,7 @@ function createWorld(api){
  if(!T||!D)throw new Error('Jockey world: renderer or geometry module is missing.');
  const root=new T.Group();root.name='JOCKEY_WORLD_V4';scene.add(root);
  const lin=hex=>new T.Color(hex).convertSRGBToLinear();
+ const small=innerWidth<700||matchMedia('(pointer: coarse)').matches;
  function geometryFrom(b){
   const g=new T.BufferGeometry();
   g.setAttribute('position',new T.Float32BufferAttribute(b.p,3));
@@ -758,9 +1271,17 @@ function createWorld(api){
  const solids=new T.MeshLambertMaterial({vertexColors:true,side:T.DoubleSide});
  const emissive=new T.MeshBasicMaterial({vertexColors:true,side:T.DoubleSide});
  const wetMat=new T.MeshPhongMaterial({vertexColors:true,transparent:true,opacity:0,depthWrite:false,shininess:65,specular:0x8c9a94,side:T.DoubleSide});
+ const waterMat=new T.MeshPhongMaterial({vertexColors:true,transparent:true,opacity:.70,depthWrite:false,shininess:105,specular:0xa9c8d4,side:T.DoubleSide});
+ const nightEmissiveMat=new T.MeshBasicMaterial({vertexColors:true,transparent:true,opacity:0,depthWrite:false,side:T.DoubleSide});
+ const pulseEmissiveMat=new T.MeshBasicMaterial({vertexColors:true,transparent:true,opacity:.75,depthWrite:false,side:T.DoubleSide});
+ const moonGlintMat=new T.MeshBasicMaterial({vertexColors:true,transparent:true,opacity:0,depthWrite:false,side:T.DoubleSide,blending:T.AdditiveBlending});
+ const nightShadowMat=new T.MeshBasicMaterial({vertexColors:true,transparent:true,opacity:0,depthWrite:false,side:T.DoubleSide});
+ const materialFor=kind=>kind==='emissive'?emissive:kind==='wet'?wetMat:kind==='water'?waterMat:kind==='night-emissive'?nightEmissiveMat:kind==='pulse-emissive'?pulseEmissiveMat:kind==='moon-glint'?moonGlintMat:kind==='night-shadow'?nightShadowMat:solids;
  const sections=D.buildWorld(H,cx,seed).map(b=>{
-  const m=new T.Mesh(geometryFrom(b),b.kind==='emissive'?emissive:b.kind==='wet'?wetMat:solids);
-  m.name=b.name;m.userData.range=[b.min[2],b.max[2]];root.add(m);return m;
+  const m=new T.Mesh(geometryFrom(b),materialFor(b.kind));
+  m.name=b.name;m.userData.range=[b.min[2],b.max[2]];m.userData.kind=b.kind;
+  if(b.kind==='water'||b.kind==='moon-glint'||b.kind==='night-shadow')m.renderOrder=2;
+  root.add(m);return m;
  });
  // A derailed lower curtain hangs from the existing crooked half-shutter.
  // Twenty-four corrugated metal panels are actual 3D meshes before AND after impact.
@@ -827,6 +1348,15 @@ function createWorld(api){
  }
  sign('DISPATCH  /  03',9.0,1.85,cx(156)+5.5,H(cx(156),156)+10.7,155.39,Math.PI);
  sign('OUTBOUND',8.0,1.65,6,H(0,-40)+8.3,-39.76);
+ sign(
+  '재고 보관구역',
+  10,1.8,cx(38),H(cx(38),38)+8.2,38,Math.PI
+);
+
+sign(
+  '출고 대기  /  03',
+  10,1.8,cx(76),H(cx(76),76)+8.2,76,Math.PI
+);
  // Exactly the same deformation is applied to road, markings, obstacles, and scenery.
  const U={jwOrigin:{value:new T.Vector3()},jwTwist:{value:0},jwTime:{value:0},jwSeed:{value:seed}};
  const patched=new Set(),cullMeshes=[];
@@ -885,29 +1415,53 @@ function createWorld(api){
  // One angular atmosphere and one cloud field. No nested transparent sky shells,
  // no radial screen masks, and no z-depth fog on a sky sphere.
  const sky=new T.Scene(),skyCam=new T.PerspectiveCamera(66,1,1,4500);
- const skyU={time:{value:0},storm:{value:0},dust:{value:0},originXZ:{value:new T.Vector2()},
+ const skyU={time:{value:0},storm:{value:0},dust:{value:0},dusk:{value:0},night:{value:0},anomaly:{value:0},originXZ:{value:new T.Vector2()},
   horizon:{value:lin(0xc9bfa4)},zenith:{value:lin(0x748b86)},cloudTone:{value:lin(0xbfc6b1)}};
  const skyMath=`
- uniform float time,storm,dust;
+ uniform float time,storm,dust,dusk,night,anomaly;
  uniform vec2 originXZ;
  uniform vec3 horizon,zenith,cloudTone;
+ const float PI=3.14159265359;
  float nh(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453123);}
  float nn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);return mix(mix(nh(i),nh(i+vec2(1,0)),f.x),mix(nh(i+vec2(0,1)),nh(i+vec2(1,1)),f.x),f.y);}
  float fb(vec2 p){float a=.53,v=0.0;for(int i=0;i<4;i++){v+=a*nn(p);p=mat2(.8,.6,-.6,.8)*p*2.03+vec2(1.2,4.3);a*=.49;}return v;}
  float cloudCover(vec3 d){
-  // A horizontal, wind-driven layer, projected from the actual world ray.
   vec2 p=d.xz/(.16+max(d.y,.0))*vec2(1.25,2.35)+originXZ*.00022+vec2(time*.006,time*.0015);
   float f=fb(p),detail=fb(p*2.70+vec2(9.5,1.2));
   float cover=smoothstep(mix(.54,.29,storm),mix(.81,.72,storm),f*.80+detail*.20);
   return (cover*mix(.60,.89,storm)+storm*.12)*smoothstep(-.01,.13,d.y);
+ }
+ vec2 skyUv(vec3 d){return vec2(atan(d.z,d.x)/(PI*2.0)+.5,asin(clamp(d.y,-1.0,1.0))/PI+.5);}
+ float starLayer(vec3 d,float scale,float cut){
+  vec2 p=skyUv(d)*vec2(scale,scale*.50),id=floor(p),f=fract(p)-.5;
+  float h=nh(id),core=pow(max(0.0,1.0-length(f)*2.0),16.0);
+  return smoothstep(cut,1.0,h)*core;
  }
  vec3 atmosphere(vec3 ray){
   vec3 d=normalize(ray);
   float up=1.0-exp(-max(d.y,0.0)*2.1);
   vec3 col=mix(horizon,zenith,up);
   float solar=max(dot(d,normalize(vec3(-.7,.38,.7))),0.0);
-  col+=vec3(.07,.045,.02)*pow(solar,55.0)*(1.0-storm)*(1.0-dust);
-  return mix(col,cloudTone,cloudCover(d));
+  col+=mix(vec3(.07,.045,.02),vec3(.28,.065,.025),dusk)*pow(solar,mix(55.0,18.0,dusk))*(1.0-storm)*(1.0-dust)*(1.0-night);
+  float cloud=cloudCover(d);
+  vec3 moonDir=normalize(vec3(-.215,.180,.960));
+  float lunar=max(dot(d,moonDir),0.0);
+  col+=vec3(.18,.27,.34)*pow(lunar,14.0)*night*(1.0-storm*.78)*.30;
+  vec3 bent=normalize(d+cross(moonDir,d)*sin(time*.035+d.y*18.0)*anomaly*.014);
+  float stars=starLayer(bent,420.0,.985)+starLayer(bent,230.0,.965)*.70+starLayer(bent,95.0,.90)*.22;
+  float milky=pow(max(0.0,1.0-abs(dot(bent,normalize(vec3(.18,.72,.67))))),4.0)*(0.30+0.70*fb(skyUv(bent)*vec2(8.0,4.0)));
+  // The missing-star region is ragged and diffuse, never a perfectly outlined spinning disc.
+  vec2 vu=skyUv(d);
+  float voidNoise=fb(vu*vec2(7.2,3.6)+vec2(time*.0024,-time*.0011));
+  float voidDot=dot(d,normalize(vec3(.47,.12,.875)));
+  float voidCore=smoothstep(.72+(voidNoise-.5)*.16,.992,voidDot)*anomaly;
+  float voidFringe=smoothstep(.58+(voidNoise-.5)*.10,.91,voidDot)*anomaly;
+  float starVis=night*(1.0-cloud*.92)*(1.0-dust*.86)*(1.0-voidCore*.88);
+  col+=vec3(.70,.82,1.0)*stars*starVis*1.95;
+  col+=vec3(.10,.16,.24)*milky*starVis*.75;
+  col=mix(col,col*.42,voidCore*.22);
+  col+=vec3(.025,.045,.075)*voidFringe*(.12+.10*voidNoise);
+  return mix(col,cloudTone,cloud);
  }
  `;
  const skyMat=new T.ShaderMaterial({uniforms:skyU,side:T.BackSide,depthWrite:false,depthTest:false,
@@ -924,18 +1478,32 @@ function createWorld(api){
   s.fragmentShader=s.fragmentShader.replace('#include <tonemapping_fragment>',`
    vec3 rd=normalize(lunarRay);
    float transmission=(1.0-cloudCover(rd))*mix(.56,.19,storm);
-   gl_FragColor.rgb=mix(atmosphere(rd),gl_FragColor.rgb,transmission);
+   vec3 lunarSurface=gl_FragColor.rgb*mix(1.0,2.65,night);
+   gl_FragColor.rgb=mix(atmosphere(rd),lunarSurface,transmission);
    #include <tonemapping_fragment>
   `);
  };
  moonMat.customProgramCacheKey=()=> 'lunar-one-atmosphere-v2';
  const moon=new T.Mesh(geometryFrom(D.buildMoon()),moonMat);
- moon.position.set(-420,350,1900);moon.rotation.set(.1,-.35,.18);moon.frustumCulled=false;moon.renderOrder=0;sky.add(moon);
+ moon.position.set(-420,350,1900);moon.rotation.set(.1,-.35,.18);moon.frustumCulled=false;moon.renderOrder=1;sky.add(moon);
+ // Soft halo behind the moon, brightest after the mountain tunnel.
+ const haloCanvas=document.createElement('canvas');haloCanvas.width=haloCanvas.height=256;
+ {const hc=haloCanvas.getContext('2d'),g=hc.createRadialGradient(128,128,8,128,128,126);g.addColorStop(0,'rgba(222,241,255,.90)');g.addColorStop(.18,'rgba(185,220,255,.34)');g.addColorStop(.55,'rgba(110,164,220,.10)');g.addColorStop(1,'rgba(80,130,180,0)');hc.fillStyle=g;hc.fillRect(0,0,256,256);}
+ const haloTex=new T.CanvasTexture(haloCanvas),moonHaloMat=new T.SpriteMaterial({map:haloTex,color:0xcfe7ff,transparent:true,opacity:0,depthWrite:false,depthTest:false,blending:T.AdditiveBlending});
+ const moonHalo=new T.Sprite(moonHaloMat);moonHalo.position.copy(moon.position);moonHalo.scale.set(520,520,1);moonHalo.renderOrder=0;sky.add(moonHalo);
+ // Dozens of low-poly fragments are invisible in daylight and emerge with the stars.
+ const fragCount=small?52:82,fragGeo=new T.TetrahedronGeometry(1,0),fragMat=new T.MeshLambertMaterial({color:0xb9c6ca,transparent:true,opacity:0,depthWrite:false,fog:false,side:T.DoubleSide});
+ const moonFragments=new T.InstancedMesh(fragGeo,fragMat,fragCount),fm=new T.Matrix4(),fp=new T.Vector3(),fq=new T.Quaternion(),fs=new T.Vector3(),fe=new T.Euler(),fr=D.rng(91827+seed);
+ moonFragments.position.copy(moon.position);moonFragments.frustumCulled=false;moonFragments.renderOrder=2;
+ for(let i=0;i<fragCount;i++){
+  const a=fr()*Math.PI*2,rad=95+Math.pow(fr(),.62)*610,band=(fr()-.5)*(i<fragCount*.72?120:360);
+  fp.set(Math.cos(a)*rad,Math.sin(a)*rad*.47+band,(-.5+fr())*170);fe.set(fr()*3,fr()*3,fr()*3);fq.setFromEuler(fe);const k=2.5+Math.pow(fr(),2)*18;fs.set(k*(.5+fr()),k*(.35+fr()),k*(.55+fr()));fm.compose(fp,fq,fs);moonFragments.setMatrixAt(i,fm);
+ }
+ moonFragments.instanceMatrix.needsUpdate=true;sky.add(moonFragments);
  sky.add(new T.HemisphereLight(0xadb4a9,0x424e4e,.8));
  const moonSun=new T.DirectionalLight(0xd6d4bd,.9);moonSun.position.set(-5,4,3);sky.add(moonSun);
  // Instanced rain ribbons have world-space endpoints and widths. They shrink with
  // distance, occlude behind geometry, and drift independently of the camera.
- const small=innerWidth<700||matchMedia('(pointer: coarse)').matches;
  const nr=small?1250:1950,nearCount=Math.floor(nr*.66),R=D.rng(7329+seed);
  const heads=new Float32Array(nr*3),tails=new Float32Array(nr*3),widths=new Float32Array(nr),alphas=new Float32Array(nr);
  function quadGeometry(){
@@ -1002,8 +1570,12 @@ function createWorld(api){
  const lamps=[new T.PointLight(0xc6d2c4,.7,32,2),new T.PointLight(0xcdbb8a,.6,24,2)];lamps.forEach(l=>scene.add(l));
  const hemi=scene.children.find(o=>o.isHemisphereLight);
  const lights=scene.children.filter(o=>o.isLight&&!lamps.includes(o)).map(o=>({o,intensity:o.intensity,color:o.color.clone()}));
+ const moonTarget=new T.Object3D();scene.add(moonTarget);
+ const moonLight=new T.DirectionalLight(0xa9cfff,0);moonLight.target=moonTarget;scene.add(moonLight);
  const warmH=lin(0xc9bfa4),rainH=lin(0x82918c),warmTop=lin(0x748b86),rainTop=lin(0x405957),dustH=lin(0xb4a084),dustTop=lin(0x887a5f);
- const warmCloud=lin(0xbfc6b1),rainCloud=lin(0x697e78),indoorFog=lin(0x525e55),stormLight=new T.Color(0xbbccca);
+ const duskH=lin(0xb96b5f),duskTop=lin(0x4d3f63),nightH=lin(0x182d42),nightTop=lin(0x050b18);
+ const day2H=lin(0xc8dde0),day2Top=lin(0x5f8ba7),day2Cloud=lin(0xd8ddd3);
+ const warmCloud=lin(0xbfc6b1),rainCloud=lin(0x697e78),nightCloud=lin(0x172431),indoorFog=lin(0x525e55),caveFog=lin(0x263632),stormLight=new T.Color(0xbbccca),moonColor=new T.Color(0xa9cfff);
  let elapsed=0,wet=0,oldTwist=false,lastZ=NaN,wasRain=false,audio=null,current=D.weatherAt(0),visibleDrops=0,nearVisibleDrops=0;
  function audioUpdate(w){
   const ctx=api.getAudio&&api.getAudio(),master=api.getMaster&&api.getMaster();if(!ctx||!master||ctx.state!=='running')return;
@@ -1011,40 +1583,62 @@ function createWorld(api){
    const buffer=ctx.createBuffer(1,ctx.sampleRate*2,ctx.sampleRate),a=buffer.getChannelData(0),rr=D.rng(847);
    for(let i=0;i<a.length;i++)a[i]=rr()*2-1;
    const src=ctx.createBufferSource(),filter=ctx.createBiquadFilter(),gain=ctx.createGain();src.buffer=buffer;src.loop=true;filter.type='lowpass';filter.frequency.value=3900;gain.gain.value=0;src.connect(filter);filter.connect(gain);gain.connect(master);src.start();
-   const osc=ctx.createOscillator(),og=ctx.createGain();osc.type='sine';osc.frequency.value=48;og.gain.value=0;osc.connect(og);og.connect(master);osc.start();audio={src,gain,filter,osc,og};
+   const osc=ctx.createOscillator(),og=ctx.createGain();osc.type='sine';osc.frequency.value=48;og.gain.value=0;osc.connect(og);og.connect(master);osc.start();
+   const drone=ctx.createOscillator(),drone2=ctx.createOscillator(),dg=ctx.createGain(),df=ctx.createBiquadFilter();drone.type='sawtooth';drone.frequency.value=31;drone2.type='sine';drone2.frequency.value=46.4;df.type='lowpass';df.frequency.value=170;dg.gain.value=0;drone.connect(df);drone2.connect(df);df.connect(dg);dg.connect(master);drone.start();drone2.start();
+   const af=ctx.createBiquadFilter(),ag=ctx.createGain(),pan=ctx.createStereoPanner?ctx.createStereoPanner():ctx.createGain();af.type='bandpass';af.frequency.value=780;af.Q.value=3.4;ag.gain.value=0;src.connect(af);af.connect(ag);ag.connect(pan);pan.connect(master);
+   audio={src,gain,filter,osc,og,drone,drone2,dg,df,af,ag,pan};
   }
-  const active=api.isRunning()?1:0,shelter=Math.max(w.indoor,w.tunnel);
+  const active=api.isRunning()?1:0,shelter=Math.max(w.indoor,w.tunnel,w.underground),anom=active*(w.anomaly*.35+w.deepSpiral*.85),sub=active*(w.cavern*.45+w.glide*.75+w.pipe*.62);
   audio.gain.gain.setTargetAtTime(w.rain*(1-shelter*.87)*.067*active,ctx.currentTime,.30);
   audio.filter.frequency.setTargetAtTime(3900-2800*shelter,ctx.currentTime,.40);
-  audio.og.gain.setTargetAtTime(w.tunnel*.018*active,ctx.currentTime,.3);
+  audio.og.gain.setTargetAtTime(Math.max(w.tunnel*.018,w.underground*.012,w.pipe*.026)*active,ctx.currentTime,.3);
+  audio.dg.gain.setTargetAtTime(anom*.026+w.underground*.009*active+sub*.018,ctx.currentTime,w.deepSpiral>.2?.18:.8);
+  audio.ag.gain.setTargetAtTime(anom*.017+sub*.012,ctx.currentTime,w.deepSpiral>.2?.14:.7);
+  audio.drone.frequency.setTargetAtTime(29+w.deepSpiral*12+Math.sin(elapsed*.31)*1.5,ctx.currentTime,.6);
+  audio.drone2.frequency.setTargetAtTime(45.5+w.deepSpiral*7+Math.sin(elapsed*.19)*2.0,ctx.currentTime,.8);
+  audio.af.frequency.setTargetAtTime(640+w.deepSpiral*610+Math.sin(elapsed*.23)*130,ctx.currentTime,.5);
+  if(audio.pan.pan)audio.pan.pan.setTargetAtTime(Math.sin(elapsed*.34)*anom*.82,ctx.currentTime,.35);
  }
  function update(dt,sp){
   stepDock(dt);
   elapsed+=dt;const z=P.z,w=D.weatherAt(z,elapsed);current=w;
-  U.jwOrigin.value.set(cx(z),H(cx(z),z),z);U.jwTwist.value=w.spiral;U.jwTime.value=elapsed;
-  const twist=w.spiral>.000001;
+  U.jwOrigin.value.set(cx(z),H(cx(z),z),z);U.jwTwist.value=w.warpActive;U.jwTime.value=elapsed;
+  const twist=w.warpActive>.000001;
   if(twist!==oldTwist){for(const[o,c]of cullMeshes)o.frustumCulled=twist?false:c;oldTwist=twist;}
   for(const m of sections){const[a,b]=m.userData.range;m.visible=b>z-95&&a<z+470;}
-  const viewW=D.weatherAt(camera.position.z,elapsed),inside=Math.max(viewW.indoor,viewW.tunnel),tunnel=viewW.tunnel;
-  for(const l of lights){l.o.intensity=l.intensity*D.mix(1,D.mix(.35,.20,tunnel),inside)*(1-w.rain*.48);l.o.color.copy(l.color).lerp(stormLight,w.rain*.78);}
-  if(hemi){hemi.color.setHex(0xbac9c6);hemi.groundColor.setHex(inside>.5?0x343d38:w.rain>.2?0x636b63:0x8b785b);hemi.intensity=D.mix(.57,.69,inside)*(1-w.rain*.10);}
-  skyU.time.value=elapsed;skyU.storm.value=w.rain;skyU.dust.value=w.dust;skyU.originXZ.value.set(camera.position.x,camera.position.z);
-  skyU.horizon.value.copy(warmH).lerp(rainH,w.rain).lerp(dustH,w.dust);
-  skyU.zenith.value.copy(warmTop).lerp(rainTop,w.rain).lerp(dustTop,w.dust);
-  skyU.cloudTone.value.copy(warmCloud).lerp(rainCloud,w.rain).lerp(dustH,w.dust*.8);
-  // Far terrain and sky use the same horizon color, in the same linear color space.
-  scene.fog.color.copy(skyU.horizon.value).lerp(indoorFog,inside*.85);
-  const haze=Math.max(w.rain*.70,w.dust,inside*.75);
-  scene.fog.near=D.mix(88,30,haze);scene.fog.far=D.mix(365,180,haze);
-  scene.fog.far=D.mix(scene.fog.far,Math.max(scene.fog.far,390),w.spiral);
-  const anchor=Math.floor((z-505)/12)*12+505;
+  const viewW=D.weatherAt(camera.position.z,elapsed),inside=Math.max(viewW.indoor,viewW.tunnel,viewW.underground),tunnel=viewW.tunnel,underground=viewW.underground;
+  for(const l of lights){
+   const dayLevel=D.mix(1,.10,w.night),insideLevel=D.mix(1,D.mix(.35,.20,tunnel),inside);
+   l.o.intensity=l.intensity*dayLevel*insideLevel*(1-w.rain*.48);l.o.color.copy(l.color).lerp(stormLight,w.rain*.78).lerp(moonColor,w.night*.55);
+  }
+  if(hemi){hemi.color.setHex(underground>.45?0x6b7773:w.night>.5?0x7897bd:0xbac9c6);hemi.groundColor.setHex(underground>.45?0x111816:inside>.5?0x343d38:w.night>.5?0x141b22:w.rain>.2?0x636b63:0x8b785b);hemi.intensity=D.mix(.57,.22,w.night)*(1-w.rain*.10)+inside*.30;}
+  moonTarget.position.set(P.x,H(P.x,z)+1,z+24);moonLight.position.set(P.x-118,H(P.x,z)+82,z+78);moonLight.intensity=1.25*w.shadow;moonLight.color.copy(moonColor);
+  skyU.time.value=elapsed;skyU.storm.value=w.rain;skyU.dust.value=w.dust;skyU.dusk.value=w.dusk;skyU.night.value=w.night;skyU.anomaly.value=w.anomaly;skyU.originXZ.value.set(camera.position.x,camera.position.z);
+  skyU.horizon.value.copy(warmH).lerp(duskH,w.dusk).lerp(nightH,w.night).lerp(rainH,w.rain*(1-w.night)*.75).lerp(dustH,w.dust*.65).lerp(day2H,w.day2);
+  skyU.zenith.value.copy(warmTop).lerp(duskTop,w.dusk).lerp(nightTop,w.night).lerp(rainTop,w.rain*(1-w.night)*.70).lerp(dustTop,w.dust*.55).lerp(day2Top,w.day2);
+  skyU.cloudTone.value.copy(warmCloud).lerp(rainCloud,w.rain).lerp(dustH,w.dust*.8).lerp(nightCloud,w.night).lerp(day2Cloud,w.day2);
+  scene.fog.color.copy(skyU.horizon.value).lerp(indoorFog,Math.max(viewW.indoor,viewW.tunnel)*.85).lerp(caveFog,underground*.94);
+  const haze=Math.max(w.rain*.70,w.dust,Math.max(viewW.indoor,viewW.tunnel)*.75,underground*.88);
+  scene.fog.near=D.mix(88,18,haze);scene.fog.far=D.mix(365,underground>.2?132:180,haze);
+  // The cavern opens back up; the deep spiral remains visible but its circular edge dissolves into haze.
+  scene.fog.near=D.mix(scene.fog.near,46,w.cavern);scene.fog.far=D.mix(scene.fog.far,285,w.cavern);
+  scene.fog.near=D.mix(scene.fog.near,24,w.deepSpiral);scene.fog.far=D.mix(scene.fog.far,148,w.deepSpiral);
+  const anchor=Math.floor((z-D.TUNNEL_START)/12)*12+D.TUNNEL_START;
   for(let i=0;i<2;i++){
    const l=lamps[i];
    if(w.tunnel>.001){const zz=anchor+(i?16:3);l.position.set(cx(zz),H(cx(zz),zz)+8.8,zz);l.intensity=.9*w.tunnel;}
-   else if(w.indoor>.001){const zz=Math.floor(z/12)*12+5+i*12;l.position.set(i?8:-8,H(cx(zz),zz)+8.2,zz);l.intensity=1.3*w.indoor;}
+   else if(w.indoor>.001){const zz=Math.floor(z/12)*12+5+i*12;l.position.set(i?8:-8,H(cx(zz),zz)+8.2,zz);l.color.setHex(0xcdbb8a);l.distance=32;l.intensity=1.3*w.indoor;}
+   else if(w.cavern>.001||w.glide>.001){const zz=z+18+i*34,side=i?1:-1;l.position.set(cx(zz)+side*15,H(cx(zz),zz)+18,zz);l.color.setHex(i?0x6faea8:0x91b8a8);l.distance=118;l.intensity=3.15*Math.max(w.cavern,w.glide);}
+   else if(w.pipe>.001){const zz=z+10+i*24;l.position.set(cx(zz),H(cx(zz),zz)+8,zz);l.color.setHex(0x879f8f);l.distance=54;l.intensity=.72*w.pipe;}
    else l.intensity=0;
   }
   wet=D.mix(wet,w.rain,Math.min(1,dt*(w.rain>wet?.8:.035)));wetMat.opacity=wet*.23;
+  waterMat.opacity=.70+.12*(1-w.rain)+.08*w.night;waterMat.shininess=82+72*w.night;
+  const lightsUp=Math.max(w.night,w.dusk*.48);nightEmissiveMat.opacity=lightsUp*(1-w.rain*.18);
+  pulseEmissiveMat.opacity=.30+.62*(.5+.5*Math.sin(elapsed*7.0));
+  moonGlintMat.opacity=Math.max(w.stars*(.34+.61*w.night),w.cavern*.48,w.glide*.40);nightShadowMat.opacity=w.shadow*.22;
+  moon.scale.setScalar(1+w.night*.055);moonHaloMat.opacity=w.stars*(.10+.24*w.night)*(1-w.rain*.55);
+  fragMat.opacity=w.stars*(.10+.72*w.night);moonFragments.rotation.z=elapsed*.0045;moonFragments.rotation.y=Math.sin(elapsed*.006)*.035+w.anomaly*.025*Math.sin(elapsed*.11);
   const active=w.rain>.015;
   const seek=!Number.isFinite(lastZ)||Math.abs(z-lastZ)>60;
   if(seek||active&&!wasRain){
@@ -1059,7 +1653,7 @@ function createWorld(api){
     const groundHit=q.y<q.floor+.06;
     if(groundHit&&q.z>z-7&&q.z<z+33&&Math.abs(q.x-P.x)<17&&!D.roofed(q.x,q.z,cx))splash(q.x,q.floor,q.z);
     if(groundHit||q.z<z-9||q.z>z+(q.near?46:150)||Math.abs(q.x-camera.position.x)>(q.near?15:49))spawn(q,false);
-    const underRoof=D.roofed(q.x,q.z,cx)&&q.y<H(cx(q.z),q.z)+(q.z>=505?10.7:13.3);
+    const underRoof=D.roofed(q.x,q.z,cx)&&q.y<H(cx(q.z),q.z)+((q.z>=D.TUNNEL_START&&q.z<=D.TUNNEL_END)?10.7:13.3);
     const j=i*3;heads[j]=q.x;heads[j+1]=q.y;heads[j+2]=q.z;
     tails[j]=q.x-.042;tails[j+1]=q.y+q.len;tails[j+2]=q.z+.027;
     alphas[i]=underRoof?0:q.alpha;
@@ -1078,14 +1672,14 @@ function createWorld(api){
  for(const m of(api.materials||[]))patchMaterial(m);
  patchScene();
  return {update,renderSky,root,breakDock,resetDock,
-  getState:()=>({...current,version:4,dockBroken,dockAge,activeDockPanels:dockPanels.filter(q=>q.m.visible).length,spiralExitStart:1130,spiralExitEnd:1365,meshSections:sections.length,rainDrops:nr,activeRainDrops:visibleDrops,nearRainDrops:nearVisibleDrops,rainRibbonWidth:'world metres',twistSafeMetres:2.5,time:elapsed}),
+  getState:()=>({...current,version:7,dockBroken,dockAge,activeDockPanels:dockPanels.filter(q=>q.m.visible).length,spiralExitStart:D.DEEP_SPIRAL_START,spiralExitEnd:D.DEEP_SPIRAL_END,meshSections:sections.length,rainDrops:nr,activeRainDrops:visibleDrops,nearRainDrops:nearVisibleDrops,rainRibbonWidth:'world metres',twistSafeMetres:2.5,time:elapsed}),
   dispose(){
    dockPanels.forEach(q=>q.m.geometry.dispose());dockMetal.dispose();
    scene.remove(root,rain,splashes);for(const m of sections)m.geometry.dispose();rainGeo.dispose();splashGeo.dispose();
    for(const s of signs){s.texture.dispose();s.mat.dispose();}
-   for(const m of[solids,emissive,wetMat,rainMat,splashMat,moonMat,skyMat])m.dispose();
-   dome.geometry.dispose();moon.geometry.dispose();if(audio){audio.src.stop();audio.osc.stop();}
-   lamps.forEach(l=>scene.remove(l));
+   for(const m of[solids,emissive,wetMat,waterMat,nightEmissiveMat,pulseEmissiveMat,moonGlintMat,nightShadowMat,rainMat,splashMat,moonMat,skyMat,moonHaloMat,fragMat])m.dispose();
+   dome.geometry.dispose();moon.geometry.dispose();fragGeo.dispose();haloTex.dispose();if(audio){audio.src.stop();audio.osc.stop();audio.drone.stop();audio.drone2.stop();}
+   lamps.forEach(l=>scene.remove(l));scene.remove(moonLight,moonTarget);
   }
  };
 }
@@ -1147,7 +1741,12 @@ const TIP_RATE = 0.8;
 const LIVES    = 5;
 const MAXV     = 52;
 
-
+const JW=JockeyWorldData;
+const SINK_WARN=JW.SINK_WARN,SINK_START=JW.SINK_START,UNDER_START=JW.UNDER_START,CAVERN_START=JW.CAVERN_START;
+const GLIDE_START=JW.GLIDE_START,GLIDE_END=JW.GLIDE_END,PIPE_START=JW.PIPE_START,PIPE_RIDE_START=JW.PIPE_RIDE_START,PIPE_END=JW.PIPE_END;
+const PIPE_RADIUS=JW.PIPE_RADIUS,PIPE_RIDE_RADIUS=JW.PIPE_RIDE_RADIUS,UNDER_EXIT_START=JW.UNDER_EXIT_START,UNDER_END=JW.UNDER_END;
+const DAY_RETURN_FULL=JW.DAY_RETURN_FULL,END_QUIET_START=JW.END_QUIET_START,END_ROAD_FADE=JW.END_ROAD_FADE,END_FIELD=JW.END_FIELD,ENDING_AT=JW.ENDING_AT;
+const ENDING_SLOW=ENDING_AT-360;
 
 
 /* 시드: ?seed=숫자 로 코스를 바꾼다. ?daily=1 이면 날짜(KST) 기준으로 전원 같은 판 */
@@ -1288,6 +1887,7 @@ function rawH(x,z){
 // Facility pads are part of the terrain. Nothing is laid over a mismatched road surface.
 const WORLD_PADS=[[-1,218,63,65,98],[1,296,78,79,123],[-1,406,80,82,110],
  [1,472,104,105,127],[-1,720,116,90,120],[1,1340,150,95,140]];
+function scenicBand(z,a,b,fade){return smooth((z-(a-fade))/fade)*(1-smooth((z-b)/fade));}
 function H(x,z){
  const u=x-cx(z);let y=rawH(x,z);
  const interior=(1-smooth((z-155)/30))*smooth((38-Math.abs(u))/5);
@@ -1300,7 +1900,40 @@ function H(x,z){
   const k=(1-smooth((dx+1)/8))*(1-smooth((dz+1)/9));
   if(k>0)y=lerp(y,rawH(cx(cz),cz)-.95,k);
  }
- return y;
+ // Only the land outside the guardrails drops. The playable road and all obstacle coordinates stay identical.
+ const roadBase=rawH(cx(z),z);
+ const farmLake=scenicBand(z,1810,2320,95)*smooth((u-12.8)/7);
+ y=lerp(y,roadBase-3.45-.22*Math.sin(z*.018),farmLake);
+ const river=scenicBand(z,2580,2960,90)*smooth((Math.abs(u)-12.8)/10);
+ y=lerp(y,roadBase-5.55-.28*Math.sin(x*.018),river);
+ // The night shoreline is now on the right, visibly leading toward the stranded ship.
+ const nightLake=scenicBand(z,4920,6040,120)*smooth((-u-12.8)/18);
+ y=lerp(y,roadBase-4.25-.20*Math.sin(z*.014),nightLake);
+ // The abandoned cross street is a real cut through the embankment, not a folded terrain ribbon.
+ const crossStreet=scenicBand(z,3482,3548,25)*smooth((Math.abs(u)-12.2)/8)*(1-smooth((Math.abs(u)-108)/18));
+ y=lerp(y,rawH(cx(3515),3515)-.04,crossStreet);
+ // Only the route corridor falls into the sinkhole; the surface remains above on both sides.
+ const shipBasin=scenicBand(z,5780,6120,90)*smooth((-u-14)/8)*(1-smooth((-u-116)/18));
+ y-=shipBasin*8.5;
+ const shipX=cx(5960)-58,shipDx=Math.abs(x-shipX)-48,shipDz=Math.abs(z-5960)-125,shipPad=(1-smooth((shipDx+1)/16))*(1-smooth((shipDz+1)/30))*smooth((Math.abs(u)-20)/12);
+ y=lerp(y,rawH(cx(5960),5960)-10.0,shipPad);
+ const storyDepth=JW.storyDepthAt(z),corridor=1-smooth((Math.abs(u)-14)/30);
+ y-=storyDepth*corridor;
+ // At the broken cavern ledge the floor falls away while the rider glides toward the pipe mouth.
+ y-=JW.glideAt(z)*18.0*(1-smooth((Math.abs(u)-18)/24));
+
+  // 활공 직전 260m에서 추가로 72m 내려간다.
+ // 추가 낙차는 파이프를 나온 뒤 긴 구간에 걸쳐 원래 지형으로 합류한다.
+ const dive=smoother((z-(GLIDE_START-260))/260);
+ const recover=1-smoother((z-(PIPE_END+40))/850);
+ y-=72*dive*recover*(1-smooth((Math.abs(u)-14)/30));
+ // The ending is a broad empty plain, not another mountain valley. Distant dunes remain at the edges.
+ const endPlain=smooth((z-END_ROAD_FADE)/(END_FIELD-END_ROAD_FADE)),wide=1-smooth((Math.abs(u)-82)/68),plainY=rawH(cx(z),z);
+ y=lerp(y,plainY,endPlain*wide*.94);
+ // These are real low ridges in the terrain, not floating decorative slabs. They launch a chain of small hops.
+y+=JW.wastelandBump(z)*(1-smooth((Math.abs(u)-11.4)/2.2));
+
+return y;
 }
 
 function grad(x,z){
@@ -1447,7 +2080,7 @@ function makeDebris(){
   const t2=mesh(cylG,mTire,0.55,0.22,0.55,0.15,0.66,0.1); t2.rotation.y=0.5; g.add(t2);
   const b1=mesh(cylG,mBarrel,0.38,0.95,0.38,0.9,0.47,0.3); g.add(b1);
   const b2=mesh(cylG,mBarrel2,0.38,0.95,0.38,-0.3,0.38,1.0); b2.rotation.x=Math.PI/2; g.add(b2);
-  g.userData.hits=[{x:0.2,z:0.3,r:1.1}]; g.userData.h=1.0;
+  g.userData.hits=[{x:0.2,z:0.3,r:1.1}]; g.userData.h=1.0; g.userData.propKind='debris';
   return g;
 }
 /* 콘 */
@@ -1460,7 +2093,7 @@ function makeCone(){
 }
 /* 죽은 나무 */
 function makeDeadTree(){
-  const g=new THREE.Group();
+  const g=new THREE.Group();g.userData.decoType='tree';
   g.add(mesh(cylG,mTrunk,0.22,4.5,0.22,0,2.2,0));
   const a=mesh(cylG,mTrunk,0.12,2.2,0.12,0.7,3.6,0); a.rotation.z=-0.7; g.add(a);
   const b=mesh(cylG,mTrunk,0.10,1.8,0.10,-0.6,3.0,0.2); b.rotation.z=0.8; b.rotation.x=0.3; g.add(b);
@@ -1469,7 +2102,7 @@ function makeDeadTree(){
 }
 /* 전신주 */
 function makePole(){
-  const g=new THREE.Group();
+  const g=new THREE.Group();g.userData.decoType='pole';
   g.add(mesh(cylG,mPole,0.16,7.5,0.16,0,3.7,0));
   g.add(mesh(boxG,mPole,1.6,0.14,0.14,0,7.0,0));
   g.add(mesh(boxG,mPole,1.2,0.14,0.14,0,6.4,0));
@@ -1477,7 +2110,7 @@ function makePole(){
 }
 /* 표지판 */
 function makeSign(){
-  const g=new THREE.Group();
+  const g=new THREE.Group();g.userData.decoType='sign';
   g.add(mesh(cylG,mSignPost,0.09,4.2,0.09,-1.3,2.1,0));
   g.add(mesh(cylG,mSignPost,0.09,4.2,0.09, 1.3,2.1,0));
   g.add(mesh(boxG,mSign,3.4,1.5,0.12,0,3.6,0));
@@ -1485,12 +2118,20 @@ function makeSign(){
   g.add(mesh(boxG,mConeW,1.6,0.16,0.14,-0.4,3.45,0.02));
   return g;
 }
+/* 낮은 도로 잡초: 장애물처럼 보이지 않도록 발목보다 훨씬 낮다. */
+const mWeedDry=M(0x786a3d),mWeedGreen=M(0x526644),mWeedMoss=M(0x43594d);
+function makeWeed(){
+  const g=new THREE.Group(),blades=[];g.userData.decoType='weed';g.userData.blades=blades;
+  for(let i=0;i<5;i++){const h=.18+i*.035,b=mesh(boxG,mWeedDry,.025,h,.018,(i-2)*.055,h*.5,0);b.rotation.z=(i-2)*.18;b.rotation.y=i*.73;g.add(b);blades.push(b);}
+  return g;
+}
+
 /* 무너진 콘크리트 덩어리 */
 function makeRubble(){
   const g=new THREE.Group();
   const a=mesh(boxG,mConcrete,2.2,0.9,1.6,0,0.4,0); a.rotation.set(0.15,0.4,0.1); g.add(a);
   const b=mesh(boxG,mConcrete,1.3,0.7,1.1,0.9,0.9,0.4); b.rotation.set(-0.3,0.2,0.4); g.add(b);
-  g.userData.hits=[{x:0.3,z:0.1,r:1.3}]; g.userData.h=1.3;
+  g.userData.hits=[{x:0.3,z:0.1,r:1.3}]; g.userData.h=1.3; g.userData.propKind='rubble';
   return g;
 }
 
@@ -1512,6 +2153,17 @@ function makeBaton(){
   g.add(mesh(cylG,mBatonCap,0.06,0.05,0.06,0,-0.08,0));
   g.add(mesh(cylG,mBatonGlow,0.042,0.56,0.042,0,0.22,0));
   g.add(mesh(sphG,mBatonGlow,0.05,0.05,0.05,0,0.50,0));
+  return g;
+}
+/* 희귀 안전모: 먹으면 목숨 한 칸이 늘어난다. */
+const mHelmet=M(0xF4C400),mHelmetDark=M(0xA97800),mHelmetBand=M(0xFFF0A2);
+const helmetDomeG=new THREE.SphereGeometry(1,14,8,0,Math.PI*2,0,Math.PI*.58);
+function makeHelmet(){
+  const g=new THREE.Group();g.userData.itemKind='helmet';
+  const dome=mesh(helmetDomeG,mHelmet,.38,.27,.38,0,.25,0);g.add(dome);
+  g.add(mesh(cylG,mHelmetDark,.43,.055,.43,0,.09,0));
+  g.add(mesh(boxG,mHelmet,.42,.055,.22,0,.10,.31));
+  g.add(mesh(boxG,mHelmetBand,.055,.24,.39,0,.27,0));
   return g;
 }
 const beamMat=new THREE.MeshBasicMaterial({color:new THREE.Color(0xFF3B2F).convertSRGBToLinear(),transparent:true,opacity:0.22,depthWrite:false});
@@ -1606,7 +2258,7 @@ function stepPieces(dt){
 /* ==================================================================
    5. 지형 청크 + 도로 데칼
    ================================================================== */
-const CARS=4, BUSES=1, DEBRIS=3, RUBBLE=1, CONES=6, TREES=7, POLES=2, SIGNS=1, BOULDERS=5;
+const CARS=4, BUSES=1, DEBRIS=3, RUBBLE=1, CONES=6, TREES=7, POLES=2, SIGNS=1, BOULDERS=5, WEEDS=18;
 const chunks=[];
 let palletSpawnCount=0;
 
@@ -1657,12 +2309,17 @@ function courseBeatAt(z){
   if(z<920)return 'spiral-entry';
   if(z<1125)return 'spiral';
   if(z<1380)return 'release';
+  if(z>SINK_WARN&&z<DAY_RETURN_FULL+120)return z<UNDER_START+160?'collapse':z<GLIDE_START?'underground':z<PIPE_END?'pipe':'return';
+  if(z>END_QUIET_START)return 'ending';
   const q=(z-1380)%660;
   return q<135?'breath':q<225?'choice':q<285?'breath':q<405?'smash':q<460?'breath':q<560?'weave':'release';
 }
 function courseEvents(a,b){
   const out=[];
-  const put=(kind,z,u,extra={})=>{if(z>=a&&z<b)out.push(Object.assign({kind,z,u,id:kind+':'+z},extra));};
+  const addEvent=(kind,z,u,extra={})=>{if(z>=a&&z<b)out.push(Object.assign({kind,z,u,id:kind+':'+z},extra));};
+  // Normal repeating obstacles disappear during the authored second act and the final quiet road.
+  const put=(kind,z,u,extra={})=>{if((z>SINK_WARN&&z<DAY_RETURN_FULL+120)||z>END_QUIET_START)return;addEvent(kind,z,u,extra);};
+  const storyPut=(kind,z,u,extra={})=>addEvent(kind,z,u,extra);
   const choice=(z,side,variant=0)=>{
     // The opposite carriageway remains completely open. The reward is BETWEEN the cars,
     // never hidden behind a mandatory collision. Early gap: 2.6+ m of centre clearance.
@@ -1673,10 +2330,14 @@ function courseEvents(a,b){
     put('pallet',z+1,side*6.15,{role:'choice-reward'});
   };
   put('skid',20,-9.65);put('cage',41,9.65);put('bench',61,-9.8);put('stacker',87,9.8);
-  put('pallet',24,5.5,{role:'first-pallet',kindName:'aj'});
-  put('baton',72,5.5,{role:'first-baton'});
-  put('cartons',104,5.5,{role:'power-demo',soft:true});
-  put('cartons',128,5.5,{role:'power-demo',soft:true});
+ put('pallet',96,5.5,{role:'first-pallet',kindName:'aj'});
+put('baton',128,5.5,{role:'first-baton'});
+put('cartons',140,5.5,{role:'power-demo',soft:true});
+put('cartons',149,5.5,{role:'power-demo',soft:true});
+  // Rare extra-life helmets. Their scarcity makes each one an event rather than another currency.
+  for(const [z,u] of [[2380,-5.5],[6140,5.5],[10180,-5.5],[12190,5.5],[16080,-5.5]])storyPut('helmet',z,u,{role:'rare-life'});
+  // Real lane-blocking collapses in the concrete underpass. The opposite lane is always visibly open.
+  for(const [z,u,push] of [[11740,-5.8,1],[12060,5.8,-1],[12370,-5.8,1]])storyPut('rubble',z,u,{role:'route-blocker',scale:2.15,deflect:true,deflectSide:push});
   choice(284,1);
   put('baton',417,-5.5,{role:'smash-lead'});
   put('car',449,-5.5,{role:'smash-target',yaw:.035});
@@ -1767,7 +2428,7 @@ function makeChunk(){
   const mesh=new THREE.Mesh(geo,groundMat); mesh.frustumCulled=false; scene.add(mesh);
   const decal=new THREE.Mesh(makeDecalGeo(),decalMat); decal.frustumCulled=false; scene.add(decal);
   const holder=new THREE.Group(); scene.add(holder);
-  const c={mesh:mesh,geo:geo,decal:decal,z0:0,obs:[],cones:[],deco:[],carsList:[]};
+  const c={mesh:mesh,geo:geo,decal:decal,z0:0,obs:[],cones:[],deco:[],carsList:[],weeds:[]};
   const add=(f,n,arr,coll)=>{for(let k=0;k<n;k++){const o=f();holder.add(o);arr.push(o);if(coll)c.obs.push(o);}};
   add(makeCar,CARS,c.carsList,true);
   add(makeBus,BUSES,c.carsList,true);
@@ -1777,6 +2438,7 @@ function makeChunk(){
   add(makeDeadTree,TREES,c.deco,false);
   add(makePole,POLES,c.deco,false);
   add(makeSign,SIGNS,c.deco,false);
+  add(makeWeed,WEEDS,c.weeds,false);
   c.props=[];
   for(const kind of["skid","cage","bench","stacker","cartons","cartons"]){const o=makeWarehouseProp(kind);holder.add(o);c.props.push(o);c.obs.push(o);}
   const pal=new THREE.Group();
@@ -1785,7 +2447,10 @@ function makeChunk(){
   pal.visible=false; holder.add(pal); c.pallet=pal;
   const bt=makeBaton(); bt.scale.setScalar(1.9); holder.add(bt); c.baton=bt;
   const halo=new THREE.Sprite(haloMat.clone()); halo.material.map=dotTex; halo.scale.set(2.4,2.4,1); bt.add(halo); bt.userData.halo=halo;
-  const beam=new THREE.Mesh(cylG,beamMat); beam.scale.set(0.55,9,0.55); beam.position.y=3.5; bt.add(beam); bt.userData.beam=beam;
+  const beam=new THREE.Mesh(cylG,beamMat.clone()); beam.scale.set(0.55,9,0.55); beam.position.y=3.5; bt.add(beam); bt.userData.beam=beam;
+  const hm=makeHelmet();hm.visible=false;holder.add(hm);c.helmet=hm;
+  const hh=new THREE.Sprite(haloMat.clone());hh.material.map=dotTex;hh.material.color.setHex(0xffd83d);hh.scale.set(2.0,2.0,1);hm.add(hh);hm.userData.halo=hh;
+  const hb=new THREE.Mesh(cylG,beamMat2.clone());hb.material.color.setHex(0xffd84a);hb.scale.set(.40,7,.40);hb.position.y=2.9;hm.add(hb);hm.userData.beam=hb;
   c.boulders=[];
   const mBoulder=M(0xA8927A,true);
   for(let k=0;k<BOULDERS;k++){ const o=new THREE.Mesh(new THREE.DodecahedronGeometry(1,0),mBoulder); holder.add(o); c.boulders.push(o); }
@@ -1813,7 +2478,8 @@ function fillGround(c,z0){
     const n1=Math.sin(x*0.37+z*0.21)*Math.sin(x*0.11-z*0.29)*0.5+0.5;
     const n2=Math.sin(x*1.3+z*0.7)*0.5+0.5;
     let r,g,b;
-    const road=smooth((ROAD_HALF+0.8-au)/1.6);           // 1=아스팔트
+    let road=smooth((ROAD_HALF+0.8-au)/1.6);           // 1=아스팔트
+    const roadFade=1-smooth((z-END_ROAD_FADE)/(END_FIELD-END_ROAD_FADE));road*=roadFade;
     // 아스팔트: 회색, 균열·먼지
     const crack=Math.pow(Math.sin(x*0.9+z*1.7)*Math.sin(x*0.35-z*0.8)*0.5+0.5,6.0);
     let ar=0.47+n1*0.10-crack*0.18+st*0.12, ag=0.45+n1*0.09-crack*0.18+st*0.11, ab=0.49+n1*0.07-crack*0.16+st*0.10;
@@ -1824,6 +2490,17 @@ function fillGround(c,z0){
     const grass=smooth(n1*1.6-0.5);
     let dr=lerp(0.82,0.66,grass)+n2*0.05, dg=lerp(0.68,0.62,grass)+n2*0.04, db=lerp(0.47,0.30,grass)+n2*0.02;
     dr-=st*0.16; dg-=st*0.14; db-=st*0.10;
+    const farm=smooth((z-1360)/180)*(1-smooth((z-2580)/260));
+    dr=lerp(dr,.45+n1*.09,farm);dg=lerp(dg,.43+n1*.12,farm);db=lerp(db,.25+n1*.04,farm);
+    const urban=smooth((z-3250)/220)*(1-smooth((z-4300)/180));
+    dr=lerp(dr,.43+n1*.05,urban);dg=lerp(dg,.43+n1*.05,urban);db=lerp(db,.42+n1*.05,urban);
+    const day2=smooth((z-UNDER_END)/(DAY_RETURN_FULL-UNDER_END));
+    const nightWild=smooth((z-4620)/300)*(1-day2);dr=lerp(dr,.27+n1*.05,nightWild*.42);dg=lerp(dg,.31+n1*.06,nightWild*.42);db=lerp(db,.29+n1*.05,nightWild*.42);
+    const under=smooth((z-(SINK_START+120))/180)*(1-smooth((z-(UNDER_END-160))/200));
+    ar=lerp(ar,.20+n1*.04,under);ag=lerp(ag,.22+n1*.04,under);ab=lerp(ab,.23+n1*.04,under);
+    dr=lerp(dr,.18+n1*.04,under);dg=lerp(dg,.21+n1*.04,under);db=lerp(db,.20+n1*.035,under);
+    dr=lerp(dr,.61+n1*.08,day2*.65);dg=lerp(dg,.57+n1*.08,day2*.65);db=lerp(db,.43+n1*.05,day2*.65);
+    const finalPlain=smooth((z-END_ROAD_FADE)/(END_FIELD-END_ROAD_FADE));dr=lerp(dr,.70+n1*.08,finalPlain);dg=lerp(dg,.59+n1*.06,finalPlain);db=lerp(db,.42+n1*.04,finalPlain);
     r=lerp(dr,ar,road); g=lerp(dg,ag,road); b=lerp(db,ab,road);
     const inside=(1-smooth((z-155)/18))*smooth((35-au)/3);
     if(inside>0){
@@ -1837,6 +2514,7 @@ function fillGround(c,z0){
   c.mesh.position.set(0,0,z0+CH_LEN*0.5);
 }
 
+function roadFurnitureSuppressed(z){return (z>SINK_START+35&&z<UNDER_START+55)||(z>CAVERN_START-30&&z<PIPE_END+75)||z>END_ROAD_FADE;}
 function fillDecal(c,z0){
   const geo=c.decal.geometry, pos=geo.attributes.position, col=geo.attributes.color, nor=geo.attributes.normal;
   let q=0;
@@ -1851,6 +2529,7 @@ function fillDecal(c,z0){
   const strip=(u0,u1,color,zA,zB,step,lift)=>{
     for(let z=zA;z<zB;z+=step){
       const z2=Math.min(zB,z+step);
+      if(roadFurnitureSuppressed((z+z2)*.5))continue;
       const c1=cx(z), c2=cx(z2);
       const y1=H(c1+u0,z)+lift, y2=H(c1+u1,z)+lift, y3=H(c2+u1,z2)+lift, y4=H(c2+u0,z2)+lift;
       quad([c1+u0,y1,z],[c1+u1,y2,z],[c2+u1,y3,z2],[c2+u0,y4,z2],color);
@@ -1860,6 +2539,7 @@ function fillDecal(c,z0){
   const fence=(u,color,h0,h1,zA,zB,step)=>{
     for(let z=zA;z<zB;z+=step){
       const z2=Math.min(zB,z+step);
+      if(roadFurnitureSuppressed((z+z2)*.5))continue;
       const c1=cx(z), c2=cx(z2);
       const y1=H(c1+u,z), y2=H(c2+u,z2);
       quad([c1+u,y1+h0,z],[c1+u,y1+h1,z],[c2+u,y2+h1,z2],[c2+u,y2+h0,z2],color);
@@ -1880,6 +2560,7 @@ function fillDecal(c,z0){
   for(const s of[-1,1]){
     fence(s*(RAIL+0.55), CLR.rail, 0.45,0.78, zA,zB,3);
     for(let z=zA+1;z<zB;z+=4){
+      if(roadFurnitureSuppressed(z))continue;
       const cc=cx(z), y=H(cc+s*(RAIL+0.55),z);
       const u=cc+s*(RAIL+0.55);
       quad([u-0.07,y,z-0.07],[u-0.07,y+0.8,z-0.07],[u+0.07,y+0.8,z+0.07],[u+0.07,y,z+0.07],CLR.post);
@@ -1894,40 +2575,54 @@ function fillObjects(c,z0){
   const rnd=mulberry(Math.floor(z0/CH_LEN)*7919+13+SEED*104729);
   const events=courseEvents(z0,z0+CH_LEN),midZ=z0+CH_LEN*.5;
   c.beat=courseBeatAt(midZ);c.events=events;
-  for(const o of c.obs){o.visible=false;o.userData.role='';}
+  for(const o of c.obs){o.visible=false;o.userData.role='';o.userData.deflect=false;o.userData.deflectSide=0;o.scale.setScalar(1);}
   c.pallet.visible=false;c.pallet.userData.taken=false;c.pallet.userData.role='';
   c.baton.visible=false;c.baton.userData.taken=false;c.baton.userData.role='';
-  let carIndex=0,debrisIndex=0;
+  c.helmet.visible=false;c.helmet.userData.taken=false;c.helmet.userData.role='';
+  let carIndex=0;
   for(const e of events){
     let o;
     if(e.kind==='pallet'){
       o=c.pallet;const kind=e.kindName||(ihash(Math.floor(e.z)*31+SEED*7)<.5?'aj':'kpp');
       o.userData.kind=kind;o.userData.kinds.aj.visible=kind==='aj';o.userData.kinds.kpp.visible=kind==='kpp';
     }else if(e.kind==='baton')o=c.baton;
+    else if(e.kind==='helmet')o=c.helmet;
     else if(e.kind==='car'){
       const pool=c.carsList.filter(x=>x.userData.h<2.5);o=pool[carIndex++];
       if(o){const p=carPaints[Math.floor(rnd()*carPaints.length)];for(const m of o.userData.paint)m.material=p;o.userData.rust.visible=rnd()<.72;}
-    }else if(e.kind==='debris')o=c.deco.filter(x=>x.userData.hits)[debrisIndex++];
+    }else if(e.kind==='debris'||e.kind==='rubble')o=c.deco.find(x=>x.userData.propKind===e.kind&&!x.visible);
     else o=c.props.find(x=>x.userData.propKind===e.kind&&!x.visible);
     if(!o)throw new Error('Course object capacity exceeded: '+e.kind+' at '+e.z);
-    const x=cx(e.z)+e.u;o.position.set(x,H(x,e.z)+(e.kind==='baton'?1.25:e.kind==='pallet'?.01:0),e.z);
-    o.rotation.set(0,e.yaw||0,0);o.visible=true;o.userData.role=e.role||'edge-prop';o.userData.courseId=e.id;
+    const x=cx(e.z)+e.u,extraY=e.kind==='baton'?1.25:e.kind==='helmet'?1.05:e.kind==='pallet'?.01:0;o.position.set(x,H(x,e.z)+extraY,e.z);
+    o.rotation.set(0,e.yaw||0,0);o.scale.setScalar(e.scale||1);o.visible=true;o.userData.role=e.role||'edge-prop';o.userData.courseId=e.id;o.userData.deflect=!!e.deflect;o.userData.deflectSide=e.deflectSide||0;
   }
   // Familiar roadside scenery remains, but never occupies an authored escape lane.
   c.cones.forEach((o,k)=>{
     const z=z0+(k+.5)*(CH_LEN/CONES),u=(steepLane(z)?1:-1)*(RAIL-1.0),x=cx(z)+u;
-    o.position.set(x,H(x,z),z);o.rotation.set(0,0,0);o.userData.knocked=false;o.visible=z>=188;
+    o.position.set(x,H(x,z),z);o.rotation.set(0,0,0);o.userData.knocked=false;o.visible=z>=188&&!(z>SINK_WARN&&z<DAY_RETURN_FULL+120)&&z<END_QUIET_START;
   });
   let ti=0;
   for(const o of c.deco){
     if(o.userData.hits)continue;
-    const z=z0+rnd()*CH_LEN,side=ti++%2?1:-1,u=side*(ROAD_HALF+3+rnd()*18),x=cx(z)+u;
-    o.position.set(x,H(x,z)-.2,z);o.rotation.set(0,rnd()*6.28,0);o.scale.setScalar(.85+rnd()*.6);o.visible=z>=188;
+    const z=z0+rnd()*CH_LEN,inStory=z>SINK_WARN&&z<DAY_RETURN_FULL+120,side=ti++%2?1:-1,u=side*(ROAD_HALF+5.5+rnd()*20),x=cx(z)+u;
+    o.visible=z>=188&&!inStory&&z<END_QUIET_START;if(!o.visible)continue;
+    o.position.set(x,H(x,z)-.06,z);o.scale.setScalar(.85+rnd()*.6);
+    // Random roadside poles stay planted. Perfectly horizontal poles looked like intentional barrier bars.
+    const lean=o.userData.decoType==='pole'?.10:.16;o.rotation.set((rnd()-.5)*lean,rnd()*6.28,(rnd()-.5)*lean);
   }
   for(const o of c.boulders){
-    const z=z0+rnd()*CH_LEN,side=rnd()<.5?-1:1,u=side*(ROAD_HALF+2.5+rnd()*22),x=cx(z)+u;
+    const z=z0+rnd()*CH_LEN,insideCave=z>UNDER_START&&z<UNDER_END,side=rnd()<.5?-1:1,u=side*(ROAD_HALF+2.5+rnd()*(insideCave?10:22)),x=cx(z)+u;
     o.position.set(x,H(x,z)-.3,z);o.rotation.set(rnd()*3,rnd()*3,rnd()*3);
-    o.scale.set(.8+rnd()*1.4,.6+rnd()*.9,.8+rnd()*1.4);o.visible=z>=188;
+    o.scale.set(.8+rnd()*1.4,.6+rnd()*.9,.8+rnd()*1.4);o.visible=z>=188&&!(z>SINK_WARN&&z<DAY_RETURN_FULL+120)&&z<END_QUIET_START;
+  }
+  // Cracks and verges grow weeds. They are tiny, non-colliding, and sparse in the actual driving line.
+  for(const o of c.weeds){
+    const z=z0+rnd()*CH_LEN;if(z<1180||z>END_FIELD+120){o.visible=false;continue;}
+    const insideCave=z>UNDER_START&&z<CAVERN_START,finalField=z>END_ROAD_FADE;if(z>GLIDE_START-40&&z<PIPE_END+80){o.visible=false;continue;}
+    let u;if(insideCave)u=(rnd()<.5?-1:1)*(10.6+rnd()*6.0);else if(finalField)u=(rnd()-.5)*65;else if(rnd()<.30)u=(rnd()<.5?-1:1)*(2.0+rnd()*8.8);else u=(rnd()<.5?-1:1)*(ROAD_HALF-.4+rnd()*5.5);
+    const x=cx(z)+u,mat=insideCave?mWeedMoss:(z>UNDER_END?mWeedGreen:mWeedDry);
+    o.position.set(x,H(x,z)+.025,z);o.rotation.set(0,rnd()*6.28,(rnd()-.5)*.16);o.scale.setScalar(.65+rnd()*1.25);o.visible=true;
+    for(const blade of o.userData.blades)blade.material=mat;
   }
 }
 
@@ -1936,77 +2631,32 @@ function fillChunk(c,z0){
   fillGround(c,z0);
   fillDecal(c,z0);
   fillObjects(c,z0);
-  for(const o of [...c.cones,...c.deco,...c.boulders]){
+  for(const o of [...c.cones,...c.deco,...c.boulders,...c.weeds]){
     if(o.position.z<188&&!o.userData.hits)o.visible=false;
   }
-  for(const o of [c.pallet,c.baton])if(o.visible&&o.position.z>105&&o.position.z<188){
+  for(const o of [c.pallet,c.baton,c.helmet])if(o.visible&&o.position.z>105&&o.position.z<188){
     const z=o.position.z,cc=cx(z),b=JockeyWorldData.driveBounds(z),lift=o===c.baton?1.25:.01;
     o.position.x=clamp(o.position.x,cc+b[0]+.8,cc+b[1]-.8);
     o.position.y=H(o.position.x,z)+lift;
   }
+  // Opening rows: readable gaps, but crossing the line always awards the item.
+  const INTRO_ROW_COUNT=17,INTRO_ROW_GAP=1.40;
+  for(const o of[c.pallet,c.baton]){
+    o._introRow=o._introRow||[];for(const q of o._introRow)q.visible=false;
+    o._introLine=o.visible&&(o.userData.role==='first-pallet'||o.userData.role==='first-baton');if(!o._introLine)continue;
+    const z=o.position.z,yOffset=o===c.baton?1.25:.01;o.position.set(cx(z),H(cx(z),z)+yOffset,z);
+    const [lo,hi]=JockeyWorldData.driveBounds(z);
 
-
-
-
-  // 첫 파렛트·경광봉만 가로 17개.
-  // 간격은 살짝 띄우되 줄 전체 폭은 기존과 거의 같게 유지.
-  const INTRO_ROW_COUNT = 17;
-  const INTRO_ROW_GAP = 1.40;
-
-  for(const o of [c.pallet,c.baton]){
-    o._introRow=o._introRow||[];
-
-    // 이전 실행에서 만들어진 복제본은 일단 전부 감춤.
-    for(const q of o._introRow)q.visible=false;
-
-    o._introLine=o.visible&&(
-      o.userData.role==='first-pallet'||
-      o.userData.role==='first-baton'
-    );
-
-    if(!o._introLine)continue;
-
-    const z=o.position.z;
-    const yOffset=o===c.baton?1.25:.01;
-
-    // 가운데 원본.
-    o.position.set(
-      cx(z),
-      H(cx(z),z)+yOffset,
-      z
-    );
-
-    // 가운데를 제외한 좌우 복제본.
-    Array.from(
-      {length:INTRO_ROW_COUNT},
-      (_,i)=>(i-(INTRO_ROW_COUNT-1)/2)*INTRO_ROW_GAP
-    )
-    .filter(u=>u!==0)
-    .forEach((u,i)=>{
-      let q=o._introRow[i];
-
-      if(!q){
-        q=o.clone();
-        o.parent.add(q);
-        o._introRow[i]=q;
-      }
-
-      q.position.set(
-        cx(z)+u,
-        H(cx(z)+u,z)+yOffset,
-        z
-      );
-
-      q.rotation.copy(o.rotation);
-      q.visible=true;
+Array.from(
+  {length:INTRO_ROW_COUNT},
+  (_,i)=>(i-(INTRO_ROW_COUNT-1)/2)*INTRO_ROW_GAP
+).filter(
+  u=>u!==0&&u>lo+.3&&u<hi-.3
+).forEach((u,i)=>{
+      let q=o._introRow[i];if(!q){q=o.clone();o.parent.add(q);o._introRow[i]=q;}
+      q.position.set(cx(z)+u,H(cx(z)+u,z)+yOffset,z);q.rotation.copy(o.rotation);q.scale.copy(o.scale);q.visible=true;
     });
   }
-
-
-
-
-
-
 }
 for(let i=0;i<CHUNKS;i++){ const c=makeChunk(); fillChunk(c,i*CH_LEN-CH_LEN*2); }
 
@@ -2217,6 +2867,77 @@ function setTiller(h){
 
 setTiller(0);
 
+/* 엔딩 벌판: 플레이어가 타는 바로 그 자키 모델을 인스턴스로 복제한다. */
+function buildEndingJackField(){
+  jack.updateMatrixWorld(true);
+  const invJack=new THREE.Matrix4().copy(jack.matrixWorld).invert(),sources=[],bounds=new THREE.Box3();
+  jack.traverse(o=>{if(!o.isMesh)return;o.updateMatrixWorld(true);if(!o.geometry.boundingBox)o.geometry.computeBoundingBox();const rel=new THREE.Matrix4().multiplyMatrices(invJack,o.matrixWorld);bounds.union(o.geometry.boundingBox.clone().applyMatrix4(rel));sources.push({geo:o.geometry,mat:o.material,rel});});
+  const rr=mulberry(88421+SEED*3571),placements=[],paint=[0xf26b1d,0xe1b522,0xb94d32,0x7c8a55,0x9a6b36],dark=[0xa94012,0x8c6810,0x713020,0x485337,0x5e4123];
+ 
+
+
+
+  function addJack(z,u,fallen,sc,yaw,tip){
+    const x=cx(z)+u;
+    const rot=new THREE.Euler(
+      fallen?tip:0,
+      yaw,
+      fallen?(rr()-.5)*.50:(rr()-.5)*.06,
+      'XYZ'
+    );
+    const q=new THREE.Quaternion().setFromEuler(rot);
+    const scale=new THREE.Vector3(sc,sc,sc);
+    const rs=new THREE.Matrix4().compose(new THREE.Vector3(),q,scale);
+
+    const v=new THREE.Vector3(),mx=new THREE.Matrix4();
+    let support=-Infinity;
+
+    for(const src of sources){
+      mx.multiplyMatrices(rs,src.rel);
+      const pos=src.geo.attributes.position;
+
+      for(let i=0;i<pos.count;i++){
+        v.fromBufferAttribute(pos,i).applyMatrix4(mx);
+        support=Math.max(support,H(x+v.x,z+v.z)-v.y);
+      }
+    }
+
+    // 누운 자키는 더 깊게, 서 있는 자키는 바퀴 쪽만 묻힌다.
+    const y=support-(fallen?.42:.18);
+    const index=Math.floor(rr()*paint.length);
+
+    placements.push({
+      matrix:new THREE.Matrix4().compose(new THREE.Vector3(x,y,z),q,scale),
+      paint:paint[index],
+      dark:dark[index]
+    });
+  }
+
+  // Hand-placed exact-size jacks appear in the player's view before the wide field is revealed.
+  const anchors=[
+    [END_FIELD+55,-9,1,.96,.20,1.34],[END_FIELD+105,12,1,.93,2.40,-1.28],[END_FIELD+165,-17,0,.98,1.20,0],
+    [END_FIELD+225,7,1,.95,4.65,1.42],[END_FIELD+292,-10,1,.91,5.30,-1.36],[END_FIELD+355,18,0,.97,3.00,0],
+    [END_FIELD+425,-22,1,.94,.80,1.22],[END_FIELD+500,10,1,.98,2.00,-1.48],[END_FIELD+565,-13,0,.92,4.10,0],
+    [END_FIELD+630,21,1,.96,5.70,1.40],[ENDING_AT-55,-12,1,.94,1.55,-1.34],[ENDING_AT+42,14,1,.97,4.30,1.32]
+  ];
+  for(const [z,u,f,sc,yaw,tip] of anchors)addJack(z,u,!!f,sc,yaw,tip);
+  const total=innerWidth<680?70:104;
+  for(let i=0;i<total;i++){
+    let z=END_FIELD+35+Math.pow(rr(),.76)*(ENDING_AT-END_FIELD+650),side=rr()<.5?-1:1,u=side*(8.0+Math.pow(rr(),.72)*82);
+    if(z>ENDING_AT-135&&z<ENDING_AT+120&&Math.abs(u)<8)u=side*(10+rr()*16);
+    const fallen=rr()<.76,sc=.89+rr()*.10,tip=(1.10+rr()*.48)*(rr()<.5?-1:1);addJack(z,u,fallen,sc,rr()*Math.PI*2,tip);
+  }
+  const group=new THREE.Group();group.name='exact-player-jack-ending-field';scene.add(group);
+  for(const src of sources){
+    const recolor=src.mat===mJack||src.mat===mJackDark,mat=recolor?new THREE.MeshLambertMaterial({color:0xffffff}):src.mat.clone(),im=new THREE.InstancedMesh(src.geo,mat,placements.length),mx=new THREE.Matrix4();
+    im.frustumCulled=false;im.name='abandoned-exact-jack-part';
+    placements.forEach((pl,i)=>{mx.multiplyMatrices(pl.matrix,src.rel);im.setMatrixAt(i,mx);if(recolor)im.setColorAt(i,new THREE.Color(src.mat===mJack?pl.paint:pl.dark).convertSRGBToLinear());});
+    im.instanceMatrix.needsUpdate=true;if(im.instanceColor)im.instanceColor.needsUpdate=true;group.add(im);
+  }
+  return group;
+}
+const endingJackField=buildEndingJackField();
+
 
 /* 사람: 포크 위에 서서 핸들을 잡는다 */
 const legs=[], knees=[];
@@ -2288,6 +3009,7 @@ clipboard.add(mesh(boxG,M(0xF4F1EA),0.22,0.30,0.012,0,-0.01,0.012));
 clipboard.add(mesh(boxG,M(0x9A9187),0.12,0.04,0.03,0,0.16,0.01));
 clipboard.position.set(0.10,-0.70,0.12); clipboard.rotation.set(0.15,-1.1,0.1); clipboard.visible=false; arms[1].add(clipboard);
 
+/* 손에 든 경광봉 (무적 중에만 보인다) */
 const handBaton=makeBaton(); handBaton.visible=false; handBaton.position.set(0,-0.72,0.05); handBaton.rotation.x=Math.PI+0.35; arms[1].add(handBaton);
 
 /* 인트로 소품: 옆에 놓인 파렛트 */
@@ -2302,28 +3024,58 @@ const shadowTexture=(function(){
  ctx.fillStyle=g;ctx.fillRect(0,0,128,128);
  return new THREE.CanvasTexture(c);
 })();
-const shadow=new THREE.Mesh(new THREE.PlaneGeometry(2.6,2.6),
+const shadow=new THREE.Mesh(new THREE.PlaneGeometry(2.2,2.2),
  new THREE.MeshBasicMaterial({color:0x000000,map:shadowTexture,transparent:true,opacity:.38,
   depthWrite:false,depthTest:true,fog:false,polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-1}));
 shadow.name='rider-contact-shadow';shadow.rotation.x=-Math.PI/2;shadow.scale.set(1,1.3,1);scene.add(shadow);
+const moonShadowTexture=(function(){
+ const c=document.createElement('canvas');c.width=160;c.height=512;const ctx=c.getContext('2d');ctx.filter='blur(5px)';
+ const g=ctx.createLinearGradient(0,20,0,500);g.addColorStop(0,'rgba(0,0,0,.60)');g.addColorStop(.72,'rgba(0,0,0,.22)');g.addColorStop(1,'rgba(0,0,0,0)');ctx.fillStyle=g;
+ ctx.beginPath();ctx.ellipse(80,72,24,50,0,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.arc(80,24,15,0,Math.PI*2);ctx.fill();
+ ctx.fillRect(62,105,36,250);ctx.fillRect(28,170,104,24);ctx.fillRect(18,334,124,18);ctx.fillRect(37,350,18,110);ctx.fillRect(105,350,18,110);
+ return new THREE.CanvasTexture(c);
+})();
+const MOON_SHADOW_SEGMENTS=10,moonShadowGeo=new THREE.BufferGeometry(),moonShadowPos=new Float32Array(MOON_SHADOW_SEGMENTS*4*3),moonShadowUv=new Float32Array(MOON_SHADOW_SEGMENTS*4*2),moonShadowIdx=new Uint16Array(MOON_SHADOW_SEGMENTS*6);
+for(let i=0;i<MOON_SHADOW_SEGMENTS;i++){const v=i*4,j=i*6,t0=i/MOON_SHADOW_SEGMENTS,t1=(i+1)/MOON_SHADOW_SEGMENTS;moonShadowUv.set([0,1-t0,1,1-t0,0,1-t1,1,1-t1],v*2);moonShadowIdx.set([v,v+1,v+2,v+2,v+1,v+3],j);}
+moonShadowGeo.setAttribute('position',new THREE.BufferAttribute(moonShadowPos,3));moonShadowGeo.setAttribute('uv',new THREE.BufferAttribute(moonShadowUv,2));moonShadowGeo.setIndex(new THREE.BufferAttribute(moonShadowIdx,1));
+const moonShadow=new THREE.Mesh(moonShadowGeo,new THREE.MeshBasicMaterial({color:0x02050a,map:moonShadowTexture,transparent:true,opacity:0,depthWrite:false,depthTest:true,fog:false,polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-2}));
+moonShadow.name='long-moon-shadow';moonShadow.frustumCulled=false;scene.add(moonShadow);
+function updateMoonShadow(len,opacity,width){
+ const sdx=.80,sdz=-.60,plx=-sdz,plz=sdx,pos=moonShadowGeo.attributes.position;
+ for(let i=0;i<MOON_SHADOW_SEGMENTS;i++){
+  const t0=i/MOON_SHADOW_SEGMENTS,t1=(i+1)/MOON_SHADOW_SEGMENTS,w0=width*(.48+.52*t0),w1=width*(.48+.52*t1);
+  const c0x=P.x+sdx*len*t0,c0z=P.z+sdz*len*t0,c1x=P.x+sdx*len*t1,c1z=P.z+sdz*len*t1;
+  const pts=[[c0x-plx*w0,H(c0x-plx*w0,c0z-plz*w0)+.020,c0z-plz*w0],[c0x+plx*w0,H(c0x+plx*w0,c0z+plz*w0)+.020,c0z+plz*w0],[c1x-plx*w1,H(c1x-plx*w1,c1z-plz*w1)+.020,c1z-plz*w1],[c1x+plx*w1,H(c1x+plx*w1,c1z+plz*w1)+.020,c1z+plz*w1]];
+  for(let k=0;k<4;k++)pos.setXYZ(i*4+k,...pts[k]);
+ }
+ pos.needsUpdate=true;moonShadowGeo.computeBoundingSphere();moonShadow.material.opacity=opacity;
+}
 
 /* ==================================================================
    8. 상태 / 물리
    ================================================================== */
 const P={x:0,z:0,y:0,vx:0,vz:0,vy:0,ground:true,air:0,
   steer:0,steerT:0,crouch:0,crouchT:0,hold:0,tipMeter:0,boost:0,kickAnim:0,spin:0,
-  hits:0,inv:0,top:0,shake:0,alive:false,dist:0,scrape:0,power:0,pallets:0,palMax:0,t0:0};
-const courseRun={time:0,pallets:0,batons:0,smashes:0,door:false,doorTime:0,doorSpeed:0};
-let best=0, running=false;
+  hits:0,maxLives:LIVES,inv:0,top:0,shake:0,alive:false,dist:0,scrape:0,power:0,pallets:0,palMax:0,t0:0,
+  glideMode:false,glideOffset:0,pipeMode:false,pipeAngle:0,bumpIndex:-1};
+const courseRun={time:0,pallets:0,batons:0,helmets:0,smashes:0,door:false,doorTime:0,doorSpeed:0};
+const story={ending:false,t:0,shown:false,startedAt:0};
+let best=0, running=false,gamePaused=false;
 try{ best=parseInt(localStorage.getItem("jockey_best")||"0",10)||0; }catch(e){}
 
 function reset(){
-  Object.assign(courseRun,{time:0,pallets:0,batons:0,smashes:0,door:false,doorTime:0,doorSpeed:0});
+
+    P.diveMode=false;
+P.pipeExitFrom=null;
+
+
+  Object.assign(courseRun,{time:0,pallets:0,batons:0,helmets:0,smashes:0,door:false,doorTime:0,doorSpeed:0});
+  Object.assign(story,{ending:false,t:0,shown:false,startedAt:0});
   world3D.resetDock();
-  P.onRail=false;P.jump=false;P.jumpImpulse=0;
-  P.x=cx(0)+ (steepLane(0)?-1:1)*5.5; P.z=0; P.vx=0; P.vz=12; P.vy=0; P.ground=true; P.air=0;
+  P.onRail=false;P.jump=false;P.jumpImpulse=0;P.glideMode=false;P.glideOffset=0;P.pipeMode=false;P.pipeAngle=0;P.bumpIndex=-1;P.maxLives=LIVES;
+  P.x=cx(0)+ (steepLane(0)?-1:1)*5.5; P.z=0; P.vx=0; P.vz=8; P.vy=0; P.ground=true; P.air=0;
   P.steer=0;P.steerT=0;P.crouch=0;P.crouchT=0;P.hold=0;P.tipMeter=0;P.boost=0;P.kickAnim=0;P.spin=0;
-  P.hits=0;P.inv=0;P.top=0;P.shake=0;P.dist=0;P.alive=true;P.scrape=0;P.power=0;P.pallets=0;P.palMax=0;P.t0=performance.now();
+  P.hits=0;P.maxLives=LIVES;P.inv=0;P.top=0;P.shake=0;P.dist=0;P.alive=true;P.scrape=0;P.power=0;P.pallets=0;P.palMax=0;P.t0=performance.now();
   stackKinds.length=0; setStack(0);
   for(const pc of pieces) pc.m.visible=false;
   P.y=H(P.x,P.z);
@@ -2342,23 +3094,32 @@ function recycle(){
   }
   refreshRoadTail();
 }
+function routeBlockHit(o){
+  const side=o.userData.deflectSide||((P.x<o.position.x)?-1:1),target=cx(P.z)+side*7.0;
+  P.x=lerp(P.x,target,.34);P.vx+=side*5.2;P.vz=Math.max(8,P.vz*.72);P.steer=side*.65;P.steerT=side*.35;
+  P.inv=.62;P.shake=Math.max(P.shake,.38);P.tipMeter=0;
+  SFX.cone();emit(dust,o.position.x,o.position.y+.5,o.position.z,side*3,2,-2,4,15,.75);
+  if(navigator.vibrate)try{navigator.vibrate(18);}catch(e){}
+}
 function hitTest(){
-  const lift=P.ground?0:(P.y-H(P.x,P.z));      // 공중이면 낮은 것은 넘어간다
+  if(P.glideMode||P.pipeMode)return;
+  const lift=P.ground?0:(P.y-H(P.x,P.z));
   for(const c of chunks){
-    if(Math.abs(c.z0+CH_LEN*0.5-P.z)>CH_LEN*1.2) continue;
-
+    if(Math.abs(c.z0+CH_LEN*.5-P.z)>CH_LEN*1.2)continue;
     for(const o of c.obs){
-      if(!o.visible||(P.inv>0&&!o.userData.soft)) continue;
-      if(lift>(o.userData.h||1.5)+(o.rotation.z!==0?0.9:0)) continue;
-      const dz0=o.position.z-P.z; if(dz0<-12||dz0>14) continue;
-      const cy=Math.cos(o.rotation.y), sy=Math.sin(o.rotation.y);
+      if(!o.visible||(P.inv>0&&!o.userData.soft))continue;
+      const sc=Math.max(.1,o.scale.x||1);
+      if(lift>(o.userData.h||1.5)*sc+(o.rotation.z!==0?.9:0))continue;
+      const dz0=o.position.z-P.z;if(dz0<-12*sc||dz0>14*sc)continue;
+      const cy=Math.cos(o.rotation.y),sy=Math.sin(o.rotation.y);
       for(const h of o.userData.hits){
-        const wx=o.position.x+h.x*cy+h.z*sy, wz=o.position.z-h.x*sy+h.z*cy;
-        const dx=wx-P.x, dz=wz-P.z, rr=h.r+0.55;
+        const wx=o.position.x+(h.x*cy+h.z*sy)*sc,wz=o.position.z+(-h.x*sy+h.z*cy)*sc;
+        const dx=wx-P.x,dz=wz-P.z,rr=h.r*sc+.55;
         if(dx*dx+dz*dz<rr*rr){
+          if(o.userData.deflect){routeBlockHit(o);return;}
           if(o.userData.soft){softPropHit(o);return;}
-          if(P.power>0){ smashHit(o); return; }
-          crash(false); return;
+          if(P.power>0){smashHit(o);return;}
+          crash(false);return;
         }
       }
     }
@@ -2391,59 +3152,38 @@ function coneTest(){
     }
   }
 }
+
+function revealIntroItems(){
+  for(const c of chunks)for(const o of[c.pallet,c.baton]){
+    if(!o._introLine)continue;
+
+    // 28m 앞에서 나타나기 시작하고, 16m 앞에서 원래 크기가 된다.
+    const k=smooth((28-(o.position.z-P.z))/12);
+
+    o.visible=!o.userData.taken && k>0 && P.z<o.position.z+3;
+    o.scale.setScalar(Math.max(.001,k));
+
+    for(const q of o._introRow||[]){
+      q.visible=o.visible;
+      q.scale.copy(o.scale);
+    }
+  }
+}
+
+
+
 function pickupTest(){
   const lift=P.ground?0:(P.y-H(P.x,P.z));
-
-  // 첫 줄은 좌우 위치·점프 여부와 무관하게 통과하면 획득.
-  // 그 이후 아이템은 기존 거리·높이 판정 유지.
-  const hit=(o,canReach)=>o._introLine
-    ? P.z>=o.position.z-1.9
-    : canReach&&Math.hypot(o.position.x-P.x,o.position.z-P.z)<1.9;
-
-  const take=o=>{
-    o.visible=false;
-    o.userData.taken=true;
-    for(const q of o._introRow||[])q.visible=false;
-  };
-
+  const hit=(o,canReach)=>o._introLine?P.z>=o.position.z-1.9:canReach&&Math.hypot(o.position.x-P.x,o.position.z-P.z)<1.9;
+  const take=o=>{o.visible=false;o.userData.taken=true;for(const q of o._introRow||[])q.visible=false;};
   for(const c of chunks){
-   
-   
-   
-   
-    // 복제 경광봉도 원본과 함께 회전하고 떠오름.
-    for(const o of [c.pallet,c.baton])if(o._introLine&&o.visible){
-      const yOffset=o.position.y-H(o.position.x,o.position.z);
-      for(const q of o._introRow){
-        q.rotation.copy(o.rotation);
-        q.position.y=H(q.position.x,q.position.z)+yOffset;
-      }
-    }
-
+    for(const o of[c.pallet,c.baton])if(o._introLine&&o.visible){const yOffset=o.position.y-H(o.position.x,o.position.z);for(const q of o._introRow){q.rotation.copy(o.rotation);q.position.y=H(q.position.x,q.position.z)+yOffset;}}
     const pl=c.pallet;
-    if(pl.visible&&!pl.userData.taken&&hit(pl,lift<1.5)){
-      take(pl);
-      stackKinds[P.pallets]=pl.userData.kind||'aj';
-      P.pallets++;
-      courseRun.pallets++;
-      P.palMax=Math.max(P.palMax,P.pallets);
-      setStack(P.pallets);
-      SFX.pallet(P.pallets);
-      P.shake=Math.max(P.shake,.25);
-      emit(dust,P.x,P.y+.3,P.z,0,2,0,3,8,.6);
-      if(navigator.vibrate)try{navigator.vibrate(12);}catch(e){}
-    }
-
+    if(pl.visible&&!pl.userData.taken&&hit(pl,lift<1.5)){take(pl);stackKinds[P.pallets]=pl.userData.kind||'aj';P.pallets++;courseRun.pallets++;P.palMax=Math.max(P.palMax,P.pallets);setStack(P.pallets);SFX.pallet(P.pallets);P.shake=Math.max(P.shake,.25);emit(dust,P.x,P.y+.3,P.z,0,2,0,3,8,.6);if(navigator.vibrate)try{navigator.vibrate(12);}catch(e){}}
     const b=c.baton;
-    if(b.visible&&!b.userData.taken&&hit(b,lift<=2.6)){
-      take(b);
-      P.power=8;
-      courseRun.batons++;
-      SFX.baton();
-      boostFx(.6);
-      emit(sparks,P.x,P.y+1,P.z,0,5,0,6,16,.5);
-      if(navigator.vibrate)try{navigator.vibrate(15);}catch(e){}
-    }
+    if(b.visible&&!b.userData.taken&&hit(b,lift<=2.6)){take(b);P.power=8;courseRun.batons++;SFX.baton();boostFx(.6);emit(sparks,P.x,P.y+1,P.z,0,5,0,6,16,.5);if(navigator.vibrate)try{navigator.vibrate(15);}catch(e){}}
+    const hm=c.helmet;
+    if(hm.visible&&!hm.userData.taken&&hit(hm,lift<=2.6)){take(hm);P.maxLives=Math.min(9,P.maxLives+1);courseRun.helmets++;updateLives();SFX.helmet();boostFx(.42);emit(sparks,P.x,P.y+1.1,P.z,0,4,0,5,14,.55);if(navigator.vibrate)try{navigator.vibrate([12,18,12]);}catch(e){}}
   }
 }
 function courseEscape(){
@@ -2464,10 +3204,28 @@ function softPropHit(o){
   else {SFX.cone();P.shake=Math.max(P.shake,.20);}
   emit(dust,o.position.x,o.position.y+.55,o.position.z,0,2.7,3,3,10,.7);
 }
+function beginStoryEnding(){
+  if(story.ending)return;story.ending=true;story.t=0;story.shown=false;story.startedAt=performance.now();running=false;gamePaused=false;document.body.classList.remove('game-on');if(typeof pauseBtn!=='undefined'){pauseBtn.classList.remove('paused');pauseBtn.textContent='Ⅱ';}P.alive=false;P.vx=P.vz=P.vy=0;P.ground=true;P.steerT=P.crouchT=0;P.tipMeter=0;P.inv=999;
+  
+  
+  best=Math.max(best,Math.round(P.dist));try{localStorage.setItem("jockey_best",String(best));}catch(e){}
+  hudEl.classList.remove("on");powEl.className="pow";stickEl.classList.remove("on");touchId=null;
+
+  P.y=H(P.x,P.z);
+  P.jump=false;
+  P.air=0;
+
+
+}
+function storyStep(dt){
+  const w=world3D.getState();if(w.sink>.04)P.shake=Math.max(P.shake,w.sink*.28);
+  if(P.z>ENDING_SLOW){const k=smooth((P.z-ENDING_SLOW)/(ENDING_AT-ENDING_SLOW)),target=cx(P.z);P.x=lerp(P.x,target,clamp(dt*(.6+2.4*k),0,1));P.vx*=Math.max(0,1-dt*(1+3*k));const maxV=lerp(MAXV,2.4,k);if(P.vz>maxV)P.vz=lerp(P.vz,maxV,clamp(dt*(1+5*k),0,1));P.inv=999;}
+  if(P.z>=ENDING_AT)beginStoryEnding();
+}
 function runStep(dt){
   if(!P.alive)return;
   courseRun.time+=dt;
-  physics(dt);recycle();pickupTest();hitTest();coneTest();courseEscape();
+  physics(dt);storyStep(dt);if(story.ending)return;recycle();pickupTest();hitTest();coneTest();courseEscape();
   if(P.power>0){const before=P.power;P.power=Math.max(0,P.power-dt);const step=P.power<2?.25:.5;
     if(Math.floor(before/step)!==Math.floor(P.power/step))SFX.tick(P.power<2);}
   const sp=Math.hypot(P.vx,P.vz);
@@ -2497,7 +3255,7 @@ function crash(wipe){
   emit(dust,P.x,P.y+0.2,P.z,-P.vx*0.2,2.5,-P.vz*0.2,6,shield?14:26,0.9);
   updateLives();
   if(navigator.vibrate) try{navigator.vibrate(wipe?[30,40,30]:(shield?20:35));}catch(e){}
-  if(P.hits>=LIVES) finish();
+  if(P.hits>=P.maxLives) finish();
 }
 const KICK_T=0.62;
 function kick(){
@@ -2516,7 +3274,211 @@ function kickContact(){                               // 발이 바닥을 차는
   SFX.kick(P.kickPush);
 }
 
+
+
+
+
+
+
+// 캐릭터와 카메라가 공유하는 진행 방향
+const rideF=new THREE.Vector3();
+const rideU=new THREE.Vector3();
+const rideR=new THREE.Vector3();
+const rideM=new THREE.Matrix4();
+const rideQ=new THREE.Quaternion();
+const rideE=new THREE.Euler(0,0,0,'YXZ');
+const rideLook=new THREE.Vector3();
+
+function rideFrame(){
+  const a=P.pipeMode?P.pipeAngle:0;
+
+  rideF.set(P.vx,P.vy,P.vz).normalize();
+  if(rideF.lengthSq()<.01)rideF.set(0,0,1);
+
+  rideU.set(-Math.sin(a),Math.cos(a),0);
+  rideR.crossVectors(rideU,rideF).normalize();
+  rideU.crossVectors(rideF,rideR).normalize();
+}
+
+function specialTimers(dt,sp){
+  // 특수 구간에서 누른 점프가 출구에서 뒤늦게 실행되지 않게 한다.
+  P.jump=false;
+  P.jumpImpulse=0;
+  P.kickAnim=0;
+  P.spin=0;
+
+  P.top=Math.max(P.top,sp);
+  P.dist=Math.max(P.dist,P.z);
+
+  for(const key of ['inv','boost','scrape']){
+    P[key]=Math.max(0,P[key]-dt);
+  }
+
+  P.shake=Math.max(0,P.shake-dt*2.2);
+}
+
+function scriptedMove(dt,x,y,z){
+  P.vx=(x-P.x)/dt;
+  P.vy=(y-P.y)/dt;
+  P.vz=(z-P.z)/dt;
+
+  P.x=x;P.y=y;P.z=z;
+  P.jump=false;P.spin=0;P.kickAnim=0;
+  P.tipMeter=0;P.onRail=false;
+
+  specialTimers(dt,P.vz);
+}
+
+function downhillPhysics(dt){
+  if(!P.diveMode)P.glideOffset=P.x-cx(P.z);
+
+  P.diveMode=true;
+  P.glideMode=false;P.pipeMode=false;
+  P.ground=true;P.air=0;
+
+  P.steer=lerp(P.steer,P.steerT,1-Math.exp(-7*dt));
+  P.crouch=lerp(P.crouch,P.crouchT,1-Math.exp(-12*dt));
+
+  // 조향·웅크리기로 감속하지 않는다.
+  const t=smooth((P.z-(GLIDE_START-260))/260);
+  const sp=Math.max(P.vz,34+30*t);
+  const z=P.z+sp*dt;
+
+  P.glideOffset=clamp(
+    P.glideOffset-P.steer*7*dt,
+    -11.65,11.65
+  );
+
+  // 도약 직전에는 자연스럽게 중앙으로 모인다.
+  const x=cx(z)+P.glideOffset*
+    (1-smooth((z-(GLIDE_START-80))/80));
+
+  scriptedMove(dt,x,H(x,z),z);
+}
+
+function glidePhysics(dt){
+  if(!P.glideMode){
+    P.glideOffset=P.x-cx(P.z);
+    P.glideLift=P.y-H(cx(P.z),P.z)-18*JW.glideAt(P.z);
+  }
+
+  P.diveMode=false;P.glideMode=true;P.pipeMode=false;
+  P.ground=false;P.air+=dt;
+  P.steer=lerp(P.steer,P.steerT,1-Math.exp(-5*dt));
+
+  const z=P.z+Math.max(64,Math.min(74,P.vz+dt*2))*dt;
+  const t=clamp(
+    (z-GLIDE_START)/(PIPE_RIDE_START-GLIDE_START),
+    0,1
+  );
+
+  // 파이프 입구 130m 전부터 내부 주행 높이로 합류.
+  const enter=smooth((z-(PIPE_START-130))/130);
+
+  P.glideOffset=lerp(
+    P.glideOffset,-P.steer*1.15,
+    1-Math.exp(-3*dt)
+  );
+
+  const x=cx(z)+P.glideOffset*(1-enter);
+  const bottom=H(cx(z),z)+18*JW.glideAt(z);
+  const flight=bottom
+    +Math.sin(t*Math.PI)*3.5
+    +(P.glideLift||0)*(1-t);
+
+  scriptedMove(
+    dt,x,
+    lerp(flight,bottom+PIPE_RADIUS-PIPE_RIDE_RADIUS,enter),
+    z
+  );
+}
+
+function pipePhysics(dt){
+  if(!P.pipeMode){
+    P.pipeAngle=0;
+    P.pipeExitFrom=null;
+  }
+
+  P.diveMode=false;P.pipeMode=true;P.glideMode=false;
+  P.ground=true;P.air=0;
+  P.steer=lerp(P.steer,P.steerT,1-Math.exp(-7*dt));
+  P.crouch=lerp(P.crouch,P.crouchT,1-Math.exp(-12*dt));
+
+  // 옆으로 회전하는 속도를 전진 속도에 섞지 않는다.
+  const z=P.z+Math.max(68,Math.min(78,P.vz+dt*3))*dt;
+
+  if(z<PIPE_END-200){
+    // 일반 주행과 같은 화면 기준 좌우.
+    P.pipeAngle-=P.steer*1.72*dt;
+  }else{
+    // 출구 마지막 200m는 자동 정렬.
+    // 누적 회전각을 갑자기 잘라내지 않고 가까운 바닥 방향으로 복귀.
+    if(P.pipeExitFrom==null){
+      P.pipeExitFrom=P.pipeAngle;
+      P.pipeExitTo=
+        Math.round(P.pipeAngle/(Math.PI*2))*Math.PI*2;
+    }
+
+    P.pipeAngle=lerp(
+      P.pipeExitFrom,P.pipeExitTo,
+      smooth((z-(PIPE_END-200))/200)
+    );
+  }
+
+  // 출구에서 지면으로 뚝 떨어지지 않도록 높이까지 합류.
+  const a=P.pipeAngle;
+  const r=lerp(
+    PIPE_RIDE_RADIUS,PIPE_RADIUS,
+    smooth((z-(PIPE_END-100))/100)
+  );
+
+  scriptedMove(
+    dt,
+    cx(z)+Math.sin(a)*r,
+    H(cx(z),z)+18*JW.glideAt(z)+PIPE_RADIUS-Math.cos(a)*r,
+    z
+  );
+}
+
+
+
+
+
+
+
 function physics(dt){
+  if(dt<=0)return;
+
+  if(P.z>=GLIDE_START-260&&P.z<GLIDE_START){
+    downhillPhysics(dt);
+    return;
+  }
+  P.diveMode=false;
+
+  if(P.z>=PIPE_RIDE_START&&P.z<PIPE_END){
+    pipePhysics(dt);
+    return;
+  }
+  if(P.z>=GLIDE_START&&P.z<PIPE_RIDE_START){
+    glidePhysics(dt);
+    return;
+  }
+
+  if(P.pipeMode){
+    // Restore normal movement after the exit; camera updates belong in updateCamera().
+    P.pipeMode=false;
+    P.pipeAngle=0;
+    P.pipeExitFrom=null;
+    P.pipeExitTo=0;
+    P.ground=true;
+    P.air=0;
+    P.jump=false;
+    P.jumpImpulse=0;
+    P.y=H(P.x,P.z);
+    P.vx=cxSlope(P.z)*P.vz;
+  }
+  P.glideMode=false;
+
   P.steer =lerp(P.steer ,P.steerT ,clamp(7*dt,0,1));
   P.crouch=lerp(P.crouch,P.crouchT,clamp(16*dt,0,1));
   if(P.spin>0){ P.spin=Math.max(0,P.spin-dt*1.2); }
@@ -2581,7 +3543,13 @@ const rate=
   sp=Math.hypot(P.vx,P.vz);
   if(sp>MAXV){const k=MAXV/sp;P.vx*=k;P.vz*=k;sp=MAXV;}
   P.top=Math.max(P.top,sp);
-
+// 처음 80m는 창고 풍경을 볼 수 있도록 속도를 제한한다.
+if(P.z<80){
+  const limit=lerp(8,11,smooth(P.z/80));
+  const k=Math.min(1,limit/Math.max(P.vz,.01));
+  P.vx*=k;
+  P.vz*=k;
+}
   P.x+=P.vx*dt; P.z+=P.vz*dt;
 
   // 가드레일: 단단한 벽. 처음 부딪힐 때 한 번 잃고, 긁는 동안은 조금씩 잃는다
@@ -2606,6 +3574,9 @@ const rate=
     P.onRail=true; P.scrape=0.12;
     if(sp>5) emit(sparks,P.x+side*0.3,P.y+0.35,P.z,-P.vx*0.25+side*2,2.5,-P.vz*0.25,4,3,0.35);
   }else P.onRail=false;
+
+  // The broken-road ridges are physical: crossing each one launches a small repeated hop.
+  if(P.z>END_ROAD_FADE+70&&P.z<END_FIELD-90){const bi=Math.floor((P.z-(END_ROAD_FADE+70)+8)/44);if(bi>P.bumpIndex){P.bumpIndex=bi;if(P.ground){P.jump=true;P.jumpImpulse=Math.max(P.jumpImpulse,5.4);}}}
 
   // 수직
   const gn=grad(P.x,P.z);
@@ -2809,20 +3780,46 @@ function applyPose(dt){
 }
 
 function animateRider(dt,sp){
-  rider.position.set(P.x,P.y,P.z);
-  poseT=lerp(poseT,running?0:1,clamp((running?4:6)*dt,0,1));
-  if(poseT>0.02){ applyPose(dt); tilt.rotation.z=lerp(tilt.rotation.z,0,clamp(10*dt,0,1)); shadow.position.set(P.x,H(P.x,P.z)+0.06,P.z); shadow.scale.set(1,1.3,1);shadow.material.opacity=.38;shadow.rotation.set(-Math.PI/2,0,0);return; }
-  const heading=Math.atan2(P.vx,P.vz);
-  if(P.spin>0){ spinAngle+=dt*14*P.spin; rider.rotation.y=heading+spinAngle; }
-  else { spinAngle=0; rider.rotation.y=heading; }
-  const g=grad(P.x,P.z);
-  const inv=sp>0.3?1/sp:0;
-  const slopeAlong=(g.x*P.vx+g.z*P.vz)*inv;
-  const pitch=P.ground?clamp(-Math.atan(slopeAlong),-0.7,0.7):clamp(-Math.atan2(P.vy,Math.max(sp,4)),-0.8,0.8);
-  rider.rotation.x=lerp(rider.rotation.x,pitch,clamp(9*dt,0,1));
+  const sink=story.ending?.30*smooth(story.t/3):0;
+rider.position.set(P.x,P.y-sink,P.z);
+  const ridePose=running||story.ending;poseT=lerp(poseT,ridePose?0:1,clamp((ridePose?4:6)*dt,0,1));
+  if(poseT>0.02){ applyPose(dt); tilt.rotation.z=lerp(tilt.rotation.z,0,clamp(10*dt,0,1)); shadow.position.set(P.x,H(P.x,P.z)+0.06,P.z); shadow.scale.set(1,1.3,1);shadow.material.opacity=.38;shadow.rotation.set(-Math.PI/2,0,0);moonShadow.material.opacity=0;return; }
+  
+  
+  
+const g=grad(P.x,P.z);
+
+if(P.pipeMode||P.glideMode||P.diveMode){
+  rideFrame();
+  rideM.makeBasis(rideR,rideU,rideF);
+  rideQ.setFromRotationMatrix(rideM);
+}else{
+  const heading=sp>.1
+    ?Math.atan2(P.vx,P.vz)
+    :rider.rotation.y;
+
+  const slopeAlong=
+    (g.x*P.vx+g.z*P.vz)/Math.max(sp,.3);
+
+  const pitch=P.ground
+    ?clamp(-Math.atan(slopeAlong),-.7,.7)
+    :clamp(-Math.atan2(P.vy,Math.max(sp,4)),-.8,.8);
+
+  if(P.spin>0)spinAngle+=dt*14*P.spin;
+  else spinAngle=0;
+
+  rideE.set(pitch,heading+spinAngle,0,'YXZ');
+  rideQ.setFromEuler(rideE);
+}
+
+rider.quaternion.slerp(rideQ,1-Math.exp(-14*dt));
+
+
+
+
 
   // 기울기·핸들
-  tilt.rotation.z=lerp(tilt.rotation.z,-P.steer*0.30*clamp(sp/22,0.3,1.2),clamp(10*dt,0,1));
+  tilt.rotation.z=lerp(tilt.rotation.z,P.pipeMode?0:-P.steer*.30*clamp(sp/22,.3,1.2),clamp(10*dt,0,1));
   tiller.rotation.y=lerp(tiller.rotation.y,-P.steer*0.55,clamp(12*dt,0,1));
  
  
@@ -2968,15 +3965,18 @@ if(P.kickAnim > 0){
     const blink=(Math.sin(tnow*14)>0)||P.power>1.5&&(Math.sin(tnow*14)>-0.6);
     mBatonGlow.color.set(blink?0xFF3B2F:0xFFD1CC).convertSRGBToLinear();
   }
-  for(const c of chunks){ const b=c.baton; if(b.visible){ b.rotation.y=tnow*2.2; b.rotation.z=0.0; b.position.y=H(b.position.x,b.position.z)+1.25+Math.sin(tnow*3+b.position.z)*0.12; b.userData.beam.material.opacity=0.16+0.08*Math.sin(tnow*4+b.position.z);
-      b.userData.halo.material.opacity=0.35+0.25*Math.sin(tnow*6+b.position.z); } }
+  for(const c of chunks){const b=c.baton;if(b.visible){b.rotation.y=tnow*2.2;b.rotation.z=0;b.position.y=H(b.position.x,b.position.z)+1.25+Math.sin(tnow*3+b.position.z)*.12;b.userData.beam.material.opacity=.16+.08*Math.sin(tnow*4+b.position.z);b.userData.halo.material.opacity=.35+.25*Math.sin(tnow*6+b.position.z);}const hm=c.helmet;if(hm.visible){hm.rotation.y=tnow*1.45;hm.rotation.z=.10*Math.sin(tnow*2+hm.position.z);hm.position.y=H(hm.position.x,hm.position.z)+1.05+.10*Math.sin(tnow*2.4+hm.position.z);hm.userData.beam.material.opacity=.14+.04*Math.sin(tnow*2.1);hm.userData.halo.material.opacity=.42+.10*Math.sin(tnow*2.1);}}
 
   // 그림자
-  const gh=H(P.x,P.z), lift=clamp(P.y-gh,0,6);
-  shadow.position.set(P.x,gh+0.06,P.z);
+  const gh=H(P.x,P.z),lift=clamp(P.y-gh,0,6),specialAir=P.glideMode||P.pipeMode;
+  shadow.position.set(P.x,gh+.06,P.z);
   const shs=1-lift*0.11; shadow.scale.set(shs,shs*1.3,1);
-  shadow.material.opacity=.38*(1-lift*0.10);
-  shadow.rotation.set(-Math.PI/2+g.z*0.9,0,-g.x*0.9);
+  shadow.material.opacity=specialAir?0:.38*(1-lift*.10);
+  const gx=clamp(g.x,-0.55,0.55);
+const gz=clamp(g.z,-0.55,0.55);
+shadow.rotation.set(-Math.PI/2+gz*0.55,0,-gx*0.55);
+  const wv=world3D.getState(),moonK=wv.shadow*(1-lift*.13),len=10.5+wv.night*5.0;
+  updateMoonShadow(len,specialAir?0:.40*moonK,1.75+stackH*.10);
 }
 
 /* ---- 카메라: 도로 방향을 따라간다. 조작하면 캐릭터가 화면 안에서 움직인다 ---- */
@@ -2986,99 +3986,81 @@ let introT=0;
 
 
 function introCamera(dt){
-  introT+=dt;
-
-  const portrait=camera.aspect<1;
-
-  /*
-   * 캐릭터를 중심으로 약 24초에 한 바퀴.
-   * 초기 각도는 기존과 비슷한 오른쪽 앞 3/4 구도.
-   */
-  const angle=0.25+introT*0.26;
-
-  /*
-   * 세로 화면은 카메라를 조금 더 멀리 두고
-   * 가로 화각 부족을 FOV로 보완한다.
-   */
-  const radius=portrait?6.8:6.3;
-  const height=portrait?3.05:2.75;
-
-  /*
-   * 사람만이 아니라 핸드자키까지 포함한
-   * 전체 캐릭터의 시각적 중심.
-   */
-  const focusX=P.x;
-  const focusY=P.y+1.05;
-  const focusZ=P.z-0.15;
-
-  camTmp.set(
-    focusX+Math.sin(angle)*radius,
-    P.y+height,
-    focusZ+Math.cos(angle)*radius
-  );
-
-  /*
-   * 목표 위치를 살짝 늦게 따라가게 해서
-   * 기계적으로 도는 느낌을 줄인다.
-   */
-  camera.position.lerp(
-    camTmp,
-    clamp(3*dt,0,1)
-  );
-
-  camera.lookAt(
-    focusX,
-    focusY,
-    focusZ
-  );
-
-  /*
-   * 모바일에서는 가로 화면이 워낙 좁으므로
-   * 배경 지게차와 파렛트도 들어오도록 넓힌다.
-   */
-  const fovT=portrait?68:58;
-
-  if(Math.abs(camera.fov-fovT)>.03){
-    camera.fov=lerp(
-      camera.fov,
-      fovT,
-      clamp(4*dt,0,1)
-    );
-    camera.updateProjectionMatrix();
-  }
-
-  const e=new THREE.Euler().setFromQuaternion(
-    camera.quaternion,
-    'YXZ'
-  );
-
-  bgU.uYaw.value=e.y;
-  bgU.uPitch.value=clamp(-e.x*.55,-.3,.3);
+  introT+=dt;const portrait=camera.aspect<1,angle=.25+introT*.26,radius=portrait?6.8:6.3,height=portrait?3.05:2.75;
+  const focusX=P.x,focusY=P.y+1.05,focusZ=P.z-.15;
+  camTmp.set(focusX+Math.sin(angle)*radius,P.y+height,focusZ+Math.cos(angle)*radius);
+  camera.position.lerp(camTmp,clamp(3*dt,0,1));camera.lookAt(focusX,focusY,focusZ);
+  const fovT=portrait?68:58;if(Math.abs(camera.fov-fovT)>.03){camera.fov=lerp(camera.fov,fovT,clamp(4*dt,0,1));camera.updateProjectionMatrix();}
+  const e=new THREE.Euler().setFromQuaternion(camera.quaternion,'YXZ');bgU.uYaw.value=e.y;bgU.uPitch.value=clamp(-e.x*.55,-.3,.3);
 }
 
 
 function updateCamera(dt,sp){
-  if(!running&&poseT>0.5){ introCamera(dt); return; }
-  const roadYaw=Math.atan2(cxSlope(P.z+12),1);
-  const heading=Math.atan2(P.vx,P.vz);
-  // 도로 방향 85% + 진행 방향 15%, 천천히 따라간다
-  let targetYaw=roadYaw*0.9+heading*0.1;
-  if(!camInit){ camYaw=targetYaw; camX=P.x; camInit=true; }
-  let dy=targetYaw-camYaw; while(dy>Math.PI)dy-=2*Math.PI; while(dy<-Math.PI)dy+=2*Math.PI;
-  camYaw+=dy*clamp(2.2*dt,0,1);
-  camX=lerp(camX,P.x,clamp(3.0*dt,0,1));            // 좌우는 느리게 따라붙는다
-  const dist=6.6+stackH*0.45, hgt=3.0+stackH*0.7;
-  camTmp.set(camX-Math.sin(camYaw)*dist, P.y+hgt, P.z-Math.cos(camYaw)*dist);
-  camera.position.lerp(camTmp,clamp(10*dt,0,1));
-  const floor=H(camera.position.x,camera.position.z)+1.6;
-  if(camera.position.y<floor)camera.position.y=floor;
-  if(P.shake>0){ const sh=P.shake*0.28; camera.position.x+=(Math.random()-0.5)*sh; camera.position.y+=(Math.random()-0.5)*sh; }
-  const look=9;
-  camera.lookAt(camX+Math.sin(camYaw)*look, P.y+1.0+stackH*0.75, P.z+Math.cos(camYaw)*look);
-  const fov=66+P.boost*5;
-  if(Math.abs(camera.fov-fov)>0.05){camera.fov=lerp(camera.fov,fov,clamp(5*dt,0,1));camera.updateProjectionMatrix();}
-  const e=new THREE.Euler().setFromQuaternion(camera.quaternion,"YXZ");
-  bgU.uYaw.value=e.y; bgU.uPitch.value=clamp(-e.x*0.55,-0.3,0.3);
+  if(story.ending){
+    camera.up.set(0,1,0);story.t=Math.max(story.t+dt,(performance.now()-story.startedAt)/1000);const k=smooth(story.t/5.4),rise=5+story.t*2.0,back=10+story.t*2.15,roadYaw=Math.atan2(cxSlope(P.z+30),1);
+    camTmp.set(P.x+Math.cos(roadYaw)*lerp(5,23,k)-Math.sin(roadYaw)*back,P.y+rise,P.z-Math.cos(roadYaw)*back);camera.position.lerp(camTmp,clamp(1.25*dt,0,1));
+    camera.lookAt(cx(P.z+170),P.y+lerp(1.3,6.2,k),P.z+170);if(Math.abs(camera.fov-58)>.04){camera.fov=lerp(camera.fov,58,clamp(2*dt,0,1));camera.updateProjectionMatrix();}
+    if(story.t>6.2&&!story.shown){story.shown=true;endingEl.classList.remove('hide');requestAnimationFrame(()=>endingEl.classList.add('show'));}
+    return;
+  }
+  if(!running&&poseT>.5){camera.up.set(0,1,0);introCamera(dt);return;}
+  
+  
+  
+  
+if(P.pipeMode||P.glideMode||P.diveMode){
+  rideFrame();
+
+
+const camForward=P.pipeMode
+  ? new THREE.Vector3(rideF.x,0,rideF.z).normalize()
+  : rideF;
+
+const camUp=P.pipeMode
+  ? new THREE.Vector3(0,1,0)
+  : rideU;
+
+camera.up.lerp(camUp,1-Math.exp(-12*dt)).normalize();
+
+camTmp.copy(rider.position)
+  .addScaledVector(camUp,2.7+stackH*.28)
+  .addScaledVector(camForward,P.pipeMode?-7:-7.6);
+
+camera.position.lerp(camTmp,1-Math.exp(-14*dt));
+
+rideLook.copy(rider.position)
+  .addScaledVector(camForward,12)
+  .addScaledVector(camUp,.8+stackH*.28);
+
+
+
+
+  camera.lookAt(rideLook);
+
+  const fov=P.pipeMode?82:P.glideMode?78:76;
+  camera.fov=lerp(camera.fov,fov,1-Math.exp(-7*dt));
+  camera.updateProjectionMatrix();
+  camYaw=Math.atan2(camForward.x,camForward.z);
+  camX=P.x;
+  camInit=true;
+  const e=new THREE.Euler().setFromQuaternion(camera.quaternion,'YXZ');
+  bgU.uYaw.value=e.y;
+  bgU.uPitch.value=clamp(-e.x*.55,-.3,.3);
+  return;
+}
+
+
+
+
+
+
+  camera.up.set(0,1,0);
+  const roadYaw=Math.atan2(cxSlope(P.z+12),1),heading=Math.atan2(P.vx,P.vz);let targetYaw=roadYaw*.9+heading*.1;
+  if(!camInit){camYaw=targetYaw;camX=P.x;camInit=true;}let dy=targetYaw-camYaw;while(dy>Math.PI)dy-=2*Math.PI;while(dy<-Math.PI)dy+=2*Math.PI;camYaw+=dy*clamp(2.2*dt,0,1);camX=lerp(camX,P.x,clamp(3*dt,0,1));
+  const dist=6.6+stackH*.45,hgt=3+stackH*.7;camTmp.set(camX-Math.sin(camYaw)*dist,P.y+hgt,P.z-Math.cos(camYaw)*dist);camera.position.lerp(camTmp,clamp(10*dt,0,1));
+  const floor=H(camera.position.x,camera.position.z)+1.6;if(camera.position.y<floor)camera.position.y=floor;if(P.shake>0){const sh=P.shake*.28;camera.position.x+=(Math.random()-.5)*sh;camera.position.y+=(Math.random()-.5)*sh;}
+  camera.lookAt(camX+Math.sin(camYaw)*9,P.y+1+stackH*.75,P.z+Math.cos(camYaw)*9);const fov=66+P.boost*5;if(Math.abs(camera.fov-fov)>.05){camera.fov=lerp(camera.fov,fov,clamp(5*dt,0,1));camera.updateProjectionMatrix();}
+  const e=new THREE.Euler().setFromQuaternion(camera.quaternion,'YXZ');bgU.uYaw.value=e.y;bgU.uPitch.value=clamp(-e.x*.55,-.3,.3);
 }
 
 /* ==================================================================
@@ -3095,8 +4077,8 @@ const powBar=powEl.firstElementChild;
 const livesEl=document.getElementById("lives");
 const flashEl=document.getElementById("flash");
 const boostEl=document.getElementById("boostfx");
-for(let i=0;i<LIVES;i++) livesEl.appendChild(document.createElement("b"));
-function updateLives(){ const b=livesEl.children; for(let i=0;i<b.length;i++) b[i].className=i<LIVES-P.hits?"":"off"; }
+function updateLives(){while(livesEl.children.length<P.maxLives)livesEl.appendChild(document.createElement('b'));while(livesEl.children.length>P.maxLives)livesEl.lastChild.remove();const b=livesEl.children;for(let i=0;i<b.length;i++)b[i].className=i<P.maxLives-P.hits?'':'off';}
+updateLives();
 function boostFx(k){
   boostEl.style.transition="none"; boostEl.style.opacity=String(0.85*(k||1));
   requestAnimationFrame(()=>{boostEl.style.transition="opacity .45s";boostEl.style.opacity="0";});
@@ -3166,12 +4148,12 @@ function releaseCrouch(){
   P.hold=0;
 }
 addEventListener("touchstart",function(e){
-  if(!running||(e.target.closest&&e.target.closest("button,input,#sound")))return;
+  if(!running||gamePaused||(e.target.closest&&e.target.closest("button,input,#sound,#pause")))return;
   if(touchId===null){ const t=e.changedTouches[0]; touchId=t.identifier; stickStart(t.clientX,t.clientY); }
   e.preventDefault();
 },{passive:false});
 addEventListener("touchmove",function(e){
-  if(touchId===null)return;
+  if(gamePaused||touchId===null)return;
   for(const t of e.changedTouches) if(t.identifier===touchId) stickMove(t.clientX,t.clientY);
   e.preventDefault();
 },{passive:false});
@@ -3181,35 +4163,27 @@ addEventListener("touchcancel",tEnd,{passive:false});
 
 let mouseDown=false;
 addEventListener("mousedown",function(e){
-  if(!running||e.target.tagName==="BUTTON"||e.target.id==="sound")return;
+  if(!running||gamePaused||e.target.tagName==="BUTTON"||e.target.id==="sound"||e.target.id==="pause")return;
   mouseDown=true;stickStart(e.clientX,e.clientY);
 });
-addEventListener("mousemove",function(e){ if(mouseDown)stickMove(e.clientX,e.clientY); });
+addEventListener("mousemove",function(e){if(mouseDown&&!gamePaused)stickMove(e.clientX,e.clientY);});
 addEventListener("mouseup",function(){ if(mouseDown){mouseDown=false;stickEnd();} });
 
 const keys={}; let spaceAt=0;
 addEventListener("keydown",function(e){
   if(e.code==="Space"||e.code.startsWith("Arrow"))e.preventDefault();
- if(!running&&(e.code==="Enter"||e.code==="Space")){
-  if(
-    !introEl.classList.contains("hide") &&
-    !introCanStart
-  ){
-    return;
+  if((e.code==="Escape"||e.code==="KeyP")&&running&&!story.ending){togglePause();return;}
+  if(gamePaused||story.ending)return;
+  if(!running&&(e.code==="Enter"||e.code==="Space")){
+    if(!introEl.classList.contains("hide")&&!introCanStart)return;
+    if(!keys[e.code]){keys[e.code]=true;start();}return;
   }
-
-  if(!keys[e.code]){
-    keys[e.code]=true;
-    start();
-  }
-
-  return;
-}
   if(keys[e.code])return; keys[e.code]=true; audioStart();
   if(e.code==="Space") spaceAt=performance.now();
   syncKeys();
 });
 addEventListener("keyup",function(e){
+  if(gamePaused||story.ending){keys[e.code]=false;return;}
   keys[e.code]=false;
   if(e.code==="Space"&&performance.now()-spaceAt<200){ kick(); P.hold=0; }
   else if(e.code==="ArrowDown"||e.code==="KeyS"||e.code==="Space") releaseCrouch();
@@ -3323,6 +4297,9 @@ const SFX={
     tone(t,"sine",210,150,0.12,0.3,0.002);
     const f=330*Math.pow(2,PENTA[(n-1)%PENTA.length]/12);                 // 쌓을수록 음이 올라간다
     marimba(t+0.08,f,0.45,0.5); marimba(t+0.16,f*1.5,0.35,0.28); },
+  helmet:function(){ if(!this.ok())return;const t=now();
+    [523,659,784].forEach((f,i)=>{tone(t+i*.075,'triangle',f,f,0.32,.25,.003);tone(t+i*.075,'sine',f*2,f*2,.18,.08,.003);});
+    hiss(t+.05,'highpass',4200,7600,1,.32,.10,.02);},
   baton:function(){ if(!this.ok())return; const t=now();
     [880,1108.7,1318.5,1760].forEach((f,i)=>{ tone(t+i*0.07,"sine",f,f,0.35,0.34,0.003); tone(t+i*0.07,"triangle",f*2,f*2,0.18,0.08,0.003); });
     hiss(t,"highpass",6000,9000,1,0.4,0.12,0.02); },
@@ -3378,16 +4355,16 @@ const SFX={
 /* ---- 연속음 ---- */
 function audioUpdate(sp,dt){
   if(!actx||muted)return;
-  const n=clamp(sp/MAXV,0,1);
-  rumble.g.gain.value=(P.ground?1:0.12)*(0.02+n*0.10)*(running?1:0);
+  const n=clamp(sp/MAXV,0,1),wv=world3D.getState(),worldQuiet=1-wv.silence*.94;
+  rumble.g.gain.value=(P.ground?1:0.12)*(0.02+n*0.10)*(running?1:0)*worldQuiet;
   rumble.f.frequency.value=90+n*280;
-  wind.g.gain.value=(0.004+n*n*0.07)*(running?1:0);
+  wind.g.gain.value=(0.004+n*n*0.07)*(running?1:0)*worldQuiet;
   wind.f.frequency.value=500+n*1500;
-  const sc=(P.scrape>0&&running)?clamp(sp/30,0.2,1):0;
+  const sc=(P.scrape>0&&running&&!gamePaused)?clamp(sp/30,0.2,1):0;
   scrape.g.gain.value=lerp(scrape.g.gain.value,sc*0.22,0.4);
   scrape.tone.gain.value=lerp(scrape.tone.gain.value,sc*0.05,0.4);
   if(sc>0){ crackleT-=dt; if(crackleT<=0){ crackleT=0.02+Math.random()*0.06; const t=now(); hiss(t,"highpass",4000+Math.random()*4000,6000,2,0.02,0.18*sc,0.001); } }
-  const cr=running&&P.ground?clamp((P.tipMeter-0.55)/0.45,0,1):0;
+  const cr=running&&!gamePaused&&P.ground?clamp((P.tipMeter-0.55)/0.45,0,1):0;
   creak.g.gain.value=lerp(creak.g.gain.value,cr*0.16,0.2);
 }
 document.getElementById("sound").addEventListener("click",function(){
@@ -3402,49 +4379,24 @@ document.getElementById("sound").addEventListener("click",function(){
 const introEl=document.getElementById("intro");
 const overEl=document.getElementById("over");
 const goBtn=document.getElementById("go");
-
+const endingEl=document.getElementById("ending"),endAgainBtn=document.getElementById("endAgain"),pauseBtn=document.getElementById('pause');
 const SPEED_DISPLAY = 2.0;
-
-// 첫 WebGL 렌더가 실제로 안정된 뒤 시작 버튼을 연다.
-let introRenderedFrames=0;
-let introReadyStarted=false;
-let introCanStart=false;
-
+let introRenderedFrames=0,introReadyStarted=false,introCanStart=false;
 function markIntroFrameReady(){
-  if(
-    introReadyStarted ||
-    introEl.classList.contains("hide")
-  ){
-    return;
-  }
-
-  introRenderedFrames++;
-
-  // 첫 프레임에서 셰이더·재질이 한꺼번에 뜨는 모습을 숨기기 위해
-  // 세 프레임이 완성된 뒤 화면을 보여준다.
-  if(introRenderedFrames<3)return;
-
-  introReadyStarted=true;
-  document.body.classList.add("scene-ready");
-
-  // 멋진 장면이 실제로 나타난 시점부터 최소 0.9초 감상.
-  setTimeout(()=>{
-    introCanStart=true;
-    goBtn.disabled=false;
-    goBtn.textContent="게임 시작";
-  },900);
+  if(introReadyStarted||introEl.classList.contains("hide"))return;if(++introRenderedFrames<3)return;
+  introReadyStarted=true;document.body.classList.add("scene-ready");setTimeout(()=>{introCanStart=true;goBtn.disabled=false;goBtn.textContent="게임 시작";},900);
 }
-
+function setPaused(v){
+  if(!running||story.ending)v=false;gamePaused=!!v;pauseBtn.classList.toggle('paused',gamePaused);pauseBtn.textContent=gamePaused?'▶':'Ⅱ';pauseBtn.setAttribute('aria-label',gamePaused?'계속하기':'일시정지');
+  if(gamePaused){P.steerT=P.crouchT=0;P.hold=0;stickEl.classList.remove('on');touchId=null;mouseDown=false;}else{last=performance.now();audioStart();}
+}
+function togglePause(){setPaused(!gamePaused);}
+pauseBtn.addEventListener('click',e=>{e.stopPropagation();togglePause();});
+document.addEventListener('visibilitychange',()=>{if(document.hidden&&running&&!story.ending)setPaused(true);});
 function start(){
-  // 제목 인트로가 아직 준비 중이면 시작 금지.
-  // 게임오버의 '다시' 버튼에는 영향을 주지 않는다.
-  if(
-    !introEl.classList.contains("hide") &&
-    !introCanStart
-  ){
-    return;
-  }
-  reset();
+  if(!introEl.classList.contains("hide")&&!introCanStart)return;
+  endingEl.classList.remove("show");endingEl.classList.add("hide");
+  reset();gamePaused=false;pauseBtn.classList.remove('paused');pauseBtn.textContent='Ⅱ';document.body.classList.add('game-on');
   introEl.classList.add("hide"); overEl.classList.add("hide");
   hudEl.classList.add("on");
   running=true;worldInspectPaused=false; introPallet.visible=false;
@@ -3456,7 +4408,7 @@ let lastResult=null, seamZ=0;
 let poseT=1;                                      // 1=인트로 포즈, 0=주행 자세
 function finish(){
   if(WORLD_TOUR){P.hits=0;P.inv=60;P.alive=true;P.tipMeter=0;return;}
-  running=false; P.alive=false;
+  running=false;gamePaused=false;document.body.classList.remove('game-on');pauseBtn.classList.remove('paused');pauseBtn.textContent='Ⅱ';P.alive=false;
   const isBest=Math.round(P.dist)>best&&best>0;
   best=Math.max(best,Math.round(P.dist));
   SFX.gameOver(); if(isBest) setTimeout(function(){SFX.best();},700);
@@ -3517,8 +4469,9 @@ function renderBoard(d){
     "<td class=\"num\">"+(r.pallets!=null?r.pallets+"단":"")+"</td></tr>"; }).join("")+"</table>";
 }
 nickEl.addEventListener("keydown",function(e){ e.stopPropagation(); if(e.key==="Enter") submitBtn.click(); });
-document.getElementById("go").addEventListener("click",start);
+goBtn.addEventListener("click",start);
 document.getElementById("again").addEventListener("click",start);
+endAgainBtn.addEventListener("click",()=>{story.ending=false;start();});
 
 function resize(){
   const w=innerWidth,h=innerHeight;
@@ -3533,7 +4486,7 @@ resize();
 
 let worldInspectPaused=false;
 const world3D=JockeyWorld3D.create({scene:scene,camera:camera,P:P,H:H,cx:cx,seed:SEED,
- getAudio:()=>actx,getMaster:()=>master,isRunning:()=>running,materials:carPaints});
+ getAudio:()=>actx,getMaster:()=>master,isRunning:()=>running&&!gamePaused,materials:carPaints});
 function inspectWorldAt(z){
  if(!WORLD_TOUR)return;
  start();worldInspectPaused=true;P.z=z;P.dist=z;P.x=cx(z)+5.5;P.y=H(P.x,z);P.vz=17;P.vx=0;P.inv=0;
@@ -3562,7 +4515,7 @@ if(WORLD_TOUR){
   b.style.cssText='margin:0;width:auto;min-width:0;flex:0 0 auto;height:32px;padding:6px 9px;border:1px solid #718578;background:#31473b;color:#eef1e5;border-radius:3px;touch-action:manipulation;font:11px system-ui;letter-spacing:0;box-shadow:none';
   b.addEventListener('pointerdown',e=>e.stopPropagation());b.addEventListener('click',e=>{e.stopPropagation();fn();});bar.appendChild(b);return b;};
  makeButton('인트로',showWorldIntro);
- for(const[label,z]of [['창고',12],['경광봉',64],['도크 돌파',140],['욕심길',253],['비',352],['박살길',401],['터널',555],['나선',990],['나선 끝',1160],['복귀',1310]])makeButton(label,()=>inspectWorldAt(z));
+ for(const[label,z]of [['창고',12],['첫 비',352],['약한 뒤틀림',990],['논밭',1600],['저수지',2050],['강 다리',2760],['철길',3125],['교차로',3515],['아파트',3720],['고가도로',3970],['산악 터널',4450],['검은 바다',5350],['좌초선',5900],['관람차',6740],['진짜 나선',7900],['관측소',9550],['싱크홀 전조',11040],['싱크홀',11320],['지하차도',11880],['자연동굴',12820],['활강',13480],['배수관',14250],['관 출구',15150],['다시 낮',15800],['부서진 길',17500],['자키 벌판',18350]])makeButton(label,()=>inspectWorldAt(z));
  const play=makeButton('▶ 시작',()=>{
   if(!running){start();worldInspectPaused=false;}else worldInspectPaused=!worldInspectPaused;
   play.textContent=worldInspectPaused?'▶ 주행':'Ⅱ 정지';
@@ -3575,30 +4528,31 @@ function frame(now){
   requestAnimationFrame(frame);
   let dt=(now-last)/1000; last=now; dt=Math.max(0,Math.min(dt,0.05));
   const sp0=Math.hypot(P.vx,P.vz);
-  const animDt=worldInspectPaused?0:dt;
-  if(running&&!worldInspectPaused){
-    if(P.crouchT>0.5)P.hold=Math.min(.6,P.hold+dt);
+  const frozen=(worldInspectPaused||gamePaused)&&!story.ending,animDt=frozen?0:dt;
+  if(running&&!worldInspectPaused&&!gamePaused&&!story.ending){
+    if(P.crouchT>.5)P.hold=Math.min(.6,P.hold+dt);
     runStep(dt);
   }
   stepPieces(animDt);
   const sp=Math.hypot(P.vx,P.vz);
   stepParticles(dust,animDt); stepParticles(sparks,animDt);
-  animateRider(dt,sp);
-  if(!window.__freeCam) updateCamera(dt,sp);
-  if(running)updateHud(dt,worldInspectPaused?0:sp);
-  audioUpdate(running?sp:0,dt);
+    revealIntroItems();
+  animateRider(animDt,sp);
+  if(!window.__freeCam)updateCamera(animDt,sp);
+  if(running&&!story.ending)updateHud(dt,(worldInspectPaused||gamePaused)?0:sp);
+  audioUpdate(running&&!gamePaused?sp:0,dt);
   world3D.update(animDt,sp);
   renderer.clear();
   world3D.renderSky(renderer,camera);
   renderer.clearDepth();
   renderer.render(scene,camera);
-   markIntroFrameReady();
+  markIntroFrameReady();
 }
 reset(); P.alive=false;poseT=1;
 animateRider(1,0);introCamera(1);
 requestAnimationFrame(frame);
 
-window.__game={world:world3D,inspectWorldAt:inspectWorldAt,showWorldIntro:showWorldIntro,pauseTour:function(v){if(WORLD_TOUR)worldInspectPaused=!!v;},renderStats:function(){return {calls:renderer.info.render.calls,triangles:renderer.info.render.triangles,geometries:renderer.info.memory.geometries,programs:renderer.info.programs.length};},P:P,start:start,H:H,cx:cx,cam:camera,rider:rider,SFX:SFX,actxState:function(){return actx?actx.state:'none';},master:function(){return master;},ctx:function(){return actx;},snapCam:function(){camInit=false;},setStack:function(n){for(let i=0;i<n;i++) if(!stackKinds[i]) stackKinds[i]=hash1(i*5.3)<0.5?"aj":"kpp"; setStack(n);},finish:finish,
+window.__game={world:world3D,inspectWorldAt:inspectWorldAt,showWorldIntro:showWorldIntro,story:story,pauseTour:function(v){if(WORLD_TOUR)worldInspectPaused=!!v;},setPaused:setPaused,togglePause:togglePause,paused:()=>gamePaused,renderStats:function(){return {calls:renderer.info.render.calls,triangles:renderer.info.render.triangles,geometries:renderer.info.memory.geometries,programs:renderer.info.programs.length};},P:P,start:start,H:H,cx:cx,cam:camera,rider:rider,SFX:SFX,actxState:function(){return actx?actx.state:'none';},master:function(){return master;},ctx:function(){return actx;},snapCam:function(){camInit=false;},setStack:function(n){for(let i=0;i<n;i++) if(!stackKinds[i]) stackKinds[i]=hash1(i*5.3)<0.5?"aj":"kpp"; setStack(n);},finish:finish,
   course:{beatAt:courseBeatAt,events:courseEvents,state:()=>({...courseRun}),
     visible:()=>chunks.flatMap(c=>c.obs.filter(o=>o.visible).map(o=>({z:o.position.z,x:o.position.x,u:o.position.x-cx(o.position.z),role:o.userData.role,soft:!!o.userData.soft,hits:o.userData.hits,yaw:o.rotation.y})))},
   sim:function(dt,n){const out=[];for(let i=0;i<n;i++){if(!P.alive)break;runStep(dt);stepPieces(dt);world3D.update(dt,Math.hypot(P.vx,P.vz));
