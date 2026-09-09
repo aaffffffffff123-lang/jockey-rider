@@ -1824,24 +1824,1552 @@ for(const side of[-1,1]){
 
 
 
- // 5.8–6.1 km: a stranded container ship. It sits close to the road, before the dust front.
- const ship=make('stranded-container-ship'),shipGlow=make('ship-emergency-light','night-emissive');
- {
-  
- const z=5960,side=1,x=cx(z)+side*58,y=base(z)-3.2,ry=-.18,c=Math.cos(ry),sn=Math.sin(ry);
-  const p=(dx,dy,dz)=>[x+c*(dx*side)+sn*dz,y+dy,z-sn*(dx*side)+c*dz];
-  // Long tapered hull and a pale road-facing stripe keep the silhouette readable in moonlight.
-  ship.box(p(0,8,-8),[48,16,142],0x557681,[0,ry,.025]);ship.box(p(0,9,73),[42,14,28],0x587984,[0,ry,.07]);ship.box(p(0,10,94),[31,12,18],0x5d7f88,[0,ry,.10]);ship.box(p(0,11,108),[18,9,12],0x64858d,[0,ry,.13]);
-  ship.box(p(-24.15,12,-10),[.34,3.0,134],0xd8d2b9,[0,ry,0]);ship.box(p(-24.34,17,-34),[.24,4.0,48],0x9b4d3d,[0,ry,0]);
-  ship.box(p(-2,15,-61),[40,9,45],0x8c8b79,[0,ry,.025]);ship.box(p(-13,25,-67),[23,21,30],0xd0c9ae,[0,ry,.02]);ship.box(p(-13,37,-67),[13,6,18],0x9da49b,[0,ry,.02]);
-  for(let row=0;row<5;row++)for(let i=0;i<6;i++)for(let j=0;j<4;j++){
-   if(row===4&&(i+j)%3===0)continue;const dx=-15+j*10.5,dz=-34+i*18.5,yy=18+row*5.5;
-   ship.box(p(dx,yy,dz),[9.4,5.1,16.5],(i+j+row)%4===0?0xb56750:(i+j)%3===0?0x5790a0:0x9d915d,[0,ry,0]);
+// 5.8–6.1 km:
+// 좌초한 컨테이너선.
+// 선체·표면·갑판 구조·컨테이너가 하나의 거대한 장면으로 읽히게 만든다.
+const ship=make(
+  'stranded-container-ship'
+);
+
+const shipGlow=make(
+  'ship-emergency-light',
+  'night-emissive'
+);
+
+{
+  const z0=5960;
+
+  const origin=[
+    cx(z0)+58,
+    base(z0)-4.2,
+    z0
+  ];
+
+  const yaw=.18;
+  const roll=.035;
+
+  const m=basisYXZ(
+    yaw,
+    0,
+    roll
+  );
+
+  const p=(x,y,z)=>
+    tb(
+      origin,
+      m,
+      x,y,z
+    );
+
+
+  // ─────────────────────────────
+  // 선체 색상
+  // ─────────────────────────────
+
+  const hullRoad=0x466a76;
+  const hullFar =0x385963;
+  const hullLow =0x263a40;
+  const hullDark=0x1d2b2f;
+  const deckCol =0x68716c;
+  const stripe  =0xc8c1aa;
+  const bootTop =0x6f4036;
+  const rustCol =0x74432f;
+
+
+  // ─────────────────────────────
+  // 선체 단면
+  // ─────────────────────────────
+
+  const sections=[
+    {
+      z:-98,
+      w:17.0,
+      deck:14.8
+    },
+    {
+      z:-87,
+      w:22.2,
+      deck:15.1
+    },
+    {
+      z:-58,
+      w:24.2,
+      deck:15.4
+    },
+    {
+      z:-18,
+      w:25.0,
+      deck:15.6
+    },
+    {
+      z:28,
+      w:24.8,
+      deck:15.7
+    },
+    {
+      z:62,
+      w:23.2,
+      deck:15.5
+    },
+    {
+      z:84,
+      w:18.0,
+      deck:15.0
+    },
+    {
+      z:101,
+      w:8.6,
+      deck:13.7
+    },
+    {
+      z:109,
+      w:2.2,
+      deck:11.6
+    }
+  ];
+
+
+  const hullWidth=q=>{
+    if(q<=sections[0].z){
+      return sections[0].w;
+    }
+
+    for(
+      let i=0;
+      i<sections.length-1;
+      i++
+    ){
+      const a=sections[i];
+      const b=sections[i+1];
+
+      if(q<=b.z){
+        return mix(
+          a.w,
+          b.w,
+          (q-a.z)/
+          (b.z-a.z)
+        );
+      }
+    }
+
+    return sections[
+      sections.length-1
+    ].w;
+  };
+
+
+  // 박스 여러 개를 잇는 대신,
+  // 폭이 다른 단면을 연결해서 선수로 갈수록 실제로 좁아지게 한다.
+  for(
+    let i=0;
+    i<sections.length-1;
+    i++
+  ){
+    const a=sections[i];
+    const b=sections[i+1];
+
+    for(const side of[-1,1]){
+      const upper=
+        side<0
+          ? hullRoad
+          : hullFar;
+
+      // 상부 선측.
+      ship.quad(
+        p(
+          side*a.w,
+          a.deck,
+          a.z
+        ),
+        p(
+          side*b.w,
+          b.deck,
+          b.z
+        ),
+        p(
+          side*b.w*.84,
+          5.2,
+          b.z
+        ),
+        p(
+          side*a.w*.84,
+          5.2,
+          a.z
+        ),
+        rgb(upper)
+      );
+
+      // 수면 아래로 내려가는 하부 선체.
+      ship.quad(
+        p(
+          side*a.w*.84,
+          5.2,
+          a.z
+        ),
+        p(
+          side*b.w*.84,
+          5.2,
+          b.z
+        ),
+        p(
+          side*b.w*.20,
+          .65,
+          b.z
+        ),
+        p(
+          side*a.w*.20,
+          .65,
+          a.z
+        ),
+        rgb(
+          side<0
+            ? hullLow
+            : hullDark
+        )
+      );
+    }
+
+    // 갑판.
+    ship.quad(
+      p(
+        -a.w,
+        a.deck,
+        a.z
+      ),
+      p(
+        -b.w,
+        b.deck,
+        b.z
+      ),
+      p(
+        b.w,
+        b.deck,
+        b.z
+      ),
+      p(
+        a.w,
+        a.deck,
+        a.z
+      ),
+      rgb(deckCol)
+    );
+
+    // 선저.
+    ship.quad(
+      p(
+        -a.w*.20,
+        .65,
+        a.z
+      ),
+      p(
+        a.w*.20,
+        .65,
+        a.z
+      ),
+      p(
+        b.w*.20,
+        .65,
+        b.z
+      ),
+      p(
+        -b.w*.20,
+        .65,
+        b.z
+      ),
+      rgb(hullDark)
+    );
+
+
+    // 도로 쪽 선체의 밝은 띠.
+    ship.quad(
+      p(
+        -a.w-.035,
+        10.8,
+        a.z
+      ),
+      p(
+        -b.w-.035,
+        10.8,
+        b.z
+      ),
+      p(
+        -b.w-.035,
+        12.05,
+        b.z
+      ),
+      p(
+        -a.w-.035,
+        12.05,
+        a.z
+      ),
+      rgb(stripe)
+    );
+
+
+    // 짙은 흘수선.
+    ship.quad(
+      p(
+        -a.w*.85-.045,
+        4.7,
+        a.z
+      ),
+      p(
+        -b.w*.85-.045,
+        4.7,
+        b.z
+      ),
+      p(
+        -b.w*.85-.045,
+        5.55,
+        b.z
+      ),
+      p(
+        -a.w*.85-.045,
+        5.55,
+        a.z
+      ),
+      rgb(bootTop)
+    );
+
+
+    // 긴 수평 판재 이음새.
+    for(const yy of[
+      7.7,
+      13.2
+    ]){
+      ship.beam(
+        p(
+          -a.w-.06,
+          yy,
+          a.z
+        ),
+        p(
+          -b.w-.06,
+          yy,
+          b.z
+        ),
+        .075,
+        .045,
+        yy>10
+          ? 0x35545d
+          : 0x2b454d
+      );
+    }
   }
-  // Two huge deck cranes make it readable as a ship rather than another warehouse.
-  for(const dz of[-27,29]){ship.beam(p(15,19,dz),p(41,52,dz+8),1.35,1.35,0x69736c);ship.beam(p(41,52,dz+8),p(32,55,dz+48),.82,.82,0x69736c);}
-  shipGlow.box(p(-18,40,-82),[.8,.8,.8],0xff4a35);shipGlow.box(p(37,53,37),[.65,.65,.65],0xff4a35);shipGlow.box(p(39,53,-21),[.65,.65,.65],0xff4a35);
- }
+
+
+  // 선미 닫기.
+  {
+    const s=sections[0];
+
+    ship.quad(
+      p(
+        -s.w,
+        s.deck,
+        s.z
+      ),
+      p(
+        s.w,
+        s.deck,
+        s.z
+      ),
+      p(
+        s.w*.84,
+        5.2,
+        s.z
+      ),
+      p(
+        -s.w*.84,
+        5.2,
+        s.z
+      ),
+      rgb(hullFar)
+    );
+
+    ship.quad(
+      p(
+        -s.w*.84,
+        5.2,
+        s.z
+      ),
+      p(
+        s.w*.84,
+        5.2,
+        s.z
+      ),
+      p(
+        s.w*.20,
+        .65,
+        s.z
+      ),
+      p(
+        -s.w*.20,
+        .65,
+        s.z
+      ),
+      rgb(hullDark)
+    );
+  }
+
+
+  // 선수 닫기.
+  {
+    const s=
+      sections[
+        sections.length-1
+      ];
+
+    ship.quad(
+      p(
+        -s.w,
+        s.deck,
+        s.z
+      ),
+      p(
+        -s.w*.20,
+        .65,
+        s.z
+      ),
+      p(
+        s.w*.20,
+        .65,
+        s.z
+      ),
+      p(
+        s.w,
+        s.deck,
+        s.z
+      ),
+      rgb(hullRoad)
+    );
+
+    ship.beam(
+      p(
+        0,
+        .8,
+        s.z
+      ),
+      p(
+        0,
+        s.deck+.4,
+        s.z
+      ),
+      .34,
+      .34,
+      0x304b53
+    );
+  }
+
+
+  // ─────────────────────────────
+  // 선체 표면
+  // ─────────────────────────────
+
+  // 수직 프레임.
+  for(const q of[
+    -86,-70,-52,-34,
+    -16,2,20,38,
+    56,72,86,98
+  ]){
+    const w=
+      hullWidth(q);
+
+    ship.beam(
+      p(
+        -w-.07,
+        1.8,
+        q
+      ),
+      p(
+        -w-.07,
+        14.3,
+        q
+      ),
+      .085,
+      .055,
+      0x304c54
+    );
+  }
+
+
+  // 녹물이 아래로 흘러내린 자국.
+  for(const q of[
+    -77,-49,-23,5,
+    32,58,79,91
+  ]){
+    const w=
+      hullWidth(q);
+
+    const h=
+      2.8+
+      (
+        (q+100)%4
+      )*.55;
+
+    mbox(
+      ship,
+      p(
+        -w-.09,
+        8.4,
+        q
+      ),
+      [
+        .045,
+        h,
+        .55
+      ],
+      rustCol,
+      m
+    );
+
+    mbox(
+      ship,
+      p(
+        -w-.095,
+        6.7,
+        q+.8
+      ),
+      [
+        .04,
+        h*.55,
+        .28
+      ],
+      shade(
+        rustCol,
+        .78
+      ),
+      m
+    );
+  }
+
+
+  // 선수 흘수 표식.
+  for(let i=0;i<6;i++){
+    const q=
+      77+i*3.2;
+
+    const w=
+      hullWidth(q);
+
+    mbox(
+      ship,
+      p(
+        -w-.10,
+        5.7+i*.68,
+        q
+      ),
+      [
+        .045,
+        .13,
+        .88
+      ],
+      0xd8d1b8,
+      m
+    );
+  }
+
+
+  // ─────────────────────────────
+  // 갑판 난간
+  // ─────────────────────────────
+
+  for(
+    let i=0;
+    i<sections.length-1;
+    i++
+  ){
+    const a=sections[i];
+    const b=sections[i+1];
+
+    for(const side of[-1,1]){
+      ship.beam(
+        p(
+          side*a.w,
+          a.deck+.58,
+          a.z
+        ),
+        p(
+          side*b.w,
+          b.deck+.58,
+          b.z
+        ),
+        .09,
+        .09,
+        0x8d9690
+      );
+    }
+  }
+
+
+  for(
+    let q=-92;
+    q<=98;
+    q+=9
+  ){
+    const w=
+      hullWidth(q);
+
+    for(const side of[-1,1]){
+      ship.beam(
+        p(
+          side*w,
+          15.4,
+          q
+        ),
+        p(
+          side*w,
+          16.3,
+          q
+        ),
+        .075,
+        .075,
+        0x8d9690
+      );
+    }
+  }
+
+
+  // ─────────────────────────────
+  // 컨테이너 적재부
+  // ─────────────────────────────
+
+  const cargoBays=[
+    -38,-24,-10,
+    8,22,38,
+    54,69
+  ];
+
+
+  // 컨테이너 아래 해치와 래싱 레일.
+  for(const q of cargoBays){
+    mbox(
+      ship,
+      p(
+        0,
+        15.70,
+        q
+      ),
+      [
+        40.5,
+        .42,
+        12.5
+      ],
+      0x353d3b,
+      m
+    );
+
+    for(const x of[
+      -18,-9,0,9,18
+    ]){
+      mbox(
+        ship,
+        p(
+          x,
+          15.96,
+          q
+        ),
+        [
+          .22,
+          .20,
+          11.8
+        ],
+        0x727a74,
+        m
+      );
+    }
+  }
+
+
+  const shipColors=[
+    0x7f382d,
+    0x315f7a,
+    0x3f684b,
+    0x767e7a,
+    0xa17c35,
+    0x64313c,
+    0x2f686b
+  ];
+
+  const CW=3.62;
+  const CH=2.96;
+  const CL=11.35;
+
+
+  function shipContainer(
+    dx,
+    dy,
+    dz,
+    seed,
+    detail
+  ){
+    const raw=
+      shipColors[
+        (
+          seed%
+          shipColors.length+
+          shipColors.length
+        )%
+        shipColors.length
+      ];
+
+    const color=
+      shade(
+        raw,
+        .82+
+        .035*
+        (
+          seed%4
+        )
+      );
+
+    const dark=
+      shade(
+        color,
+        .56
+      );
+
+    const rib=
+      shade(
+        color,
+        .78
+      );
+
+    const c0=
+      p(
+        dx,
+        dy,
+        dz
+      );
+
+    mbox(
+      ship,
+      c0,
+      [
+        CW,
+        CH,
+        CL
+      ],
+      color,
+      m
+    );
+
+    if(!detail)return;
+
+
+    // 코너 프레임.
+    for(const sx of[-1,1]){
+      for(const sz of[-1,1]){
+        mbox(
+          ship,
+          p(
+            dx+
+            sx*CW/2,
+            dy,
+            dz+
+            sz*CL/2
+          ),
+          [
+            .13,
+            CH+.05,
+            .13
+          ],
+          dark,
+          m
+        );
+      }
+    }
+
+
+    // 도로를 향한 면의 골.
+    for(let k=-4;k<=4;k++){
+      mbox(
+        ship,
+        p(
+          dx-
+          CW/2-.025,
+          dy,
+          dz+k*1.12
+        ),
+        [
+          .045,
+          CH*.84,
+          .10
+        ],
+        rib,
+        m
+      );
+    }
+
+
+    // 컨테이너 문과 잠금바.
+    for(const sx of[-1,1]){
+      mbox(
+        ship,
+        p(
+          dx+
+          sx*CW/4,
+          dy,
+          dz+
+          CL/2+.032
+        ),
+        [
+          CW/2-.08,
+          CH-.18,
+          .055
+        ],
+        shade(
+          color,
+          .72
+        ),
+        m
+      );
+
+      for(const lx of[
+        -.28,
+        .28
+      ]){
+        mbox(
+          ship,
+          p(
+            dx+
+            sx*CW/4+
+            lx,
+            dy,
+            dz+
+            CL/2+.074
+          ),
+          [
+            .045,
+            CH-.48,
+            .045
+          ],
+          0x303735,
+          m
+        );
+      }
+    }
+  }
+
+
+  // 안쪽 컨테이너는 덩어리감을 만들고,
+  // 바깥쪽과 윗줄만 골·문짝 디테일을 가진다.
+  for(
+    let bi=0;
+    bi<cargoBays.length;
+    bi++
+  ){
+    const q=
+      cargoBays[bi];
+
+    for(let col=0;col<9;col++){
+      const dx=
+        -16+
+        col*4;
+
+      const levels=
+        4+
+        (
+          (
+            bi*3+
+            col
+          )%3
+        );
+
+      for(
+        let lv=0;
+        lv<levels;
+        lv++
+      ){
+        // 윗줄을 군데군데 비워
+        // 완벽한 색 블록 벽처럼 보이지 않게 한다.
+        if(
+          lv===levels-1&&
+          (
+            (
+              bi*7+
+              col*5
+            )%11===0
+          )
+        ){
+          continue;
+        }
+
+        const dy=
+          17.32+
+          lv*3.03;
+
+        const detail=
+          col===0||
+          col===8||
+          lv===levels-1||
+          bi===0||
+          bi===
+          cargoBays.length-1;
+
+        shipContainer(
+          dx,
+          dy,
+          q,
+          bi*41+
+          col*7+
+          lv,
+          detail
+        );
+      }
+    }
+  }
+
+
+  // 컨테이너 사이의 래싱 브리지.
+  // 적재물이 하나의 직육면체 덩어리로 뭉쳐 보이는 것을 막는다.
+  for(const q of[
+    -17,-1,15,
+    31,47,62
+  ]){
+    for(const x of[
+      -19.5,
+      19.5
+    ]){
+      ship.beam(
+        p(
+          x,
+          15.8,
+          q
+        ),
+        p(
+          x,
+          31.5,
+          q
+        ),
+        .28,
+        .28,
+        0x4d5753
+      );
+    }
+
+    ship.beam(
+      p(
+        -19.5,
+        22.8,
+        q
+      ),
+      p(
+        19.5,
+        22.8,
+        q
+      ),
+      .24,
+      .24,
+      0x59635e
+    );
+
+    ship.beam(
+      p(
+        -19.5,
+        29.7,
+        q
+      ),
+      p(
+        19.5,
+        29.7,
+        q
+      ),
+      .24,
+      .24,
+      0x59635e
+    );
+
+    ship.beam(
+      p(
+        -19.5,
+        16.4,
+        q
+      ),
+      p(
+        19.5,
+        29.2,
+        q
+      ),
+      .13,
+      .13,
+      0x46504c
+    );
+
+    ship.beam(
+      p(
+        19.5,
+        16.4,
+        q
+      ),
+      p(
+        -19.5,
+        29.2,
+        q
+      ),
+      .13,
+      .13,
+      0x46504c
+    );
+  }
+
+
+  // ─────────────────────────────
+  // 선미 상부 구조와 브리지
+  // ─────────────────────────────
+
+  mbox(
+    ship,
+    p(
+      -2.5,
+      18.4,
+      -72
+    ),
+    [
+      38,
+      5.3,
+      35
+    ],
+    0x817f71,
+    m
+  );
+
+  mbox(
+    ship,
+    p(
+      -5.0,
+      24.3,
+      -70
+    ),
+    [
+      28,
+      8.7,
+      28
+    ],
+    0xc0baa5,
+    m
+  );
+
+  mbox(
+    ship,
+    p(
+      -5.0,
+      30.4,
+      -64
+    ),
+    [
+      25,
+      4.4,
+      21
+    ],
+    0xa7ada5,
+    m
+  );
+
+  mbox(
+    ship,
+    p(
+      -5.0,
+      33.2,
+      -64
+    ),
+    [
+      22,
+      1.2,
+      18
+    ],
+    0x707a76,
+    m
+  );
+
+
+  // 도로 쪽 브리지 창.
+  for(
+    let q=-72;
+    q<=-56;
+    q+=4
+  ){
+    mbox(
+      shipGlow,
+      p(
+        -17.58,
+        30.8,
+        q
+      ),
+      [
+        .04,
+        1.10,
+        2.45
+      ],
+      0xa9c5bc,
+      m
+    );
+  }
+
+
+  // 브리지 앞면 창.
+  for(
+    let x=-14;
+    x<=4;
+    x+=4.5
+  ){
+    mbox(
+      shipGlow,
+      p(
+        x,
+        30.8,
+        -53.45
+      ),
+      [
+        2.7,
+        1.05,
+        .04
+      ],
+      0xa9c5bc,
+      m
+    );
+  }
+
+
+  // 브리지 윙.
+  mbox(
+    ship,
+    p(
+      -18.5,
+      29.6,
+      -58
+    ),
+    [
+      5.4,
+      .65,
+      8.5
+    ],
+    0x969b94,
+    m
+  );
+
+  mbox(
+    ship,
+    p(
+      8.5,
+      29.6,
+      -58
+    ),
+    [
+      5.4,
+      .65,
+      8.5
+    ],
+    0x969b94,
+    m
+  );
+
+
+  // 굴뚝.
+  mbox(
+    ship,
+    p(
+      6.5,
+      34.6,
+      -78
+    ),
+    [
+      6.0,
+      11.5,
+      8.0
+    ],
+    0x626965,
+    m
+  );
+
+  mbox(
+    ship,
+    p(
+      6.5,
+      40.0,
+      -78
+    ),
+    [
+      6.4,
+      1.0,
+      8.4
+    ],
+    0x242a29,
+    m
+  );
+
+
+  // 도로 쪽 구명정.
+  mbox(
+    ship,
+    p(
+      -21.0,
+      24.2,
+      -75
+    ),
+    [
+      3.0,
+      2.7,
+      10.5
+    ],
+    0xc5783f,
+    m
+  );
+
+  mbox(
+    ship,
+    p(
+      -21.1,
+      25.25,
+      -75
+    ),
+    [
+      2.5,
+      .60,
+      9.7
+    ],
+    0xe0a060,
+    m
+  );
+
+
+  // 마스트와 레이더.
+  ship.beam(
+    p(
+      -5,
+      33.5,
+      -65
+    ),
+    p(
+      -5,
+      48.5,
+      -65
+    ),
+    .34,
+    .34,
+    0x555f5b
+  );
+
+  ship.beam(
+    p(
+      -12,
+      43.4,
+      -65
+    ),
+    p(
+      2,
+      43.4,
+      -65
+    ),
+    .18,
+    .18,
+    0x66706b
+  );
+
+  mbox(
+    ship,
+    p(
+      -5,
+      46.0,
+      -65
+    ),
+    [
+      8.8,
+      .25,
+      1.0
+    ],
+    0x89918b,
+    m
+  );
+
+  mbox(
+    ship,
+    p(
+      -5,
+      49.0,
+      -65
+    ),
+    [
+      2.5,
+      .35,
+      2.5
+    ],
+    0x3a4240,
+    m
+  );
+
+
+  // ─────────────────────────────
+  // 격자형 데크 크레인
+  // ─────────────────────────────
+
+  function deckCrane(q,dir){
+    const bx=10.5;
+    const baseY=15.8;
+    const topY=42.5;
+
+    for(const dx of[
+      -1.45,
+      1.45
+    ]){
+      ship.beam(
+        p(
+          bx+dx,
+          baseY,
+          q
+        ),
+        p(
+          bx+dx*.55,
+          topY,
+          q+dir*2.0
+        ),
+        .42,
+        .42,
+        0x5c6661
+      );
+    }
+
+
+    // 크레인 타워 내부 가새.
+    for(
+      let y=19;
+      y<41;
+      y+=4.2
+    ){
+      const t=
+        (
+          y-baseY
+        )/
+        (
+          topY-baseY
+        );
+
+      const zz=
+        q+
+        dir*2*t;
+
+      ship.beam(
+        p(
+          bx-
+          1.35*
+          (
+            1-t*.45
+          ),
+          y,
+          zz
+        ),
+        p(
+          bx+
+          1.35*
+          (
+            1-t*.45
+          ),
+          y+2.0,
+          zz+dir*.3
+        ),
+        .15,
+        .15,
+        0x4d5753
+      );
+
+      ship.beam(
+        p(
+          bx+
+          1.35*
+          (
+            1-t*.45
+          ),
+          y,
+          zz
+        ),
+        p(
+          bx-
+          1.35*
+          (
+            1-t*.45
+          ),
+          y+2.0,
+          zz+dir*.3
+        ),
+        .15,
+        .15,
+        0x4d5753
+      );
+    }
+
+
+    const tx=-18.0;
+    const tz=
+      q+
+      dir*31.0;
+
+    const ty=48.0;
+
+
+    // 두 줄짜리 붐.
+    for(const off of[
+      -.58,
+      .58
+    ]){
+      ship.beam(
+        p(
+          bx+off,
+          topY,
+          q+dir*2
+        ),
+        p(
+          tx+off,
+          ty,
+          tz
+        ),
+        .30,
+        .30,
+        0x65706a
+      );
+    }
+
+
+    // 붐의 가새.
+    for(
+      let t=.12;
+      t<.95;
+      t+=.12
+    ){
+      const x=
+        mix(
+          bx,
+          tx,
+          t
+        );
+
+      const y=
+        mix(
+          topY,
+          ty,
+          t
+        );
+
+      const z=
+        mix(
+          q+dir*2,
+          tz,
+          t
+        );
+
+      ship.beam(
+        p(
+          x-.55,
+          y,
+          z
+        ),
+        p(
+          x+.55,
+          y,
+          z+dir*.75
+        ),
+        .11,
+        .11,
+        0x4e5854
+      );
+    }
+
+
+    // 케이블과 후크.
+    ship.beam(
+      p(
+        tx,
+        ty,
+        tz
+      ),
+      p(
+        tx,
+        21.0,
+        tz
+      ),
+      .07,
+      .07,
+      0x282d2c
+    );
+
+    mbox(
+      ship,
+      p(
+        tx,
+        20.4,
+        tz
+      ),
+      [
+        .55,
+        .85,
+        .55
+      ],
+      0x2a302e,
+      m
+    );
+
+    mbox(
+      shipGlow,
+      p(
+        tx,
+        ty+.3,
+        tz
+      ),
+      [
+        .45,
+        .45,
+        .45
+      ],
+      0xff493d,
+      m
+    );
+  }
+
+
+  deckCrane(
+    -2,
+    1
+  );
+
+  deckCrane(
+    45,
+    -1
+  );
+
+
+  // 한두 개만 살아 있는 비상등.
+  // 배 전체가 정상 가동 중인 것처럼 보이지 않게 한다.
+  mbox(
+    shipGlow,
+    p(
+      -5,
+      49.9,
+      -65
+    ),
+    [
+      .55,
+      .55,
+      .55
+    ],
+    0xff493d,
+    m
+  );
+
+  mbox(
+    shipGlow,
+    p(
+      -17.6,
+      31.0,
+      -61
+    ),
+    [
+      .10,
+      .65,
+      2.1
+    ],
+    0xd6b87b,
+    m
+  );
+}
+
 
 
 
@@ -2858,6 +4386,12 @@ function remapBatches(batches){
  if(dropped)console.warn('JockeyWorld: '+dropped+' triangles straddle an insert boundary');
  return batches;
 }
+
+
+
+
+
+
 
 // ===== [W5]에서 부르는 관람차 블록: buildWorld 안의 기존 관람차 블록을 ferrisBlock(make,cx,Y); 한 줄로 바꾼다 =====
 function ferrisBlock(make,cx,Y){
@@ -7172,7 +8706,22 @@ function stepGate(dt){
 
 // ---- 공개 카메라: 밭이 끝난 빈 도로에서 잠깐 빠져 탑 전체를 보여준다 (조작은 끊지 않음) ----
 // container: 옆·뒤·위로 빠져 탑과 전방 도로를 함께. ship: 앞·물가 쪽으로 빠져 뒤돌아보며 탑 + 뒤편 좌초선을 한 프레임에 (직선·무장애물 구간이라 전방 시야 없어도 됨)
-const REVEALS=[{id:'container',z:CG_REVEAL,dur:1.9,back:false,dir:-1},{id:'ship',z:SF_REVEAL,dur:2.3,back:true,dir:1}];
+const REVEALS=[
+  {
+    id:'container',
+    z:CG_REVEAL,
+    dur:1.9,
+    back:false,
+    dir:-1
+  },
+  {
+    id:'ship',
+    z:SF_REVEAL,
+    dur:2.2,
+    back:true,
+    dir:1
+  }
+];
 const reveal={t:-1,dur:0,back:false,dir:1,id:null,fov0:null},revealDone={};
 function revealK(){if(reveal.t<0)return 0;return sm01(Math.min(reveal.t/.55,1))*(1-sm01(Math.max(0,(reveal.t-(reveal.dur-.75))/.75)));}
 
@@ -7214,23 +8763,345 @@ function inspectLandmarks(z){
  try{const f0=inspectWorldAt;inspectWorldAt=function(z,isWorld,...a){const w=isWorld?z:wz(z);const r=f0(w,...a);inspectLandmarks(w);return r;};}catch(e){list.push('inspectWorldAt');}
  try{const f0=recycle;
   recycle=function(){
-   // 컨테이너선 밭~공개 카메라 구간: 뒤돌아보는 카메라를 위해 뒤쪽 청크를 240m까지 남긴다 (프레임당 1청크만 재활용해 끊김 방지)
+
+// 컨테이너선 밭~공개 카메라 구간:
+// 뒤돌아보는 카메라를 위해 뒤쪽 청크를 360m까지 남긴다.
    if(!(P.z>SF_FIELD_A-40&&P.z<SF_REVEAL+140)){f0();return;}
    let maxZ=-Infinity;for(const c of chunks)if(c.z0>maxZ)maxZ=c.z0;
-   let budget=1;for(const c of chunks){if(c.z0+CH_LEN<P.z-240){if(budget--<=0)break;maxZ+=CH_LEN;fillChunk(c,maxZ);}}
+   let budget=1;for(const c of chunks){if(c.z0+CH_LEN<P.z-360){if(budget--<=0)break;maxZ+=CH_LEN;fillChunk(c,maxZ);}}
    refreshRoadTail();};}catch(e){list.push('recycle');}
- try{const f0=updateCamera;
+ 
+ 
+ 
+ try{
+  const f0=updateCamera;
+
   updateCamera=function(...a){
-   f0(...a);const k=revealK();if(k<=0){if(reveal.fov0!=null){camera.fov=reveal.fov0;camera.updateProjectionMatrix();reveal.fov0=null;}return;}
-   if(reveal.fov0==null)reveal.fov0=camera.fov;
-   const sp=Math.hypot(P.vx,P.vz),fx=sp>.5?P.vx/sp:0,fz=sp>.5?P.vz/sp:1,rx=fz,rz=-fx;   // 전방 (fx,fz), 옆 (rx,rz)=+x 방향 기준
-   const top=P.y+(typeof stackH==='number'?stackH:P.pallets*.15),d=reveal.dir,back=reveal.back;
-   const side=d*(back?7:6.5)*k,up=(back?4:4.2)*k+(top-P.y)*.55*k,fwd=back?lmLerp(-8,7.5,sm01(k)):-(6.5+3.5*k);
-   const px=P.x+rx*side+fx*fwd,py=P.y+3+up,pz=P.z+rz*side+fz*fwd;
-   const la=back?-7:6,lx=P.x+fx*la+(back?rx*d*4*k:0),ly=P.y+1+(top-P.y)*.5*k,lzz=P.z+fz*la+(back?rz*d*4*k:0);
-   const q0=camera.quaternion.clone(),p0=camera.position.clone();
-   camera.position.set(px,py,pz).lerp(p0,1-k);camera.lookAt(lx,ly,lzz);camera.quaternion.slerp(q0,1-k);
-   camera.fov=reveal.fov0+6*k;camera.updateProjectionMatrix();};}catch(e){list.push('updateCamera');}
+    f0(...a);
+
+    const k=
+      revealK();
+
+    if(k<=0){
+      if(
+        reveal.fov0!=null
+      ){
+        camera.fov=
+          reveal.fov0;
+
+        camera.updateProjectionMatrix();
+
+        reveal.fov0=null;
+      }
+
+      return;
+    }
+
+    if(
+      reveal.fov0==null
+    ){
+      reveal.fov0=
+        camera.fov;
+    }
+
+
+    const q0=
+      camera.quaternion.clone();
+
+    const p0=
+      camera.position.clone();
+
+
+    // ─────────────────────────────
+    // 화물선 전용 공개 카메라
+    // ─────────────────────────────
+
+    if(
+      reveal.id==='ship'
+    ){
+      // 라이더의 현재 조향 방향이 아니라
+      // 실제 도로 축을 기준으로 카메라 방향을 정한다.
+      const roadDx=
+        cx(P.z+8)-
+        cx(P.z-8);
+
+      const roadDz=16;
+
+      const roadLen=
+        Math.hypot(
+          roadDx,
+          roadDz
+        )||1;
+
+      const fx=
+        roadDx/
+        roadLen;
+
+      const fz=
+        roadDz/
+        roadLen;
+
+      const rx=fz;
+      const rz=-fx;
+
+
+      const stack=
+        typeof stackH===
+        'number'
+          ? stackH
+          : P.pallets*.15;
+
+
+      // 원래 화물선의 legacy 좌표를
+      // 삽입 이후 실제 월드 좌표로 변환한다.
+      const shipZ=
+        wz(5960);
+
+      const shipRoadX=
+        cx(shipZ);
+
+      const shipX=
+        shipRoadX+58;
+
+      const shipY=
+        H(
+          shipRoadX,
+          shipZ
+        )+
+        25.5;
+
+
+      // 카메라는 라이더보다 앞쪽,
+      // 도로의 왼쪽으로 빠진다.
+      //
+      // 전경 아래쪽: 파렛트 탑
+      // 후경 오른쪽: 좌초선
+      const px=
+        P.x-
+        rx*7.5+
+        fx*26;
+
+      const py=
+        P.y+
+        5.4+
+        stack*.38;
+
+      const pz=
+        P.z-
+        rz*7.5+
+        fz*26;
+
+
+      camera.position
+        .set(
+          px,
+          py,
+          pz
+        )
+        .lerp(
+          p0,
+          1-k
+        );
+
+
+      // 현재 라이더 방향을 보지 않고
+      // 배의 실제 갑판 중심을 직접 바라본다.
+      camera.lookAt(
+        shipX-4,
+        shipY,
+        shipZ
+      );
+
+
+      camera.quaternion.slerp(
+        q0,
+        1-k
+      );
+
+
+      // 넓은 화면에서는 망원 느낌을 줘
+      // 멀리 있는 배를 크게 압축한다.
+      //
+      // 세로 화면에서는 탑이 잘리지 않도록
+      // 조금 더 넓은 화각을 쓴다.
+      const targetFov=
+        camera.aspect<.82
+          ? 57
+          : 50;
+
+
+      camera.fov=
+        lmLerp(
+          reveal.fov0,
+          targetFov,
+          k
+        );
+
+      camera.updateProjectionMatrix();
+
+      return;
+    }
+
+
+    // ─────────────────────────────
+    // 초반 파렛트 탑 공개 카메라
+    // 기존 동작 유지
+    // ─────────────────────────────
+
+    const sp=
+      Math.hypot(
+        P.vx,
+        P.vz
+      );
+
+    const fx=
+      sp>.5
+        ? P.vx/sp
+        : 0;
+
+    const fz=
+      sp>.5
+        ? P.vz/sp
+        : 1;
+
+    const rx=fz;
+    const rz=-fx;
+
+    const top=
+      P.y+
+      (
+        typeof stackH===
+        'number'
+          ? stackH
+          : P.pallets*.15
+      );
+
+    const d=
+      reveal.dir;
+
+    const back=
+      reveal.back;
+
+    const side=
+      d*
+      (
+        back
+          ? 7
+          : 6.5
+      )*
+      k;
+
+    const up=
+      (
+        back
+          ? 4
+          : 4.2
+      )*
+      k+
+      (
+        top-P.y
+      )*
+      .55*
+      k;
+
+    const fwd=
+      back
+        ? lmLerp(
+            -8,
+            7.5,
+            sm01(k)
+          )
+        : -(
+            6.5+
+            3.5*k
+          );
+
+
+    const px=
+      P.x+
+      rx*side+
+      fx*fwd;
+
+    const py=
+      P.y+
+      3+
+      up;
+
+    const pz=
+      P.z+
+      rz*side+
+      fz*fwd;
+
+    const la=
+      back
+        ? -7
+        : 6;
+
+    const lx=
+      P.x+
+      fx*la+
+      (
+        back
+          ? rx*d*4*k
+          : 0
+      );
+
+    const ly=
+      P.y+
+      1+
+      (
+        top-P.y
+      )*
+      .5*
+      k;
+
+    const lzz=
+      P.z+
+      fz*la+
+      (
+        back
+          ? rz*d*4*k
+          : 0
+      );
+
+
+    camera.position
+      .set(
+        px,
+        py,
+        pz
+      )
+      .lerp(
+        p0,
+        1-k
+      );
+
+    camera.lookAt(
+      lx,
+      ly,
+      lzz
+    );
+
+    camera.quaternion.slerp(
+      q0,
+      1-k
+    );
+
+    camera.fov=
+      reveal.fov0+
+      6*k;
+
+    camera.updateProjectionMatrix();
+  };
+
+}catch(e){
+  list.push(
+    'updateCamera'
+  );
+}
+
+
+
  if(list.length)console.error('[자키 라이더] 감싸기 실패 — 아래 함수가 function 선언이 아니라 const로 되어 있습니다. 이름을 바꿔 감싸 주세요:',list.join(', '));
 }
 
@@ -7245,7 +9116,25 @@ function inspectLandmarks(z){
   const t=performance.now()*.001;for(const m of rotors)m.rotation.z=t*.012;   // 관람차 한 바퀴 ≈ 9분: 알아차리기 힘든 속도
   const k=revealK();
   if(k>0&&reveal.back){
-   if(scene.fog){scene.fog.far=Math.max(scene.fog.far,lmLerp(scene.fog.far,820,k));scene.fog.near=Math.max(scene.fog.near,lmLerp(scene.fog.near,140,k));}
+ if(scene.fog){
+  scene.fog.far=Math.max(
+    scene.fog.far,
+    lmLerp(
+      scene.fog.far,
+      1100,
+      k
+    )
+  );
+
+  scene.fog.near=Math.max(
+    scene.fog.near,
+    lmLerp(
+      scene.fog.near,
+      160,
+      k
+    )
+  );
+}
    for(const m of world3D.root.children){const rg=m.userData&&m.userData.range;if(rg&&rg[1]>P.z-620&&rg[0]<P.z+20)m.visible=true;}}
   return r;};}
 // ---- 투어(?tour=1) 버튼: 새 구간으로 바로 가기 ----
