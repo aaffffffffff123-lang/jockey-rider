@@ -777,6 +777,54 @@ const dockB=246;
     2
   );
 
+  // ─────────────────────────────
+  // 1-1. 바닥 도색 (하역장 규격)
+  // ─────────────────────────────
+
+  const dockPaint=make(
+    'covered-loading-apron-paint'
+  );
+
+  const APRON_Y=.055;
+  const AP_YEL=0xd6ae3c;
+  const AP_WHT=0xd7dbd1;
+
+  const apq=(a,b,c,d,color)=>{
+    const P=q=>{
+      const x=cx(q[1])+q[0];
+      return [x,Y(x,q[1])+APRON_Y,q[1]];
+    };
+    dockPaint.quad(P(a),P(b),P(c),P(d),rgb(color));
+  };
+
+  // 양쪽 보행 통로: 노란 두 줄 + 사선 해칭
+  for(const s of[-1,1]){
+    strip(dockPaint,s*13.9,s*13.5,dockA+4,dockB-11,AP_YEL,APRON_Y,2);
+    strip(dockPaint,s*12.3,s*11.9,dockA+4,dockB-11,AP_YEL,APRON_Y,2);
+    for(let z=dockA+6;z<dockB-13;z+=3.4){
+      apq([s*13.4,z],[s*13.4,z+.9],[s*12.4,z+2.3],[s*12.4,z+1.4],AP_YEL);
+    }
+  }
+
+  // 주행로 중앙 유도 점선
+  for(let z=dockA+8;z<dockB-12;z+=6.4){
+    apq([-.28,z],[-.28,z+3.2],[.28,z+3.2],[.28,z],AP_WHT);
+  }
+
+  // 출구 정지선
+  apq([-11.4,dockB-10.2],[-11.4,dockB-9.5],[11.4,dockB-9.5],[11.4,dockB-10.2],AP_WHT);
+
+  // 정지선 앞 사선 위험구역
+  for(let i=0;i<10;i++){
+    const u=-11.2+i*2.3;
+    apq([u,dockB-8.8],[u,dockB-7.6],[u+1.35,dockB-5.8],[u+1.35,dockB-7.0],AP_YEL);
+  }
+
+  // 주행로 경계 실선
+  for(const s of[-1,1]){
+    strip(dockPaint,s*11.5,s*11.1,dockA+4,dockB-11,AP_WHT,APRON_Y,2);
+  }
+
   // 차선 경계.
   for(const u of[-11.5,11.5]){
     strip(
@@ -2360,12 +2408,12 @@ const shipGlow=make(
   const z0=5960;
 
 const origin=[
-  cx(z0)+130,
+  cx(z0)+95,
   base(z0)-4.2,
   z0
 ];
 
-  const yaw=1.45;
+  const yaw=.785;
   const roll=.035;
 
   const m=basisYXZ(
