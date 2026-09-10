@@ -449,13 +449,94 @@ class Batch{
  beam(a,b,width,depth,color){const y=norm(sub(b,a)),x=norm(cross(y,Math.abs(y[1])>.95?[0,0,1]:[0,1,0])),z=norm(cross(x,y)),co=rgb(color);const v=[];for(const c of[a,b])for(const[i,j]of[[-1,-1],[1,-1],[1,1],[-1,1]])v.push(add(c,add(mul(x,width*.5*i),mul(z,depth*.5*j))));for(const f of[[0,3,2,1],[4,5,6,7],[0,1,5,4],[1,2,6,5],[2,3,7,6],[3,0,4,7]])this.quad(...f.map(i=>v[i]),co);}
 }
 // Centre-relative traversable bounds. Only the dispatch doorway narrows the tutorial route.
+
+
+
+
 function driveBounds(z){
- const k=smooth(105,150,z)*(1-smooth(164,188,z));
- let lo=mix(-11.65,2.30,k),hi=mix(11.65,8.70,k);
- const open=smooth(END_ROAD_FADE,END_FIELD,z);
- lo=mix(lo,-70,open);hi=mix(hi,70,open);
- return[lo,hi];
+  const k=
+    smooth(105,150,z)*
+    (
+      1-
+      smooth(164,188,z)
+    );
+
+  let lo=
+    mix(
+      -11.65,
+      2.30,
+      k
+    );
+
+  let hi=
+    mix(
+      11.65,
+      8.70,
+      k
+    );
+
+  // 교차로에서만 난간이 끊긴 만큼
+  // 주행 가능 폭도 조금 넓힌다.
+  // 시각 난간만 없애고 투명벽이 남는 현상을 막는다.
+  const junction=
+    smooth(
+      3478,
+      3498,
+      z
+    )*
+    (
+      1-
+      smooth(
+        3532,
+        3552,
+        z
+      )
+    );
+
+  lo=
+    mix(
+      lo,
+      -18.5,
+      junction
+    );
+
+  hi=
+    mix(
+      hi,
+      18.5,
+      junction
+    );
+
+  const open=
+    smooth(
+      END_ROAD_FADE,
+      END_FIELD,
+      z
+    );
+
+  lo=
+    mix(
+      lo,
+      -70,
+      open
+    );
+
+  hi=
+    mix(
+      hi,
+      70,
+      open
+    );
+
+  return[
+    lo,
+    hi
+  ];
 }
+
+
+
+
 function buildWorld(Hw,cxw,seed=0){const H=(x,z)=>Hw(x,wz(z)),cx=z=>cxw(wz(z));
  const batches=[],R=rng(94721+seed);const make=(name,kind)=>{const b=new Batch(name,kind);batches.push(b);return b;};
  const Y=(x,z)=>H(x,z), base=z=>H(cx(z),z);
@@ -637,9 +718,8 @@ function buildWorld(Hw,cxw,seed=0){const H=(x,z)=>Hw(x,wz(z)),cx=z=>cxw(wz(z));
 // 도크문 밖 반실내 차량 접안장.
 // 단순한 지붕 도로가 아니라, 건물 하부의 거대한 하역 공간을 통과한다.
 {
-  const dockA=158;
-  const dockB=246;
-  const dockFadeA=228;
+ const dockA=158;
+const dockB=246;
 
   const dockFloor=make(
     'covered-loading-apron-floor'
@@ -745,73 +825,79 @@ function buildWorld(Hw,cxw,seed=0){const H=(x,z)=>Hw(x,wz(z)),cx=z=>cxw(wz(z));
   // 2. 건물 하부
   // ─────────────────────────────
 
-  // 넓은 천장을 중간에 끊지 않고 완전히 덮는다.
-  // 마지막 18m에서만 높이가 올라가며 외부가 열린다.
-  for(let z=dockA;z<dockB;z+=8){
-    const z2=Math.min(
+  // 천장을 출구까지 같은 높이로 완전히 덮는다.
+// 마지막 구간에서도 하늘이 드러나지 않는다.
+for(let z=dockA;z<dockB;z+=8){
+  const z2=
+    Math.min(
       dockB,
       z+8
     );
 
-    const mid=(z+z2)*.5;
+  const mid=
+    (
+      z+
+      z2
+    )*.5;
 
-    const exitLift=
-      3.6*smooth(
-        dockFadeA,
-        dockB,
-        mid
-      );
+  const y=
+    base(mid)+
+    9.15;
 
-    const y=
-      base(mid)+
-      9.15+
-      exitLift;
-
-    const yaw=Math.atan2(
-      cx(z2)-cx(z),
+  const yaw=
+    Math.atan2(
+      cx(z2)-
+      cx(z),
       z2-z
     );
 
-    dockStructure.box(
-      [cx(mid),y,mid],
+  dockStructure.box(
+    [
+      cx(mid),
+      y,
+      mid
+    ],
+    [
+      84,
+      .72,
+      z2-z+.35
+    ],
+    0x4a504e,
+    [
+      0,
+      yaw,
+      0
+    ]
+  );
+
+  // 천장 아래 깊은 횡보.
+  if(
+    Math.floor(
+      (
+        mid-
+        dockA
+      )/8
+    )%2===0
+  ){
+    dockStructure.beam(
       [
-        84,
-        .72,
-        z2-z+.35
+        cx(mid)-39,
+        y-.72,
+        mid
       ],
-      mid<dockFadeA
-        ? 0x4a504e
-        : 0x666b67,
-      [0,yaw,0]
+      [
+        cx(mid)+39,
+        y-.72,
+        mid
+      ],
+      .54,
+      .62,
+      0x333a38
     );
-
-    // 천장 아래 깊은 횡보.
-    if(
-      Math.floor(
-        (mid-dockA)/8
-      )%2===0
-    ){
-      dockStructure.beam(
-        [
-          cx(mid)-39,
-          y-.72,
-          mid
-        ],
-        [
-          cx(mid)+39,
-          y-.72,
-          mid
-        ],
-        .54,
-        .62,
-        0x333a38
-      );
-    }
   }
+}
 
-  // 양옆 외벽을 연속적으로 세워
-  // 옆으로 하늘이 보이는 터널 느낌을 막는다.
-  for(let z=dockA+4;z<dockFadeA;z+=8){
+ for(let z=dockA+4;z<dockB;z+=8){
     for(const side of[-1,1]){
       const x=cx(z)+side*41.2;
       const y=Y(x,z);
@@ -832,9 +918,118 @@ function buildWorld(Hw,cxw,seed=0){const H=(x,z)=>Hw(x,wz(z)),cx=z=>cxw(wz(z));
     }
   }
 
+
+
   // ─────────────────────────────
-  // 3. 기둥과 안전무늬
+  // 3. 기둥과 안전 보호대
   // ─────────────────────────────
+
+  const guardW=
+    1.86;
+
+  const guardH=
+    1.64;
+
+  const guardD=
+    1.86;
+
+  // 네 줄이 모두 같은 방향으로 평행하게 놓인다.
+  const guardStripeY=[
+    -.405,
+    -.135,
+     .135,
+     .405
+  ];
+
+  const guardStripeAngle=
+    -.62;
+
+
+  function addGuardStripes(
+    x,
+    guardY,
+    z,
+    side
+  ){
+    const stripeColor=
+      0x171b1a;
+
+    // 노란 보호대 표면에서 아주 조금만 앞으로 띄운다.
+    // 기존처럼 기둥을 관통하거나 밖으로 길게 튀어나오지 않는다.
+    const faceGap=
+      .018;
+
+
+    // ─────────────────────────────
+    // 통행로 쪽 측면
+    // ─────────────────────────────
+
+    const innerFaceX=
+      x-
+      side*
+      (
+        guardW*.5+
+        faceGap
+      );
+
+    for(const dy of guardStripeY){
+      dockStructure.box(
+        [
+          innerFaceX,
+          guardY+dy,
+          z
+        ],
+        [
+          .028,
+          .17,
+          1.08
+        ],
+        stripeColor,
+        [
+          guardStripeAngle,
+          0,
+          0
+        ]
+      );
+    }
+
+
+    // ─────────────────────────────
+    // 진행 방향의 앞면과 뒷면
+    // ─────────────────────────────
+
+    for(const face of[-1,1]){
+      const faceZ=
+        z+
+        face*
+        (
+          guardD*.5+
+          faceGap
+        );
+
+      for(const dy of guardStripeY){
+        dockStructure.box(
+          [
+            x,
+            guardY+dy,
+            faceZ
+          ],
+          [
+            1.08,
+            .17,
+            .028
+          ],
+          stripeColor,
+          [
+            0,
+            0,
+            guardStripeAngle
+          ]
+        );
+      }
+    }
+  }
+
 
   for(
     let z=dockA+7,row=0;
@@ -842,54 +1037,75 @@ function buildWorld(Hw,cxw,seed=0){const H=(x,z)=>Hw(x,wz(z)),cx=z=>cxw(wz(z));
     z+=14,row++
   ){
     for(const u of[
-      -37.5,-14.9,
-       14.9, 37.5
+      -37.5,
+      -14.9,
+       14.9,
+       37.5
     ]){
-      const side=Math.sign(u);
-      const x=cx(z)+u;
-      const y=Y(x,z);
+      const side=
+        Math.sign(u);
 
+      const x=
+        cx(z)+u;
+
+      const y=
+        Y(
+          x,
+          z
+        );
+
+
+      // 콘크리트 기둥.
       dockStructure.box(
-        [x,y+4.45,z],
-        [1.65,8.9,1.65],
+        [
+          x,
+          y+4.45,
+          z
+        ],
+        [
+          1.65,
+          8.9,
+          1.65
+        ],
         row%2
           ? 0xc7c9c3
           : 0xd2d2ca
       );
 
-      // 노란 기둥 보호대.
+
+      // 하단 충돌 보호대.
+      const guardY=
+        y+
+        guardH*.5;
+
       dockStructure.box(
-        [x,y+.82,z],
-        [1.82,1.64,1.82],
+        [
+          x,
+          guardY,
+          z
+        ],
+        [
+          guardW,
+          guardH,
+          guardD
+        ],
         0xd6aa13
       );
 
-      // 검은 사선 다섯 줄.
-      const faceX=
-        x-side*.93;
 
-      for(let k=-2;k<=2;k++){
-        dockStructure.box(
-          [
-            faceX,
-            y+.82+k*.30,
-            z+k*.18
-          ],
-          [
-            .055,
-            .26,
-            1.88
-          ],
-          0x171b1a,
-          [
-            side*.64,
-            0,
-            0
-          ]
-        );
-      }
+      // 검은색은 두꺼운 막대가 아니라
+      // 노란 보호대 표면에 붙은 얇은 도색판이다.
+      addGuardStripes(
+        x,
+        guardY,
+        z,
+        side
+      );
     }
   }
+
+
+
 
   // ─────────────────────────────
   // 4. 양쪽 도크베이
@@ -1107,10 +1323,10 @@ function buildWorld(Hw,cxw,seed=0){const H=(x,z)=>Hw(x,wz(z)),cx=z=>cxw(wz(z));
   // 중앙 형광등이 아니라
   // 접안장 안쪽에 길게 늘어선 낮은 산업등.
   for(
-    let z=dockA+6,i=0;
-    z<dockFadeA;
-    z+=11,i++
-  ){
+  let z=dockA+6,i=0;
+  z<dockB-2;
+  z+=11,i++
+){
     for(const u of[
       -10.0,10.0
     ]){
@@ -1138,6 +1354,97 @@ function buildWorld(Hw,cxw,seed=0){const H=(x,z)=>Hw(x,wz(z)),cx=z=>cxw(wz(z));
       );
     }
   }
+
+
+  // 출구는 도로 폭만 열고,
+// 나머지 정면은 벽과 상부 인방으로 닫는다.
+{
+  const z=
+    dockB-
+    .12;
+
+  const c=
+    cx(z);
+
+  const roofY=
+    base(z)+
+    9.15;
+
+  const outerHalf=
+    41.7;
+
+  const openingHalf=
+    13.5;
+
+  const panelW=
+    outerHalf-
+    openingHalf;
+
+  // 도로 좌우 정면 벽.
+  for(const side of[-1,1]){
+    const x=
+      c+
+      side*
+      (
+        openingHalf+
+        panelW*.5
+      );
+
+    const floorY=
+      Y(
+        x,
+        z
+      );
+
+    const h=
+      Math.max(
+        2,
+        roofY-
+        floorY+
+        .36
+      );
+
+    dockStructure.box(
+      [
+        x,
+        floorY+
+        h*.5,
+        z
+      ],
+      [
+        panelW,
+        h,
+        .95
+      ],
+      0x565d59
+    );
+  }
+
+  // 도로 출구 위쪽 인방.
+  // 8m 높이까지는 통과 공간으로 남긴다.
+  const openingTop=
+    base(z)+
+    8.0;
+
+  dockStructure.box(
+    [
+      c,
+      (
+        openingTop+
+        roofY
+      )*.5,
+      z
+    ],
+    [
+      openingHalf*2,
+      roofY-
+      openingTop+
+      .36,
+      .95
+    ],
+    0x4a504e
+  );
+}
 
   // 출구빛은 바닥에 직접 흰색 판을 깔지 않고
   // 마지막 천장과 기둥 색만 서서히 밝게 한다.
@@ -1343,7 +1650,7 @@ function buildWorld(Hw,cxw,seed=0){const H=(x,z)=>Hw(x,wz(z)),cx=z=>cxw(wz(z));
 
  for(let i=0;i<24;i++){const z=15+R()*125,x=(R()<.5?-1:1)*(17+R()*13);at(stock,x,.3,z,.6+R(),.4+R()*.4,.7+R(),i%3?C.box:C.roof,[R()*.2,R()*3,R()*.25]);}
  // CAMPUS: real wall thickness, recessed bays, separate yards, roof breaks.
- const campuses=[[-1,218,92,65,98,12], [1,296,78,79,123,14],[-1,406,80,82,110,15], [1,472,104,105,127,17],[-1,720,116,90,120,13], [1,1340,150,95,140,17]];
+ const campuses=[[-1,218,63,65,98,12], [1,296,78,79,123,14],[-1,406,80,82,110,15], [1,472,104,105,127,17],[-1,720,116,90,120,13], [1,1340,150,95,140,17]];
  campuses.forEach(([s,z,off,w,l,h],idx)=>{
   const b=make('warehouse-'+idx),gl=make('warehouse-lamps-'+idx,'emissive');
   const xx=cx(z)+s*off,yy=base(z)-.4,front=xx-s*w/2,back=xx+s*w/2;
@@ -1770,19 +2077,19 @@ for(const side of[-1,1]){
  }
 
  // 4.38–4.62 km: a concrete tunnel genuinely buried in a mountain.
- const tunnelShell=make('mountain-tunnel-shell'),tl=make('mountain-tunnel-lamps','emissive'),mountain=make('tunnel-mountain');
+ const tb=make('mountain-tunnel-shell'),tl=make('mountain-tunnel-lamps','emissive'),mountain=make('tunnel-mountain');
  const ts=TUNNEL_START,te=TUNNEL_END,arc=24;
  function section(z,a,outer=0){const t=a*Math.PI/arc,x=cx(z)+(14.15+outer)*Math.cos(t);return[x,base(z)+.1+(10.7+outer)*Math.sin(t),z];}
  for(let z=ts;z<te;z+=3){const zz=Math.min(te,z+3);for(let a=0;a<arc;a++){
-  const col=rgb(C.concrete,(a===0||a===arc-1)?.57:.71);tunnelShell.quad(section(z,a),section(z,a+1),section(zz,a+1),section(zz,a),col);
-  tunnelShell.quad(section(z,a,1),section(zz,a,1),section(zz,a+1,1),section(z,a+1,1),rgb(C.concrete,.73));
+  const col=rgb(C.concrete,(a===0||a===arc-1)?.57:.71);tb.quad(section(z,a),section(z,a+1),section(zz,a+1),section(zz,a),col);
+  tb.quad(section(z,a,1),section(zz,a,1),section(zz,a+1,1),section(z,a+1,1),rgb(C.concrete,.73));
  }}
- for(const z of[ts,te])for(let a=0;a<arc;a++)tunnelShell.quad(section(z,a),section(z,a,1),section(z,a+1,1),section(z,a+1),rgb(C.concrete));
+ for(const z of[ts,te])for(let a=0;a<arc;a++)tb.quad(section(z,a),section(z,a,1),section(z,a+1,1),section(z,a+1),rgb(C.concrete));
  for(let z=ts;z<=te;z+=12){
-  for(let a=0;a<arc;a++)tunnelShell.beam(section(z,a),section(z,a+1),.13,.17,0x424c48);
+  for(let a=0;a<arc;a++)tb.beam(section(z,a),section(z,a+1),.13,.17,0x424c48);
   if(Math.round((z-ts)/12)%4!==2)tl.box([cx(z),base(z)+10.35,z],[.35,.08,1.8],0xc7b98e);
   if(Math.round((z-ts)/12)%4===0)tl.box([cx(z)-13.4,base(z)+2.7,z],[.12,.13,.36],0xb44636);
-  for(const side of[-1,1])tunnelShell.beam([cx(z)+side*13.4,base(z)+1.1,z],[cx(z+12)+side*13.4,base(z+12)+1.1,z+12],.09,.10,C.dark);
+  for(const side of[-1,1])tb.beam([cx(z)+side*13.4,base(z)+1.1,z],[cx(z+12)+side*13.4,base(z+12)+1.1,z+12],.09,.10,C.dark);
  }
  // Massive side slopes and an overhead crown hide the manufactured tube from outside.
  for(let z=ts-150,i=0;z<=te+150;z+=18,i++){
@@ -1839,11 +2146,11 @@ const shipGlow=make(
 {
   const z0=5960;
 
-  const origin=[
-    cx(z0)+58,
-    base(z0)-4.2,
-    z0
-  ];
+const origin=[
+  cx(z0)+44,
+  base(z0)-4.2,
+  z0
+];
 
   const yaw=.18;
   const roll=.035;
@@ -2243,21 +2550,7 @@ const shipGlow=make(
       rgb(hullRoad)
     );
 
-    ship.beam(
-      p(
-        0,
-        .8,
-        s.z
-      ),
-      p(
-        0,
-        s.deck+.4,
-        s.z
-      ),
-      .34,
-      .34,
-      0x304b53
-    );
+  
   }
 
 
@@ -2265,31 +2558,33 @@ const shipGlow=make(
   // 선체 표면
   // ─────────────────────────────
 
-  // 수직 프레임.
-  for(const q of[
-    -86,-70,-52,-34,
-    -16,2,20,38,
-    56,72,86,98
-  ]){
-    const w=
-      hullWidth(q);
+// 수직 프레임.
+// 선저까지 내려가 받침대처럼 보이지 않게
+// 선체 상부에만 짧고 가늘게 남긴다.
+for(const q of[
+  -86,-70,-52,-34,
+  -16,2,20,38,
+  56,72,86,98
+]){
+  const w=
+    hullWidth(q);
 
-    ship.beam(
-      p(
-        -w-.07,
-        1.8,
-        q
-      ),
-      p(
-        -w-.07,
-        14.3,
-        q
-      ),
-      .085,
-      .055,
-      0x304c54
-    );
-  }
+  ship.beam(
+    p(
+      -w-.07,
+      5.9,
+      q
+    ),
+    p(
+      -w-.07,
+      13.9,
+      q
+    ),
+    .055,
+    .040,
+    0x304c54
+  );
+}
 
 
   // 녹물이 아래로 흘러내린 자국.
@@ -3445,8 +3740,92 @@ for(let z=4680;z<10300;z+=24){
   }
  }
 
+
+// 싱크홀 목구멍의 연속 외피.
+// 기존 불규칙 암벽은 그대로 두고,
+// 그 뒤에 겹치는 천장과 측벽을 추가해 하늘 틈을 막는다.
+for(
+  let z=
+    SINK_START+68;
+  z<
+    UNDER_START+155;
+  z+=18
+){
+  const z2=
+    Math.min(
+      UNDER_START+155,
+      z+18
+    );
+
+  const mid=
+    (
+      z+
+      z2
+    )*.5;
+
+  const cc=
+    cx(mid);
+
+  const y=
+    base(mid);
+
+  const yaw=
+    Math.atan2(
+      cx(z2)-
+      cx(z),
+      z2-z
+    );
+
+  // 낮고 무거운 천장.
+  sinkVoid.box(
+    [
+      cc,
+      y+12.2,
+      mid
+    ],
+    [
+      52,
+      5.5,
+      z2-z+8
+    ],
+    0x101512,
+    [
+      0,
+      yaw,
+      0
+    ]
+  );
+
+  // 천장과 겹치는 양쪽 측벽.
+  for(const side of[-1,1]){
+    sinkVoid.box(
+      [
+        cc+
+        side*23,
+        y+5.0,
+        mid
+      ],
+      [
+        8,
+        15.5,
+        z2-z+8
+      ],
+      0x141a17,
+      [
+        0,
+        yaw,
+        0
+      ]
+    );
+  }
+}
+
+
  // 11.5–12.6 km: a failed civil-defence underpass. Large collapses really occupy one lane.
  const underShell=make('underground-civil-defence-road'),underLights=make('underground-emergency-lights','emissive'),underWater=make('underground-drainage','water');
+ 
+ 
+ 
  for(let z=UNDER_START-30,i=0;z<CAVERN_START+25;z+=24,i++){
   const cc=cx(z),y=base(z),damage=smooth(UNDER_START+460,CAVERN_START,z);
   for(const side of[-1,1]){
@@ -3464,6 +3843,128 @@ for(let z=4680;z<10300;z+=24){
   underWater.box([cc+side*15.0,y+.045,z],[4.4,.025,25],0x20383b,[0,.015*side,0]);
  }
 
+// 지하차도 외부 봉합층.
+// 도로 곡선을 따라 겹치므로
+// 기존 천장 조각 사이의 하늘 틈이 사라진다.
+for(
+  let z=
+    UNDER_START-42;
+  z<
+    CAVERN_START+50;
+  z+=18
+){
+  const z2=
+    Math.min(
+      CAVERN_START+50,
+      z+18
+    );
+
+  const mid=
+    (
+      z+
+      z2
+    )*.5;
+
+  const cc=
+    cx(mid);
+
+  const y=
+    base(mid);
+
+  const yaw=
+    Math.atan2(
+      cx(z2)-
+      cx(z),
+      z2-z
+    );
+
+  // 자연동굴 진입부에서만
+  // 외피가 조금씩 넓고 높아진다.
+  const caveJoin=
+    smooth(
+      CAVERN_START-90,
+      CAVERN_START+45,
+      mid
+    );
+
+  const roofY=
+    y+
+    mix(
+      12.4,
+      27.0,
+      caveJoin
+    );
+
+  underShell.box(
+    [
+      cc,
+      roofY,
+      mid
+    ],
+    [
+      mix(
+        52,
+        88,
+        caveJoin
+      ),
+      mix(
+        5.8,
+        11.0,
+        caveJoin
+      ),
+      z2-z+8
+    ],
+    caveJoin>.5
+      ? 0x1b211e
+      : 0x252b29,
+    [
+      0,
+      yaw,
+      0
+    ]
+  );
+
+  for(const side of[-1,1]){
+    const wallH=
+      mix(
+        16,
+        31,
+        caveJoin
+      );
+
+    underShell.box(
+      [
+        cc+
+        side*
+        mix(
+          23,
+          39,
+          caveJoin
+        ),
+        y+
+        wallH*.32,
+        mid
+      ],
+      [
+        mix(
+          8.5,
+          18,
+          caveJoin
+        ),
+        wallH,
+        z2-z+8
+      ],
+      0x202624,
+      [
+        0,
+        yaw,
+        0
+      ]
+    );
+  }
+}
+
+
  // 12.6–13.35 km: the man-made tunnel ruptures into a cavern whose scale is impossible to mistake.
  const cavernRock=make('vast-natural-cavern'),cavernWater=make('black-underground-lake','water'),cavernGlow=make('cavern-work-lights','emissive'),cavernSheen=make('cavern-water-sheen','moon-glint');
  const cavernFloor=z=>base(z)-11.8;
@@ -3479,8 +3980,135 @@ for(let z=4680;z<10300;z+=24){
    if(i%3===0)cavernRock.beam([cc+side*(12+R()*15),roadY+19+R()*10,z-9],[cc+side*(18+R()*24),floor+2+R()*6,z+8],.30+R()*.32,.30+R()*.32,i%6===0?0x584936:0x303833);
   }
   // Irregular roof plates overlap, creating a natural vaulted ceiling without a geometric tube outline.
-  const openVault=smooth(GLIDE_START-300,GLIDE_START+20,z),roofY=roadY+34+openVault*34+5*Math.sin(i*.57)+R()*5;
-  cavernRock.box([cc+(R()-.5)*10,roofY,z],[72+R()*26,5+R()*7,38],i%2?0x28302c:0x363a32,[R()*.18,R()*2.2,(R()-.5)*.22]);
+ 
+ 
+ // 도로 곡선을 따라 겹치는 암반 외피.
+// 무작위로 돌아간 돌판이 아니라
+// 좌우 벽과 천장이 이어진 실제 동굴로 만든다.
+const z2=
+  Math.min(
+    GLIDE_END+85,
+    z+31
+  );
+
+const mid=
+  (
+    z+
+    z2
+  )*.5;
+
+const roofYaw=
+  Math.atan2(
+    cx(z2)-
+    cx(z),
+    z2-z
+  );
+
+// 활공과 파이프 상부에서는 높아지되,
+// 천장이 사라지거나 열리지는 않는다.
+const highVault=
+  smooth(
+    GLIDE_START-220,
+    GLIDE_START,
+    mid
+  );
+
+const roofY=
+  base(mid)+
+  27+
+  18*
+  highVault+
+  2.2*
+  Math.sin(
+    i*.57
+  )+
+  (
+    R()-.5
+  )*2.0;
+
+// 기존 불규칙 암벽 뒤에 놓이는 연속 측벽.
+// 앞쪽 돌덩어리가 이 외피를 가리므로
+// 실제 화면에서는 박스 벽처럼 보이지 않는다.
+const shellH=
+  mix(
+    42,
+    68,
+    highVault
+  );
+
+for(const side of[-1,1]){
+  cavernRock.box(
+    [
+      cx(mid)+
+      side*46,
+      cavernFloor(mid)+
+      shellH*.5,
+      mid
+    ],
+    [
+      30+
+      R()*8,
+      shellH,
+      z2-z+14
+    ],
+    side>0
+      ? 0x202724
+      : 0x252d29,
+    [
+      0,
+      roofYaw+
+      (
+        R()-.5
+      )*.08,
+      side*
+      (
+        .04+
+        (
+          R()-.5
+        )*.035
+      )
+    ]
+  );
+}
+
+// 겹치는 암반 천장.
+// 각 판이 진행 방향을 따르고 앞뒤로 12m씩 겹친다.
+cavernRock.box(
+  [
+    cx(mid)+
+    (
+      R()-.5
+    )*3.0,
+    roofY,
+    mid
+  ],
+  [
+    96+
+    R()*16,
+    11+
+    R()*4,
+    z2-z+12
+  ],
+  i%2
+    ? 0x202724
+    : 0x2d312c,
+  [
+    (
+      R()-.5
+    )*.06,
+    roofYaw+
+    (
+      R()-.5
+    )*.08,
+    (
+      R()-.5
+    )*.06
+  ]
+);
+
+
+
+
   if(i%3===1){const side=i%6<3?-1:1;cavernGlow.box([cc+side*(16+R()*7),roadY+6+R()*5,z],[1.2,.34,1.2],0x79b5ae);cavernGlow.box([cc-side*(19+R()*7),floor+.38,z+7],[10+R()*7,.024,1.35],0x62abb0);}
   // Reeds of stone and half-drowned rubble make the lake edge readable.
   if(i%2===0)for(const side of[-1,1])for(let q=0;q<3;q++)cavernRock.beam([cc+side*(19+q*5),floor+.2,z-7+q*4],[cc+side*(18+q*6),floor+3+R()*7,z-4+q*4],.22+R()*.18,.22+R()*.18,0x38413b);
@@ -4837,269 +5465,277 @@ function buildInsertedWorld(Hw,cxw,seed=0){
     );
 
 
-  // 가까운 거리와 중간 거리의 상세 컨테이너 스택.
-  // drawContainer를 사용하므로 골, 프레임, 문짝, 녹이 유지된다.
-  function stackDead(
-    z,
-    u,
-    levels,
-    seed,
-    opt={}
-  ){
-    const side=
-      Math.sign(u)||
-      1;
+function stackDead(
+  z,
+  u,
+  levels,
+  seed,
+  opt={}
+){
+  const side=
+    Math.sign(u)||
+    1;
 
-    const baseYaw=
-      opt.yaw!=null
-        ? opt.yaw
-        : (
-            side>0
-              ? Math.PI
-              : 0
-          );
+  // 한 스택은 처음부터 끝까지 같은 규격을 쓴다.
+  const len=
+    seed%3===0
+      ? CONT_20
+      : CONT_40;
 
-    for(let l=0;l<levels;l++){
-      const len=
-        (seed+l)%3===0
-          ? CONT_20
-          : CONT_40;
-
-      const uu=
-        u+
-        (
-          l
-            ? Math.sin(
-                seed*1.73+
-                l*.91
-              )*.62
+  const yaw=
+    opt.yaw!=null
+      ? opt.yaw
+      : (
+          side>0
+            ? Math.PI
             : 0
         );
 
-      const zz=
-        z+
-        (
-          l
-            ? Math.cos(
-                seed*1.19+
-                l*.83
-              )*.78
-            : 0
-        );
+  // 층마다 흔드는 대신 스택 전체가
+  // 지반 침하로 아주 조금 기울어진 정도만 허용한다.
+  const lean=
+    clamp(
+      opt.lean||0,
+      -.035,
+      .035
+    );
 
-      const[x,y]=
-        ground(
-          uu,
-          zz
-        );
+  const pitch=
+    clamp(
+      opt.pitch||0,
+      -.025,
+      .025
+    );
 
-      const yaw=
-        baseYaw+
-        Math.sin(
-          seed*1.31+
-          l*.77
-        )*.085;
+  const[x,y]=
+    ground(
+      u,
+      z
+    );
 
-      const g=
-        settle(
-          uu,
-          zz,
-          yaw,
-          CONT_W/2,
-          len/2
-        );
+  const g=
+    settle(
+      u,
+      z,
+      yaw,
+      CONT_W/2,
+      len/2
+    );
 
-      const top=
-        l===levels-1;
+  const m=
+    basisYXZ(
+      yaw,
+      pitch+
+      g.pitch,
+      lean+
+      g.roll
+    );
 
-      const roll=
-        (
-          top
-            ? opt.lean||0
-            : 0
-        )+
-        Math.sin(
-          seed*.9+
-          l*2.1
-        )*.022;
+  const baseCenter=[
+    x,
+    y+
+    CONT_H/2,
+    z
+  ];
 
-      const pitch=
-        (
-          top
-            ? opt.pitch||0
-            : 0
-        )+
-        Math.cos(
-          seed*1.4+
-          l
-        )*.018;
-
-      const doorCode=
-        (seed+l*3)%7;
-
-      const doors=
-        doorCode===0
-          ? 'open'
-          : doorCode===1
-            ? 'missing'
-            : 'closed';
-
-      drawContainer(
-        grave,
-        [
-          x,
-          y+
-          CONT_H/2+
-          l*CONT_H*.96,
-          zz
-        ],
-        len,
-        dead(
-          seed*3+l,
-          .64+
-          .04*
-          (
-            (seed+l)%4
-          )
-        ),
-        basisYXZ(
-          yaw,
-          pitch+g.pitch,
-          roll+g.roll
-        ),
-        {
-          doors,
-          doorAngle:
-            1.55+
-            .18*
-            (
-              (seed+l)%4
-            ),
-          rust:
-            .72+
-            .07*
-            (
-              (seed+l)%4
-            ),
-          cargo:
-            doors==='open'&&
-            l===0
-              ? 'boxes'
-              : null
-        }
-      );
-    }
-  }
-
-
-  // 원경은 상세도를 조금 줄인 가벼운 실루엣으로 만든다.
-  // 멀리까지 컨테이너가 끝없이 이어진다는 인상만 담당한다.
-  function farDead(
-    z,
-    u,
-    levels,
-    seed
-  ){
-    const side=
-      Math.sign(u)||
-      1;
-
-    const yaw=
-      (
-        side>0
-          ? Math.PI
-          : 0
-      )+
-      Math.sin(
-        seed*.8
-      )*.06;
-
-    const[x,y]=
-      ground(
-        u,
-        z
-      );
-
-    const m=
-      basisYXZ(
-        yaw,
+  for(let l=0;l<levels;l++){
+    // 로컬 수직축으로 정확히 CONT_H씩 쌓는다.
+    const centre=
+      tb(
+        baseCenter,
+        m,
         0,
-        Math.sin(
-          seed*1.7
-        )*.018
+        l*CONT_H,
+        0
       );
 
-    for(let l=0;l<levels;l++){
-      const len=
-        (seed+l)%4===0
-          ? CONT_20
-          : CONT_40;
+    const doorCode=
+      (
+        seed+
+        l*3
+      )%7;
 
-      const c=
-        dead(
-          seed+l,
-          .46+
-          .04*
+    // 문이 열린 컨테이너는 바닥층만 허용한다.
+    const doors=
+      l===0&&
+      doorCode===0
+        ? 'open'
+        : l===0&&
+          doorCode===1
+          ? 'missing'
+          : 'closed';
+
+    drawContainer(
+      grave,
+      centre,
+      len,
+      dead(
+        seed*3+l,
+        .64+
+        .04*
+        (
           (
-            (seed+l)%3
-          )
-        );
+            seed+
+            l
+          )%4
+        )
+      ),
+      m,
+      {
+        doors,
 
-      const centre=[
-        x+
-        Math.sin(
-          seed+l
-        )*.35,
+        doorAngle:
+          1.55+
+          .18*
+          (
+            (
+              seed+
+              l
+            )%4
+          ),
 
-        y+
-        CONT_H/2+
-        l*CONT_H*.97,
+        rust:
+          .72+
+          .07*
+          (
+            (
+              seed+
+              l
+            )%4
+          ),
 
-        z+
-        Math.cos(
-          seed*.7+l
-        )*.45
-      ];
+        cargo:
+          doors==='open'
+            ? 'boxes'
+            : null
+      }
+    );
+  }
+}
 
-      mbox(
-        graveFar,
-        centre,
-        [
-          CONT_W,
-          CONT_H,
-          len
-        ],
-        c,
-        m
+
+function farDead(
+  z,
+  u,
+  levels,
+  seed
+){
+  const side=
+    Math.sign(u)||
+    1;
+
+  // 원경 스택도 한 열 안에서는 같은 규격.
+  const len=
+    seed%4===0
+      ? CONT_20
+      : CONT_40;
+
+  const yaw=
+    (
+      side>0
+        ? Math.PI
+        : 0
+    )+
+    Math.sin(
+      seed*.8
+    )*.035;
+
+  const[x,y]=
+    ground(
+      u,
+      z
+    );
+
+  const g=
+    settle(
+      u,
+      z,
+      yaw,
+      CONT_W/2,
+      len/2
+    );
+
+  const m=
+    basisYXZ(
+      yaw,
+      g.pitch,
+      g.roll+
+      Math.sin(
+        seed*1.7
+      )*.012
+    );
+
+  const baseCenter=[
+    x,
+    y+
+    CONT_H/2,
+    z
+  ];
+
+  for(let l=0;l<levels;l++){
+    const c=
+      dead(
+        seed+l,
+        .46+
+        .04*
+        (
+          (
+            seed+
+            l
+          )%3
+        )
       );
 
-      // 멀리서도 끝 프레임 정도는 보이게 한다.
-      for(const sx of[-1,1]){
-        for(const sz of[-1,1]){
-          mbox(
-            graveFar,
-            tb(
-              centre,
-              m,
-              sx*CONT_W/2,
-              0,
-              sz*len/2
-            ),
-            [
-              .13,
-              CONT_H+.03,
-              .13
-            ],
-            shade(
-              c,
-              .58
-            ),
-            m
-          );
-        }
+    const centre=
+      tb(
+        baseCenter,
+        m,
+        0,
+        l*CONT_H,
+        0
+      );
+
+    mbox(
+      graveFar,
+      centre,
+      [
+        CONT_W,
+        CONT_H,
+        len
+      ],
+      c,
+      m
+    );
+
+    // 원경 끝 프레임.
+    for(const sx of[-1,1]){
+      for(const sz of[-1,1]){
+        mbox(
+          graveFar,
+          tb(
+            centre,
+            m,
+            sx*
+            CONT_W/2,
+            0,
+            sz*
+            len/2
+          ),
+          [
+            .13,
+            CONT_H+.03,
+            .13
+          ],
+          shade(
+            c,
+            .58
+          ),
+          m
+        );
       }
     }
   }
+}
 
 
   // ─────────────────────────────
@@ -5273,118 +5909,6 @@ function buildInsertedWorld(Hw,cxw,seed=0){
     }
   }
 
-
-  // 오른쪽 한 곳은 적재된 탑이 아니라
-  // 여러 컨테이너가 뒤집혀 포개진 봉분처럼 만든다.
-  {
-    const z0=
-      CG_GRAVE_A+
-      142;
-
-    const u0=
-      25.5;
-
-    const heap=[
-      [
-        -3.0,-5.0,
-        CONT_40,
-        .15,.05,.44
-      ],
-      [
-        1.5,-1.0,
-        CONT_20,
-        1.70,-.10,-.62
-      ],
-      [
-        -1.0,3.5,
-        CONT_40,
-        2.55,.18,.78
-      ],
-      [
-        3.2,5.0,
-        CONT_20,
-        -.80,.30,-.45
-      ],
-      [
-        -2.7,7.0,
-        CONT_20,
-        .55,-.22,1.12
-      ],
-      [
-        1.0,9.0,
-        CONT_40,
-        1.20,.12,-.88
-      ]
-    ];
-
-    for(
-      let i=0;
-      i<heap.length;
-      i++
-    ){
-      const[
-        du,
-        dz,
-        len,
-        yaw,
-        pitch,
-        roll
-      ]=heap[i];
-
-      const u=
-        u0+du;
-
-      const z=
-        z0+dz;
-
-      const[x,y]=
-        ground(
-          u,
-          z
-        );
-
-      drawContainer(
-        grave,
-        [
-          x,
-          y+
-          CONT_H/2+
-          i*.92+
-          Math.abs(roll)*.45,
-          z
-        ],
-        len,
-        dead(
-          130+i,
-          .60
-        ),
-        basisYXZ(
-          yaw,
-          pitch,
-          roll
-        ),
-        {
-          doors:
-            i%3===1
-              ? 'open'
-              : i%3===2
-                ? 'missing'
-                : 'closed',
-
-          doorAngle:
-            1.8,
-
-          rust:
-            .92,
-
-          cargo:
-            i===1
-              ? 'boxes'
-              : null
-        }
-      );
-    }
-  }
 
 
 
@@ -6938,10 +7462,65 @@ sign(
  // One angular atmosphere and one cloud field. No nested transparent sky shells,
  // no radial screen masks, and no z-depth fog on a sky sphere.
  const sky=new T.Scene(),skyCam=new T.PerspectiveCamera(66,1,1,4500);
- const skyU={time:{value:0},storm:{value:0},dust:{value:0},dusk:{value:0},night:{value:0},anomaly:{value:0},originXZ:{value:new T.Vector2()},
-  horizon:{value:lin(0xc9bfa4)},zenith:{value:lin(0x748b86)},cloudTone:{value:lin(0xbfc6b1)}};
+ 
+ 
+ 
+ cconst skyU={
+  time:{
+    value:0
+  },
+
+  storm:{
+    value:0
+  },
+
+  dust:{
+    value:0
+  },
+
+  dusk:{
+    value:0
+  },
+
+  night:{
+    value:0
+  },
+
+  anomaly:{
+    value:0
+  },
+
+  // 0 = 야외 하늘,
+  // 1 = 지하의 완전한 암흑.
+  buried:{
+    value:0
+  },
+
+  originXZ:{
+    value:
+      new T.Vector2()
+  },
+
+  horizon:{
+    value:
+      lin(0xc9bfa4)
+  },
+
+  zenith:{
+    value:
+      lin(0x748b86)
+  },
+
+  cloudTone:{
+    value:
+      lin(0xbfc6b1)
+  }
+};
+
+
+
  const skyMath=`
- uniform float time,storm,dust,dusk,night,anomaly;
+ uniform float time,storm,dust,dusk,night,anomaly,buried;
  uniform vec2 originXZ;
  uniform vec3 horizon,zenith,cloudTone;
  const float PI=3.14159265359;
@@ -6984,7 +7563,26 @@ sign(
   col+=vec3(.10,.16,.24)*milky*starVis*.75;
   col=mix(col,col*.28,voidCore*.38);
   col+=vec3(.025,.045,.075)*voidFringe*(.12+.10*voidNoise);
-  return mix(col,cloudTone,cloud);
+  vec3 openSky=
+  mix(
+    col,
+    cloudTone,
+    cloud
+  );
+
+return mix(
+  openSky,
+  vec3(
+    .0015,
+    .0020,
+    .0018
+  ),
+  smoothstep(
+    .04,
+    .96,
+    buried
+  )
+);
  }
  `;
  const skyMat=new T.ShaderMaterial({uniforms:skyU,side:T.BackSide,depthWrite:false,depthTest:false,
@@ -7002,11 +7600,35 @@ sign(
    vec3 rd=normalize(lunarRay);
    float transmission=(1.0-cloudCover(rd))*mix(.56,.19,storm);
    vec3 lunarSurface=gl_FragColor.rgb*mix(1.0,2.65,night);
-   gl_FragColor.rgb=mix(atmosphere(rd),lunarSurface,transmission);
+  
+  vec3 lunar=
+  mix(
+    atmosphere(rd),
+    lunarSurface,
+    transmission
+  );
+
+gl_FragColor.rgb=
+  mix(
+    lunar,
+    vec3(
+      .0015,
+      .0020,
+      .0018
+    ),
+    smoothstep(
+      .04,
+      .96,
+      buried
+    )
+  );
+
    #include <tonemapping_fragment>
   `);
  };
- moonMat.customProgramCacheKey=()=> 'lunar-one-atmosphere-v2';
+ moonMat.customProgramCacheKey=
+  ()=>
+    'lunar-one-atmosphere-v3-buried';
  const moon=new T.Mesh(geometryFrom(D.buildMoon()),moonMat);
  moon.position.set(-420,350,1900);moon.rotation.set(.1,-.35,.18);moon.frustumCulled=false;moon.renderOrder=1;sky.add(moon);
  // Soft halo behind the moon, brightest after the mountain tunnel.
@@ -7129,22 +7751,212 @@ sign(
   const twist=w.warpActive>.000001;
   if(twist!==oldTwist){for(const[o,c]of cullMeshes)o.frustumCulled=twist?false:c;oldTwist=twist;}
   for(const m of sections){const[a,b]=m.userData.range;m.visible=b>z-95&&a<z+470;}
-  const viewW=D.weatherAt(camera.position.z,elapsed),inside=Math.max(viewW.indoor,viewW.tunnel,viewW.underground),tunnel=viewW.tunnel,underground=viewW.underground;
+ 
+ 
+ const viewW=
+  D.weatherAt(
+    camera.position.z,
+    elapsed
+  );
+
+const inside=
+  Math.max(
+    viewW.indoor,
+    viewW.tunnel,
+    viewW.underground
+  );
+
+const tunnel=
+  viewW.tunnel;
+
+const underground=
+  viewW.underground;
+
+const cavern=
+  Math.max(
+    viewW.cavern,
+    viewW.glide
+  );
+
+// 플레이어가 아니라 카메라 위치를 기준으로 한다.
+// 입구에서 카메라만 아직 밖에 있을 때
+// 갑자기 하늘이 꺼지는 현상을 줄인다.
+const buried=
+  D.clamp(
+    Math.max(
+      underground,
+      cavern,
+      viewW.pipe
+    ),
+    0,
+    1
+  );
+
   for(const l of lights){
    const dayLevel=D.mix(1,.10,w.night),insideLevel=D.mix(1,D.mix(.35,.20,tunnel),inside);
-   l.o.intensity=l.intensity*dayLevel*insideLevel*(1-w.rain*.48);l.o.color.copy(l.color).lerp(stormLight,w.rain*.78).lerp(moonColor,w.night*.55);
+ l.o.intensity=
+  l.intensity*
+  dayLevel*
+  insideLevel*
+  (
+    1-
+    w.rain*.48
+  )*
+  D.mix(
+    1,
+    .42,
+    buried
+  );l.o.color.copy(l.color).lerp(stormLight,w.rain*.78).lerp(moonColor,w.night*.55);
   }
-  if(hemi){hemi.color.setHex(underground>.45?0x6b7773:w.night>.5?0x7897bd:0xbac9c6);hemi.groundColor.setHex(underground>.45?0x111816:inside>.5?0x343d38:w.night>.5?0x141b22:w.rain>.2?0x636b63:0x8b785b);hemi.intensity=D.mix(.57,.22,w.night)*(1-w.rain*.10)+inside*.30;}
-  moonTarget.position.set(P.x,H(P.x,z)+1,z+24);moonLight.position.set(P.x-118,H(P.x,z)+82,z+78);moonLight.intensity=1.25*w.shadow;moonLight.color.copy(moonColor);
-  skyU.time.value=elapsed;skyU.storm.value=w.rain;skyU.dust.value=w.dust;skyU.dusk.value=w.dusk;skyU.night.value=w.night;skyU.anomaly.value=w.anomaly;skyU.originXZ.value.set(camera.position.x,camera.position.z);
+ 
+ 
+if(hemi){
+  hemi.color.setHex(
+    buried>.45
+      ? 0x4b5552
+      : w.night>.5
+        ? 0x7897bd
+        : 0xbac9c6
+  );
+
+  hemi.groundColor.setHex(
+    buried>.45
+      ? 0x090d0c
+      : inside>.5
+        ? 0x343d38
+        : w.night>.5
+          ? 0x141b22
+          : w.rain>.2
+            ? 0x636b63
+            : 0x8b785b
+  );
+
+  const baseHemi=
+    D.mix(
+      .57,
+      .22,
+      w.night
+    )*
+    (
+      1-
+      w.rain*.10
+    );
+
+  hemi.intensity=
+    baseHemi*
+    D.mix(
+      1,
+      .32,
+      buried
+    )+
+    inside*.08;
+}
+
+
+
+  moonTarget.position.set(P.x,H(P.x,z)+1,z+24);moonLight.position.set(P.x-118,H(P.x,z)+82,z+78);moonLight.intensity=
+  1.25*
+  w.shadow*
+  (
+    1-
+    buried
+  );moonLight.color.copy(moonColor);
+ 
+skyU.time.value=
+  elapsed;
+
+skyU.storm.value=
+  w.rain;
+
+skyU.dust.value=
+  w.dust;
+
+skyU.dusk.value=
+  w.dusk;
+
+skyU.night.value=
+  w.night;
+
+skyU.anomaly.value=
+  w.anomaly;
+
+skyU.buried.value=
+  buried;
+
+skyU.originXZ.value.set(
+  camera.position.x,
+  camera.position.z
+);
+
+
+
   skyU.horizon.value.copy(warmH).lerp(duskH,w.dusk).lerp(nightH,w.night).lerp(rainH,w.rain*(1-w.night)*.75).lerp(dustH,w.dust*.65).lerp(day2H,w.day2);
   skyU.zenith.value.copy(warmTop).lerp(duskTop,w.dusk).lerp(nightTop,w.night).lerp(rainTop,w.rain*(1-w.night)*.70).lerp(dustTop,w.dust*.55).lerp(day2Top,w.day2);
   skyU.cloudTone.value.copy(warmCloud).lerp(rainCloud,w.rain).lerp(dustH,w.dust*.8).lerp(nightCloud,w.night).lerp(day2Cloud,w.day2);
-  scene.fog.color.copy(skyU.horizon.value).lerp(indoorFog,Math.max(viewW.indoor,viewW.tunnel)*.85).lerp(caveFog,underground*.94);
-  const haze=Math.max(w.rain*.70,w.dust,Math.max(viewW.indoor,viewW.tunnel)*.75,underground*.88);
-  scene.fog.near=D.mix(88,18,haze);scene.fog.far=D.mix(365,underground>.2?132:180,haze);
-  // The cavern opens back up; the deep spiral remains visible but its circular edge dissolves into haze.
-  scene.fog.near=D.mix(scene.fog.near,46,w.cavern);scene.fog.far=D.mix(scene.fog.far,285,w.cavern);
+ 
+ 
+scene.fog.color
+  .copy(
+    skyU.horizon.value
+  )
+  .lerp(
+    indoorFog,
+    Math.max(
+      viewW.indoor,
+      viewW.tunnel
+    )*.85
+  )
+  .lerp(
+    caveFog,
+    buried*.96
+  );
+
+const haze=
+  Math.max(
+    w.rain*.70,
+    w.dust,
+    Math.max(
+      viewW.indoor,
+      viewW.tunnel
+    )*.75,
+    buried*.92
+  );
+
+scene.fog.near=
+  D.mix(
+    88,
+    18,
+    haze
+  );
+
+scene.fog.far=
+  D.mix(
+    365,
+    buried>.2
+      ? 132
+      : 180,
+    haze
+  );
+
+// 동굴은 크기는 느껴지되,
+// 반대편 끝까지 환하게 보이지 않게 한다.
+scene.fog.near=
+  D.mix(
+    scene.fog.near,
+    28,
+    cavern
+  );
+
+scene.fog.far=
+  D.mix(
+    scene.fog.far,
+    175,
+    cavern
+  );
+
+
+
+
 scene.fog.near=D.mix(scene.fog.near,48,w.deepSpiral);
   scene.fog.far=D.mix(scene.fog.far,320,w.deepSpiral);
   const anchor=Math.floor((z-D.TUNNEL_START)/12)*12+D.TUNNEL_START;
@@ -7152,17 +7964,150 @@ scene.fog.near=D.mix(scene.fog.near,48,w.deepSpiral);
    const l=lamps[i];
    if(w.tunnel>.001){const zz=anchor+(i?16:3);l.position.set(cx(zz),H(cx(zz),zz)+8.8,zz);l.intensity=.9*w.tunnel;}
    else if(w.indoor>.001){const zz=Math.floor(z/12)*12+5+i*12;l.position.set(i?8:-8,H(cx(zz),zz)+8.2,zz);l.color.setHex(0xcdbb8a);l.distance=32;l.intensity=1.3*w.indoor;}
-   else if(w.cavern>.001||w.glide>.001){const zz=z+18+i*34,side=i?1:-1;l.position.set(cx(zz)+side*15,H(cx(zz),zz)+18,zz);l.color.setHex(i?0x6faea8:0x91b8a8);l.distance=118;l.intensity=3.15*Math.max(w.cavern,w.glide);}
+   else if(w.cavern>.001||w.glide>.001){const zz=z+18+i*34,side=i?1:-1;l.position.set(cx(zz)+side*15,H(cx(zz),zz)+18,zz);l.color.setHex(i?0x6faea8:0x91b8a8);
+   
+  l.distance=82;
+
+l.intensity=
+  1.45*
+  Math.max(
+    w.cavern,
+    w.glide
+  );
+   
+   
+   }
+
+
+
    else if(w.pipe>.001){const zz=z+10+i*24;l.position.set(cx(zz),H(cx(zz),zz)+8,zz);l.color.setHex(0x879f8f);l.distance=54;l.intensity=.72*w.pipe;}
    else l.intensity=0;
   }
   wet=D.mix(wet,w.rain,Math.min(1,dt*(w.rain>wet?.8:.035)));wetMat.opacity=wet*.23;
   waterMat.opacity=.70+.12*(1-w.rain)+.08*w.night;waterMat.shininess=82+72*w.night;
-  const lightsUp=Math.max(w.night,w.dusk*.48);nightEmissiveMat.opacity=lightsUp*(1-w.rain*.18);
-  pulseEmissiveMat.opacity=.30+.62*(.5+.5*Math.sin(elapsed*7.0));
-  moonGlintMat.opacity=Math.max(w.stars*(.34+.61*w.night),w.cavern*.48,w.glide*.40);nightShadowMat.opacity=w.shadow*.22;
-  moon.scale.setScalar(1+w.night*.055);moonHaloMat.opacity=w.stars*(.10+.24*w.night)*(1-w.rain*.55);
-  fragMat.opacity=w.stars*(.10+.72*w.night);moonFragments.rotation.z=elapsed*.0045;moonFragments.rotation.y=Math.sin(elapsed*.006)*.035+w.anomaly*.025*Math.sin(elapsed*.11);
+  
+  
+const lightsUp=
+  Math.max(
+    w.night,
+    w.dusk*.48
+  );
+
+// 고정 작업등도 지하에서 살짝 죽인다.
+// 완전히 끄지는 않아 구조물 윤곽은 남긴다.
+emissive.color.setScalar(
+  D.mix(
+    1,
+    .62,
+    buried
+  )
+);
+
+pulseEmissiveMat.color.setScalar(
+  D.mix(
+    1,
+    .75,
+    buried
+  )
+);
+
+nightEmissiveMat.opacity=
+  lightsUp*
+  (
+    1-
+    w.rain*.18
+  )*
+  D.mix(
+    1,
+    .72,
+    buried
+  );
+
+pulseEmissiveMat.opacity=
+  .30+
+  .62*
+  (
+    .5+
+    .5*
+    Math.sin(
+      elapsed*7.0
+    )
+  );
+
+// 하늘의 달빛은 없애되,
+// 동굴 수면의 약한 자체 반사만 남긴다.
+moonGlintMat.opacity=
+  Math.max(
+    w.stars*
+    (
+      .34+
+      .61*
+      w.night
+    )*
+    (
+      1-
+      buried
+    ),
+    cavern*.18
+  );
+
+nightShadowMat.opacity=
+  w.shadow*
+  .22*
+  (
+    1-
+    buried
+  );
+
+moon.scale.setScalar(
+  1+
+  w.night*.055
+);
+
+moonHaloMat.opacity=
+  w.stars*
+  (
+    .10+
+    .24*
+    w.night
+  )*
+  (
+    1-
+    w.rain*.55
+  )*
+  (
+    1-
+    buried
+  );
+
+fragMat.opacity=
+  w.stars*
+  (
+    .10+
+    .72*
+    w.night
+  )*
+  (
+    1-
+    buried
+  );
+
+moonFragments.rotation.z=
+  elapsed*.0045;
+
+moonFragments.rotation.y=
+  Math.sin(
+    elapsed*.006
+  )*.035+
+  w.anomaly*
+  .025*
+  Math.sin(
+    elapsed*.11
+  );
+
+
+
+
   const active=w.rain>.015;
   const seek=!Number.isFinite(lastZ)||Math.abs(z-lastZ)>60;
   if(seek||active&&!wasRain){
@@ -7840,7 +8785,7 @@ const shipBasin=scenicBand(L,5780,6120,90)*smooth((u-14)/8)*(1-smooth((u-116)/18
  y=lerp(y,roadBase-10.5+.3*Math.sin(z*.05),cargoBay);
 
 
- const shipX=cx(wz(5960))+58,shipDx=Math.abs(x-shipX)-48,shipDz=Math.abs(z-wz(5960))-125,shipPad=(1-smooth((shipDx+1)/16))*(1-smooth((shipDz+1)/30))*smooth((Math.abs(u)-20)/12);
+ const shipX=cx(wz(5960))+44,shipDx=Math.abs(x-shipX)-48,shipDz=Math.abs(z-wz(5960))-125,shipPad=(1-smooth((shipDx+1)/16))*(1-smooth((shipDz+1)/30))*smooth((Math.abs(u)-20)/12);
  y=lerp(y,rawH(cx(wz(5960)),wz(5960))-10.0,shipPad);
  const storyDepth=JW.storyDepthAt(z),corridor=1-smooth((Math.abs(u)-14)/30);
  y-=storyDepth*corridor;
@@ -8739,6 +9684,22 @@ function fillGround(c,z0){
 }
 
 function roadFurnitureSuppressed(z){return (z>SINK_START+35&&z<UNDER_START+55)||(z>CAVERN_START-30&&z<PIPE_END+75)||z>END_ROAD_FADE;}
+
+function guardrailSuppressed(z){
+  const L=
+    lz(z);
+
+  return(
+    roadFurnitureSuppressed(z)||
+    (
+      L>3478&&
+      L<3552
+    )
+  );
+}
+
+
+
 function fillDecal(c,z0){
   const geo=c.decal.geometry, pos=geo.attributes.position, col=geo.attributes.color, nor=geo.attributes.normal;
   let q=0;
@@ -8763,7 +9724,11 @@ function fillDecal(c,z0){
   const fence=(u,color,h0,h1,zA,zB,step)=>{
     for(let z=zA;z<zB;z+=step){
       const z2=Math.min(zB,z+step);
-      if(roadFurnitureSuppressed((z+z2)*.5))continue;
+    if(
+  guardrailSuppressed(
+    (z+z2)*.5
+  )
+)continue;
       const c1=cx(z), c2=cx(z2);
       const y1=H(c1+u,z), y2=H(c2+u,z2);
         const open=blackWaterView((z+z2)*.5,u);
@@ -8787,7 +9752,13 @@ function fillDecal(c,z0){
   for(const s of[-1,1]){
     fence(s*(RAIL+0.55), CLR.rail, 0.45,0.78, zA,zB,3);
     for(let z=zA+1;z<zB;z+=4){
-       if(roadFurnitureSuppressed(z)||blackWaterView(z,s*(RAIL+.55)))continue;
+    if(
+  guardrailSuppressed(z)||
+  blackWaterView(
+    z,
+    s*(RAIL+.55)
+  )
+)continue;
       const cc=cx(z), y=H(cc+s*(RAIL+0.55),z);
       const u=cc+s*(RAIL+0.55);
       quad([u-0.07,y,z-0.07],[u-0.07,y+0.8,z-0.07],[u+0.07,y+0.8,z+0.07],[u+0.07,y,z+0.07],CLR.post);
@@ -9658,37 +10629,167 @@ function downhillPhysics(dt){
 
 function glidePhysics(dt){
   if(!P.glideMode){
-    P.glideOffset=P.x-cx(P.z);
-    P.glideLift=P.y-H(cx(P.z),P.z)-18*JW.glideAt(P.z);
+    P.glideOffset=
+      P.x-
+      cx(P.z);
+
+    // 활공이 시작된 실제 높이를 저장한다.
+    P.glideStartY=
+      P.y;
+
+    // 파이프 입구의 실제 내부 주행 높이.
+    // 지형과 파이프 위치는 전혀 옮기지 않는다.
+    const entryBottom=
+      H(
+        cx(PIPE_START),
+        PIPE_START
+      )+
+      18*
+      JW.glideAt(
+        PIPE_START
+      );
+
+    P.glideEntryY=
+      entryBottom+
+      PIPE_RADIUS-
+      PIPE_RIDE_RADIUS;
   }
 
-  P.diveMode=false;P.glideMode=true;P.pipeMode=false;
-  P.ground=false;P.air+=dt;
-  P.steer=lerp(P.steer,P.steerT,1-Math.exp(-5*dt));
+  P.diveMode=false;
+  P.glideMode=true;
+  P.pipeMode=false;
 
-  const z=P.z+Math.max(64,Math.min(74,P.vz+dt*2))*dt;
-  const t=clamp(
-    (z-GLIDE_START)/(PIPE_RIDE_START-GLIDE_START),
-    0,1
-  );
+  P.ground=false;
+  P.air+=dt;
 
-  // 파이프 입구 130m 전부터 내부 주행 높이로 합류.
-  const enter=smooth((z-(PIPE_START-130))/130);
+  P.steer=
+    lerp(
+      P.steer,
+      P.steerT,
+      1-
+      Math.exp(
+        -5*dt
+      )
+    );
 
-  P.glideOffset=lerp(
-    P.glideOffset,-P.steer*1.15,
-    1-Math.exp(-3*dt)
-  );
+  const z=
+    P.z+
+    Math.max(
+      64,
+      Math.min(
+        74,
+        P.vz+
+        dt*2
+      )
+    )*
+    dt;
 
-  const x=cx(z)+P.glideOffset*(1-enter);
-  const bottom=H(cx(z),z)+18*JW.glideAt(z);
-  const flight=bottom
-    +Math.sin(t*Math.PI)*3.5
-    +(P.glideLift||0)*(1-t);
+  // 자유 활공은 GLIDE_START부터
+  // 실제 파이프 입구인 PIPE_START까지.
+  const t=
+    clamp(
+      (
+        z-
+        GLIDE_START
+      )/
+      (
+        PIPE_START-
+        GLIDE_START
+      ),
+      0,
+      1
+    );
+
+  // 초중반에 빠르게 아래로 꽂히고,
+  // 후반에는 파이프 입구 높이에 부드럽게 맞춘다.
+  const descent=
+    1-
+    Math.pow(
+      1-t,
+      1.55
+    );
+
+  // 파이프 입구를 지난 뒤
+  // 내부 주행 궤도로 자연스럽게 접속한다.
+  const pipeJoin=
+    smooth(
+      (
+        z-
+        PIPE_START
+      )/
+      (
+        PIPE_RIDE_START-
+        PIPE_START
+      )
+    );
+
+  // 입구 130m 전부터 좌우 이동폭을 줄인다.
+  const centreIn=
+    smooth(
+      (
+        z-
+        (
+          PIPE_START-
+          130
+        )
+      )/
+      130
+    );
+
+  P.glideOffset=
+    lerp(
+      P.glideOffset,
+      -P.steer*1.15,
+      1-
+      Math.exp(
+        -3*dt
+      )
+    );
+
+  const x=
+    cx(z)+
+    P.glideOffset*
+    (
+      1-
+      centreIn
+    );
+
+  const bottom=
+    H(
+      cx(z),
+      z
+    )+
+    18*
+    JW.glideAt(z);
+
+  // 기존의 위로 솟는 sin 아치를 제거한다.
+  // 시작 높이에서 파이프 입구까지 계속 내려가며,
+  // 중간에 4.5m를 더 아래로 눌러 낙하감을 강조한다.
+  const flight=
+    lerp(
+      P.glideStartY,
+      P.glideEntryY,
+      descent
+    )-
+    4.5*
+    Math.sin(
+      t*
+      Math.PI
+    );
+
+  const pipeTrackY=
+    bottom+
+    PIPE_RADIUS-
+    PIPE_RIDE_RADIUS;
 
   scriptedMove(
-    dt,x,
-    lerp(flight,bottom+PIPE_RADIUS-PIPE_RIDE_RADIUS,enter),
+    dt,
+    x,
+    lerp(
+      flight,
+      pipeTrackY,
+      pipeJoin
+    ),
     z
   );
 }
@@ -11206,9 +12307,9 @@ g.userData.taken=false;
 g.visible=true;
 }
 }
-
-function takePallet(kind){if(P.pallets>=LM_STACK_MAX)return false;stackKinds[P.pallets]=kind;P.pallets++;P.palMax=Math.max(P.palMax||0,P.pallets);setStack(P.pallets);sfx('pallet',P.pallets);return true;}
-     
+function takePallet(kind){
+ stackKinds[P.pallets]=kind;P.pallets++;P.palMax=Math.max(P.palMax||0,P.pallets);setStack(P.pallets);sfx('pallet');
+}
 function poolPickup(){
   if(!activeField)return;
 
@@ -12637,8 +13738,8 @@ try{
       const shipRoadX=
         cx(shipZ);
 
-      const shipX=
-        shipRoadX+58;
+     const shipX=
+  shipRoadX+44;
 
       // 배의 갑판과 컨테이너 적재부 사이를 겨냥한다.
       const shipY=
