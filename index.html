@@ -415,7 +415,7 @@ function undergroundAt(z){return windowAt(z,SINK_START+90,PIPE_END+30,150);}
 
 function cavernAt(z){return windowAt(z,CAVERN_START-100,PIPE_START+80,160);}
 function glideAt(z){return windowAt(z,GLIDE_START,GLIDE_END,85);}
-const PIPE_DROP=95;
+const PIPE_DROP=150;
 function pipeDropAt(z){return PIPE_DROP*smooth(GLIDE_START,PIPE_START,z)*(1-smooth(PIPE_END-520,PIPE_END-120,z));}
 function pipeAt(z){return smooth(PIPE_START,PIPE_RIDE_START,z)*(1-smooth(PIPE_END-110,PIPE_END,z));}
 function wastelandBump(z){
@@ -2360,12 +2360,12 @@ const shipGlow=make(
   const z0=5960;
 
 const origin=[
-  cx(z0)+78,
+  cx(z0)+130,
   base(z0)-4.2,
   z0
 ];
 
-  const yaw=.45;
+  const yaw=1.45;
   const roll=.035;
 
   const m=basisYXZ(
@@ -9905,6 +9905,10 @@ function guardrailSuppressed(z){
     (
       L>3478&&
       L<3552
+    )||
+    (
+      L>3108&&
+      L<3144
     )
   );
 }
@@ -10915,10 +10919,9 @@ function glidePhysics(dt){
   // 초중반에 빠르게 아래로 꽂히고,
   // 후반에는 파이프 입구 높이에 부드럽게 맞춘다.
   const descent=
-    1-
     Math.pow(
-      1-Math.pow(t,2.6),
-      2
+      t,
+      1.12
     );
 
   // 파이프 입구를 지난 뒤
@@ -13582,7 +13585,7 @@ const REVEALS=[
     // 벽 충돌 전에 완전히 정상 카메라로 복귀한다.
     z:CG_FIELD_B+8,
 
-    dur:1.20,
+    dur:0,
     back:false,
     dir:-1,
 
