@@ -438,7 +438,18 @@ const sub=(a,b)=>a.map((v,i)=>v-b[i]);
 const add=(a,b)=>a.map((v,i)=>v+b[i]);
 const mul=(a,k)=>a.map(v=>v*k);
 function rng(seed){return()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+
 function rgb(hex,k=1){return[(hex>>16&255)/255*k,(hex>>8&255)/255*k,(hex&255)/255*k];}
+// 꼭짓점마다 색이 다른 사각형 (수면 명암 그라데이션용). Batch.quad와 같은 삼각형 순서.
+function gradQuad(bt,a,b,c,d,ca,cb,cc,cd){
+ const n=norm(cross(sub(b,a),sub(c,a)));
+ for(const[v,col]of[[a,ca],[b,cb],[c,cc],[a,ca],[c,cc],[d,cd]]){
+  bt.p.push(...v);bt.n.push(...n);bt.c.push(...col);
+  for(let i=0;i<3;i++){bt.min[i]=Math.min(bt.min[i],v[i]);bt.max[i]=Math.max(bt.max[i],v[i]);}
+ }
+}
+
+
 const C={steel:0x294352,beam:0x986332,box:0x937449,pallet:0x605447,concrete:0x747976,
  wall:0x92988f,roof:0x616963,dark:0x28312e,edge:0x485650,rust:0x755445,
  yellow:0xb49d52,light:0xc8d8c8,red:0xba5841,asphalt:0x616460};
@@ -2374,18 +2385,24 @@ for(
  // 검은 수면: 해안·부두·달빛 길 없이 어두운 물 자체를 보여준다.
  const blackWater=make('black-water-basin','black-water');
  const waterY=z=>base(z)-1.55;
- const waterPoint=(z,far)=>{
+
+
+ const waterPoint=(z,f)=>{
    const k=smooth(4920,5010,z)*(1-smooth(5470,5560,z));
-   const u=far?mix(-13.4,-156,k):-13.4;
+   const u=mix(-13.4,mix(-13.4,-156,k),f);
    return[cx(z)+u,waterY(z)+.025,z];
  };
+ // 물가는 검게, 멀어질수록 달빛 받은 짙은 남청색으로 밝아진다. 떠 있는 컨테이너가 이 면을 등지고 윤곽으로 읽힌다.
+ const lakeNear=rgb(0x020405),lakeMid=rgb(0x08131a),lakeFar=rgb(0x142630);
  for(let z=4920;z<5560;z+=4){
    const z2=Math.min(5560,z+4);
-   blackWater.quad(
-     waterPoint(z,false),waterPoint(z2,false),
-     waterPoint(z2,true),waterPoint(z,true),rgb(0x020405)
-   );
+   gradQuad(blackWater,waterPoint(z,0),waterPoint(z2,0),waterPoint(z2,.3),waterPoint(z,.3),lakeNear,lakeNear,lakeMid,lakeMid);
+   gradQuad(blackWater,waterPoint(z,.3),waterPoint(z2,.3),waterPoint(z2,1),waterPoint(z,1),lakeMid,lakeMid,lakeFar,lakeFar);
  }
+
+
+
+
  // 삭제한 해안 장식의 난수 소비를 유지해 이후 동굴 배치가 바뀌지 않게 한다.
  for(let i=0;i<43*3+9;i++)R();
 
@@ -2413,12 +2430,15 @@ const origin=[
   z0
 ];
 
-  const yaw=.785;
+   // 도로 쪽 끝이 앞(선수)으로 오도록 -45°. 내리막을 따라 선수를 숙인다.
+  // 지형 받침(H()의 shipPad)이 같은 값을 쓰므로 바꿀 때 함께 바꾼다.
+  const yaw=-.785;
+  const pitch=.176;
   const roll=.035;
 
   const m=basisYXZ(
     yaw,
-    0,
+    pitch,
     roll
   );
 
@@ -3036,244 +3056,117 @@ for(const q of[
   }
 
 
-  const shipColors=[
-    0x7f382d,
-    0x315f7a,
-    0x3f684b,
-    0x767e7a,
-    0xa17c35,
-    0x64313c,
-    0x2f686b
-  ];
 
+
+  // 컨테이너 색: 어두운 원색만 쓰면 멀리서 색 덩어리로 뭉친다.
+  // 바랜 흰색·회청색을 섞고 채도를 살려 한 칸씩 구분되게 한다.
+  const shipColors=[
+    0xa64a3b, 0x3c7398, 0x4e8759, 0xc9c5b8, 0xc49b46,
+    0x87414f, 0x3f8b8d, 0x9ca39f, 0xb35a2e, 0x6c7f8a
+  ];
   const CW=3.62;
   const CH=2.96;
   const CL=11.35;
 
+  // 선체 자세에 컨테이너마다 작은 틀어짐을 더한다.
+  const containerBasis=(ty,tr)=>basisYXZ(yaw+ty,pitch,roll+tr);
 
-  function shipContainer(
-    dx,
-    dy,
-    dz,
-    seed,
-    detail
-  ){
-    const raw=
-      shipColors[
-        (
-          seed%
-          shipColors.length+
-          shipColors.length
-        )%
-        shipColors.length
-      ];
+  function shipContainer(dx,dy,dz,seed,o={}){
+    const raw=shipColors[((seed%shipColors.length)+shipColors.length)%shipColors.length];
+    const color=shade(raw,.88+.08*((seed*7)%5)/4);
+    const dark=shade(color,.42);
+    const rib=shade(color,.64);
+    const lite=shade(color,1.2);
+    const mm=containerBasis(o.ty||0,o.tr||0);
+    const c0=p(dx+(o.sx||0),dy+(o.sy||0),dz+(o.sz||0));
+    const q=(x,y,z)=>tb(c0,mm,x,y,z);
+    const BH=CH-.2;
 
-    const color=
-      shade(
-        raw,
-        .82+
-        .035*
-        (
-          seed%4
-        )
-      );
+    // 몸체를 적재 간격보다 낮게 만들어 단 사이에 어두운 틈이 보이게 한다.
+    mbox(ship,c0,[CW,BH,CL],color,mm);
+    if(!o.detail)return;
 
-    const dark=
-      shade(
-        color,
-        .56
-      );
+    // 굵고 어두운 코너 기둥: 멀리서도 한 칸씩 끊겨 보인다.
+    for(const sx of[-1,1])for(const sz of[-1,1])
+      mbox(ship,q(sx*(CW/2-.05),0,sz*(CL/2-.05)),[.26,CH-.1,.26],dark,mm);
 
-    const rib=
-      shade(
-        color,
-        .78
-      );
-
-    const c0=
-      p(
-        dx,
-        dy,
-        dz
-      );
-
-    mbox(
-      ship,
-      c0,
-      [
-        CW,
-        CH,
-        CL
-      ],
-      color,
-      m
-    );
-
-    if(!detail)return;
-
-
-    // 코너 프레임.
-    for(const sx of[-1,1]){
-      for(const sz of[-1,1]){
-        mbox(
-          ship,
-          p(
-            dx+
-            sx*CW/2,
-            dy,
-            dz+
-            sz*CL/2
-          ),
-          [
-            .13,
-            CH+.05,
-            .13
-          ],
-          dark,
-          m
-        );
+    // 도로 쪽 긴 면(-x): 상하 레일, 굵은 골판, 녹물 자국, 표식 판.
+    if(o.face){
+      const fx=-CW/2-.045;
+      for(const y of[-BH/2+.09,BH/2-.09])
+        mbox(ship,q(fx,y,0),[.1,.18,CL-.3],dark,mm);
+      for(let k=-4;k<=4;k++){
+        mbox(ship,q(fx,0,k*1.18),[.08,BH-.46,.16],rib,mm);
+        mbox(ship,q(fx-.01,0,k*1.18+.36),[.07,BH-.5,.12],lite,mm);
       }
+      const streaks=(seed*13)%4;
+      for(let s=0;s<streaks;s++){
+        const zz=-CL/2+1.4+((seed*31+s*57)%83)/83*(CL-2.8),len=.8+((seed+s*5)%7)*.22;
+        mbox(ship,q(fx-.03,BH/2-.2-len/2,zz),[.05,len,.22],0x5f3520,mm);
+      }
+      if(seed%3===0)
+        mbox(ship,q(fx-.03,.5,CL/2-2.3),[.05,.44,1.6],0xdcd8cc,mm);
     }
 
-
-    // 도로를 향한 면의 골.
-    for(let k=-4;k<=4;k++){
-      mbox(
-        ship,
-        p(
-          dx-
-          CW/2-.025,
-          dy,
-          dz+k*1.12
-        ),
-        [
-          .045,
-          CH*.84,
-          .10
-        ],
-        rib,
-        m
-      );
-    }
-
-
-    // 컨테이너 문과 잠금바.
-    for(const sx of[-1,1]){
-      mbox(
-        ship,
-        p(
-          dx+
-          sx*CW/4,
-          dy,
-          dz+
-          CL/2+.032
-        ),
-        [
-          CW/2-.08,
-          CH-.18,
-          .055
-        ],
-        shade(
-          color,
-          .72
-        ),
-        m
-      );
-
-      for(const lx of[
-        -.28,
-        .28
-      ]){
-        mbox(
-          ship,
-          p(
-            dx+
-            sx*CW/4+
-            lx,
-            dy,
-            dz+
-            CL/2+.074
-          ),
-          [
-            .045,
-            CH-.48,
-            .045
-          ],
-          0x303735,
-          m
-        );
-      }
+    // 밖으로 드러난 끝면(선미 -z, 선수 +z)의 문짝과 잠금바.
+    for(const e of[o.back?-1:0,o.front?1:0]){
+      if(!e)continue;
+      const ez=e*(CL/2+.035);
+      mbox(ship,q(0,0,ez),[CW-.32,BH-.24,.06],shade(color,.8),mm);
+      mbox(ship,q(0,0,ez+e*.03),[.07,BH-.28,.07],dark,mm);
+      for(const lx of[-1.25,-.5,.5,1.25])
+        mbox(ship,q(lx,0,ez+e*.07),[.07,BH-.56,.06],0x2b3130,mm);
     }
   }
 
-
-  // 안쪽 컨테이너는 덩어리감을 만들고,
-  // 바깥쪽과 윗줄만 골·문짝 디테일을 가진다.
-  for(
-    let bi=0;
-    bi<cargoBays.length;
-    bi++
-  ){
-    const q=
-      cargoBays[bi];
-
+  // 좌초 충격으로 윗단일수록 밀리고 틀어져 있다.
+  // 도로 쪽 가장자리 윗단 몇 칸은 떨어져 선체 끝에 걸쳐 있다.
+  const lastBay=cargoBays.length-1;
+  const toppled=new Set([1,4,6]);   // 도로 쪽 첫 줄(col 0) 윗단이 떨어진 적재칸
+  for(let bi=0;bi<cargoBays.length;bi++){
+    const q=cargoBays[bi];
     for(let col=0;col<9;col++){
-      const dx=
-        -16+
-        col*4;
-
-      const levels=
-        4+
-        (
-          (
-            bi*3+
-            col
-          )%3
-        );
-
-      for(
-        let lv=0;
-        lv<levels;
-        lv++
-      ){
-        // 윗줄을 군데군데 비워
-        // 완벽한 색 블록 벽처럼 보이지 않게 한다.
-        if(
-          lv===levels-1&&
-          (
-            (
-              bi*7+
-              col*5
-            )%11===0
-          )
-        ){
-          continue;
+      const dx=-16+col*4;
+      const levels=4+((bi*3+col)%3);
+      for(let lv=0;lv<levels;lv++){
+        // 윗줄을 군데군데 비워 완벽한 색 블록 벽처럼 보이지 않게 한다.
+        if(lv===levels-1&&((bi*7+col*5)%11===0))continue;
+        const dy=17.32+lv*3.03;
+        const seed=bi*41+col*7+lv;
+        const top=lv===levels-1;
+        const jolt=Math.max(0,lv-1)/5;
+        const o={
+          detail:col===0||col===8||top||bi===0||bi===lastBay,
+          face:col===0,
+          back:bi===0,
+          front:bi===lastBay,
+          sx:(((seed*17)%9)/8-.5)*.9*jolt,
+          sz:(((seed*23)%9)/8-.5)*1.5*jolt,
+          ty:(((seed*29)%9)/8-.5)*.10*jolt,
+          tr:(((seed*37)%9)/8-.5)*.05*jolt
+        };
+        if(top&&col===0&&toppled.has(bi)){
+          // 갑판 끝으로 떨어져 도로 쪽으로 기울어 걸린 컨테이너.
+          o.sx=-8.3; o.sy=-lv*3.03-.35; o.tr=.44+(bi%2)*.1; o.ty=.06-(bi%3)*.05;
         }
-
-        const dy=
-          17.32+
-          lv*3.03;
-
-        const detail=
-          col===0||
-          col===8||
-          lv===levels-1||
-          bi===0||
-          bi===
-          cargoBays.length-1;
-
-        shipContainer(
-          dx,
-          dy,
-          q,
-          bi*41+
-          col*7+
-          lv,
-          detail
-        );
+        shipContainer(dx,dy,q,seed,o);
       }
     }
   }
+
+  // 배에서 떨어져 선체 옆 땅에 처박힌 컨테이너. 도로에서 가장 먼저 읽히는 좌초 흔적.
+  for(const[lx,lz,ry,rp,rr,ci,doors]of[
+    [-33,-46,.35,.04,1.571,3,'open'],
+    [-31,-10,-.28,.22,.16,0,'closed'],
+    [-35,20,.95,-.1,.05,5,'missing']
+  ]){
+    const g=p(lx,0,lz);
+    const hh=Math.abs(rr)>1?CONT_W:CONT_H;
+    drawContainer(ship,[g[0],Y(g[0],g[2])+hh*.5-.45,g[2]],CONT_40,shipColors[ci],
+      basisYXZ(yaw+ry,rp,rr),{doors,doorAngle:.9,rust:.55,damage:.45,detail:2,seed:ci*11+3});
+  }
+
+
 
 
   // 컨테이너 사이의 래싱 브리지.
@@ -6230,8 +6123,16 @@ const quay=make(
    else mbox(wreck,[x,y+.06,z],[1.2,.05,2.5],CONT_LIST[i%7],basisYXZ(R()*3));
   }
   drawStrap(straps,[ground(-14.2,wz(5730)),ground(-15.6,wz(5733)),ground(-14.8,wz(5737)),ground(-16.4,wz(5741))].map(p=>[p[0],p[1]+.05,p[2]]));
-  // 검은 물 (도로 오른쪽 basin) + 달빛 반사
-  for(let z=SF_A-30;z<SF_B+30;z+=8){const z2=z+8,y1=base(z)-SF_WATER_DROP,y2=base(z2)-SF_WATER_DROP;water.quad([cx(z)+18,y1,z],[cx(z2)+18,y2,z2],[cx(z2)+170,y2,z2],[cx(z)+170,y1,z],rgb(0x020405));}
+ 
+ 
+  // 검은 물 (도로 왼쪽 basin, +x) + 달빛 반사. 물가는 검게, 멀어질수록 남청색으로 밝아진다.
+  {const cN=rgb(0x020405),cM=rgb(0x08131a),cF=rgb(0x142630);
+   for(let z=SF_A-30;z<SF_B+30;z+=8){const z2=z+8,y1=base(z)-SF_WATER_DROP,y2=base(z2)-SF_WATER_DROP;
+    gradQuad(water,[cx(z)+18,y1,z],[cx(z2)+18,y2,z2],[cx(z2)+62,y2,z2],[cx(z)+62,y1,z],cN,cN,cM,cM);
+    gradQuad(water,[cx(z)+62,y1,z],[cx(z2)+62,y2,z2],[cx(z2)+170,y2,z2],[cx(z)+170,y1,z],cM,cM,cF,cF);}}
+
+
+
   for(let i=0;i<10;i++){const z=SF_A+20+i*42+R()*10,u=34+R()*40,l=6+R()*9,y=base(z)-SF_WATER_DROP+.02;glint.quad([cx(z)+u,y,z],[cx(z)+u+l*.2,y,z+l],[cx(z)+u+.35+l*.2,y,z+l],[cx(z)+u+.35,y,z],rgb(0xf0e6cc));}
  
  
@@ -7589,7 +7490,109 @@ function createWorld(api){
   if(b.kind==='water'||b.kind==='moon-glint'||b.kind==='night-shadow')m.renderOrder=2;
   root.add(m);return m;
  });
+
+
+
+ // ── 물 위에 떠서 출렁이는 컨테이너 ──
+ // 좌초선 앞 오른쪽 호수와 좌초선 뒤 왼쪽 유실 화물지대에 띄운다.
+ // 물결 막이 먼 수면을 밝히고, 흘수선의 물거품 테가 멀리서도 윤곽을 만든다.
+ const floatRoot=new T.Group();floatRoot.name='floating-containers';root.add(floatRoot);
+ const floatMat=new T.MeshLambertMaterial({vertexColors:true,side:T.DoubleSide});
+ const foamTex=(()=>{
+  const c=document.createElement('canvas');c.width=64;c.height=256;const g=c.getContext('2d');
+  g.strokeStyle='#fff';g.shadowColor='#fff';
+  for(const[w,bl,a]of[[12,16,.32],[6,7,.75],[2.5,0,1]]){g.globalAlpha=a;g.lineWidth=w;g.shadowBlur=bl;g.strokeRect(14,14,36,228);}
+  return new T.CanvasTexture(c);
+ })();
+ const lakeY=z=>H(cx(z),z)-1.55;              // 좌초선 앞 오른쪽 호수 수면
+ const bayY=z=>H(cx(z),z)-D.SF_WATER_DROP;       // 유실 화물지대 수면
+ // [월드 z, 도로 중심에서 옆 거리(음수=오른쪽), 수면, 길이, 색, 방향, 몸체 중심의 수면 위 높이, 앞뒤 기울기, 좌우 기울기]
+ // 앞뒤 기울기가 1 이상이면 한쪽 끝부터 가라앉으며 선 컨테이너: 수면 위로 높이 솟아 멀리서 윤곽이 먼저 보인다.
+ const FLOAT_SPOTS=[
+  [D.wz(5140),-42,lakeY,D.CONT_40,0x3c7398,.55,.35,.05,.07],
+  [D.wz(5205),-66,lakeY,D.CONT_20,0xa64a3b,-.45,.55,.10,-.12],
+  [D.wz(5270),-34,lakeY,D.CONT_40,0xc9c5b8,1.95,1.7,1.08,.10],
+  [D.wz(5335),-84,lakeY,D.CONT_40,0xc49b46,.2,.3,.12,.04],
+  [D.wz(5390),-48,lakeY,D.CONT_20,0x3f8b8d,2.4,.6,0,.16],
+  [D.wz(5445),-30,lakeY,D.CONT_40,0x87414f,-1.0,1.9,1.2,.06],
+  [D.wz(5500),-40,lakeY,D.CONT_40,0x4e8759,.9,.4,-.1,.08],
+  [D.SF_A+70,62,bayY,D.CONT_40,0xb35a2e,.4,.5,.08,.05],
+  [D.SF_A+104,44,bayY,D.CONT_40,0xc9c5b8,-.3,1.9,1.25,.04],
+  [D.SF_A+140,88,bayY,D.CONT_20,0xc9c5b8,-.7,.55,.06,-.14],
+  [D.SF_A+176,64,bayY,D.CONT_40,0x3c7398,1.3,.4,-.12,.07],
+  [D.SF_A+214,118,bayY,D.CONT_40,0xc49b46,.15,.3,.1,.03],
+  [D.SF_A+250,62,bayY,D.CONT_40,0xa64a3b,.5,1.8,1.18,-.05],
+  [D.SF_A+286,84,bayY,D.CONT_20,0x4e8759,2.1,.6,0,.15],
+  [D.SF_A+326,58,bayY,D.CONT_40,0x9ca39f,-.35,.35,.16,-.05]
+ ];
+ const floaters=[];let floatT=0;
+ FLOAT_SPOTS.forEach(([z,u,wy,len,color,yaw,hc,tp,tr],i)=>{
+  const b=new D.Batch('floater');
+  D.drawContainer(b,[0,0,0],len,color,D.basisYXZ(0,tp,tr),{doors:i%3?'closed':'open',doorAngle:.7,rust:.3+.1*(i%4),damage:.28,detail:1,seed:i*13+5});
+  const g=new T.Group();g.add(new T.Mesh(geometryFrom(b),floatMat));
+  const x=cx(z)+u,y0=wy(z),upright=Math.abs(tp)>=1;
+  g.position.set(x,y0+hc,z);g.rotation.order='YXZ';g.rotation.y=yaw;
+  const fm=new T.MeshBasicMaterial({map:foamTex,color:0xdcebef,transparent:true,opacity:.6,depthWrite:false,fog:false,side:T.DoubleSide,blending:T.AdditiveBlending});
+  const footL=upright?D.CONT_H/Math.sin(Math.abs(tp)):len;
+  const foam=new T.Mesh(new T.PlaneGeometry((D.CONT_W+.6)/.5625,(footL+.6)/.89),fm);
+  // 선 컨테이너는 물에 잠긴 끝 쪽으로 물거품 테를 옮긴다.
+  const off=upright?Math.sign(tp)*(hc/Math.tan(Math.abs(tp))):0;
+  foam.rotation.order='YXZ';foam.rotation.set(-Math.PI/2,yaw,0);
+  foam.position.set(x+Math.sin(yaw)*off,y0+.07,z+Math.cos(yaw)*off);foam.renderOrder=4;
+  floatRoot.add(g);floatRoot.add(foam);
+  floaters.push({g,foam,fm,x,z,y:y0+hc,yaw,ph:i*1.7,sp:.55+.08*(i%5),amp:upright?.07:.16});
+ });
+ // 물결 막: 멀어질수록 수면을 밝히고 달빛 물결 줄이 천천히 흐른다.
+ const rippleU={uT:{value:0},uCam:{value:new T.Vector3()}};
+ const rippleMat=new T.MeshBasicMaterial({color:0xb4cdd8,transparent:true,depthWrite:false,side:T.DoubleSide});
+ rippleMat.onBeforeCompile=sh=>{
+  sh.uniforms.uT=rippleU.uT;sh.uniforms.uCam=rippleU.uCam;
+  sh.vertexShader='varying vec3 vRW;\n'+sh.vertexShader.replace('#include <project_vertex>','#include <project_vertex>\n vRW=(modelMatrix*vec4(transformed,1.0)).xyz;');
+  sh.fragmentShader='uniform float uT;\nuniform vec3 uCam;\nvarying vec3 vRW;\n'+sh.fragmentShader.replace('#include <output_fragment>',
+   'float rd=length(vRW.xz-uCam.xz);\n'+
+   'float rfar=smoothstep(20.0,190.0,rd);\n'+
+   'float rw1=sin(vRW.x*.21+vRW.z*.043+uT*.85+sin(vRW.z*.029+uT*.31)*2.4);\n'+
+   'float rw2=sin(vRW.x*.083-vRW.z*.12-uT*.57+sin(vRW.x*.041+uT*.2)*3.1);\n'+
+   'float rst=smoothstep(.86,1.0,rw1)*.75+smoothstep(.92,1.0,rw2)*.55;\n'+
+   'rst*=smoothstep(.35,.95,sin(vRW.x*.9+vRW.z*.35+uT*1.6)*sin(vRW.z*.55-vRW.x*.2-uT*1.1)*.5+.5);\n'+
+   'diffuseColor.a=clamp(.03+.13*rfar+rst*(.12+.22*rfar),0.0,.5);\n'+
+   '#include <output_fragment>');
+ };
+ // 월드 재질 패치(patchMaterial)가 모든 재질에 같은 프로그램 캐시 키를 붙인다.
+ // 그대로 두면 물결 막이 다른 MeshBasic 재질의 셰이더를 물려받아 물결·투명도 계산이 빠진 채 불투명한 흰 면이 된다.
+ Object.defineProperty(rippleMat,'customProgramCacheKey',{get:()=>()=>'jockey-world-v3-continuous-exit-soft-shadow|water-ripple',set(){},configurable:true});
+ const ripples=[];
+ function rippleSheet(z0,z1,uAt,wy){
+  const pos=[],idx=[],US=8;let row=0;
+  for(let z=z0;z<=z1+.01;z+=6,row++){
+   const[u0,u1]=uAt(z),y=wy(z)+.05;
+   for(let j=0;j<=US;j++){const u=u0+(u1-u0)*j/US;pos.push(cx(z)+u,y,z);}
+   if(row)for(let j=0;j<US;j++){const a=(row-1)*(US+1)+j,b=a+US+1;idx.push(a,b,a+1,a+1,b,b+1);}
+  }
+  const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(pos,3));g.setIndex(idx);g.computeBoundingSphere();
+  const m=new T.Mesh(g,rippleMat);m.renderOrder=3;m.userData.range=[z0,z1];floatRoot.add(m);ripples.push(m);
+ }
+ rippleSheet(D.wz(4930),D.wz(5555),z=>{const L=D.lz(z),k=D.smooth(4920,5010,L)*(1-D.smooth(5470,5560,L));return[-14,-14+(-142)*k];},lakeY);
+ rippleSheet(D.SF_A-24,D.SF_B+24,()=>[19,170],bayY);
+ function stepFloaters(dt){
+  floatT+=dt;rippleU.uT.value=floatT;rippleU.uCam.value.copy(camera.position);
+  const z0=P.z;
+  for(const m of ripples){const[a,b]=m.userData.range;m.visible=b>z0-95&&a<z0+470;}
+  for(const f of floaters){
+   const on=f.z>z0-110&&f.z<z0+480;f.g.visible=on;f.foam.visible=on;if(!on)continue;
+   const t=floatT*f.sp+f.ph;
+   f.g.position.y=f.y+Math.sin(t)*f.amp;
+   f.g.rotation.x=Math.sin(t*.83)*.028;
+   f.g.rotation.z=Math.cos(t*.71+f.ph)*.034;
+   f.g.rotation.y=f.yaw+Math.sin(floatT*.06+f.ph)*.05;
+   f.foam.rotation.y=f.g.rotation.y;
+   const s=1+.04*Math.sin(t*1.2);f.foam.scale.set(s,s,1);
+   const d=Math.hypot(f.x-camera.position.x,f.z-camera.position.z);
+   f.fm.opacity=(.42+.16*Math.sin(t*1.3))*(1-D.smooth(230,340,d));
+  }
+ }
  // A derailed lower curtain hangs from the existing crooked half-shutter.
+ 
  // Twenty-four corrugated metal panels are actual 3D meshes before AND after impact.
  const dock=new T.Group();dock.name='breakable-dispatch-curtain';root.add(dock);
  const dockZ=155.80,dockX=cx(156)+5.5,dockY=H(cx(156),156),dockPanels=[];
@@ -8004,7 +8007,8 @@ gl_FragColor.rgb=
   if(audio.pan.pan)audio.pan.pan.setTargetAtTime(Math.sin(elapsed*.34)*anom*.82,ctx.currentTime,.35);
  }
  function update(dt,sp){
-  stepDock(dt);
+   stepDock(dt);
+  stepFloaters(dt);
   elapsed+=dt;const z=P.z,w=D.weatherAt(z,elapsed);current=w;
   U.jwOrigin.value.set(cx(z),H(cx(z),z),z);U.jwTwist.value=w.warpActive;U.jwTime.value=elapsed;
   const twist=w.warpActive>.000001;
@@ -9044,8 +9048,13 @@ const shipBasin=scenicBand(L,5780,6120,90)*smooth((u-14)/8)*(1-smooth((u-116)/18
  y=lerp(y,roadBase-10.5+.3*Math.sin(z*.05),cargoBay);
 
 
- const shipX=cx(wz(5960))+44,shipDx=Math.abs(x-shipX)-48,shipDz=Math.abs(z-wz(5960))-125,shipPad=(1-smooth((shipDx+1)/16))*(1-smooth((shipDz+1)/30))*smooth((Math.abs(u)-20)/12);
- y=lerp(y,rawH(cx(wz(5960)),wz(5960))-10.0,shipPad);
+ // 좌초선 받침: 선체(yaw -.785, pitch .176, roll .035)의 선저를 따라 지형을 깎고 채워 배가 뜨거나 파묻히지 않게 한다.
+ // 배 코드(stranded-container-ship)의 yaw·pitch·roll·원점과 같은 값이어야 한다.
+ const shipOZ=wz(5960),shipOX=cx(shipOZ)+95,shipSY=Math.sin(-.785),shipCY=Math.cos(-.785),
+  shipA=(x-shipOX)*shipSY+(z-shipOZ)*shipCY,
+  shipC=(x-shipOX)*shipCY-(z-shipOZ)*shipSY,
+  shipPad=(1-smooth((Math.abs(shipA-5.5)-100)/24))*(1-smooth((Math.abs(shipC)-21)/18))*smooth((Math.abs(u)-14)/8);
+ y=lerp(y,rawH(shipOX-95,shipOZ)-4.2+4.3-Math.tan(.176)*shipA+.035*shipC,shipPad);
  const storyDepth=JW.storyDepthAt(z),corridor=1-smooth((Math.abs(u)-14)/30);
  y-=storyDepth*corridor;
  // At the broken cavern ledge the floor falls away while the rider glides toward the pipe mouth.
