@@ -1343,7 +1343,7 @@ function buildWorld(Hw,cxw,seed=0){const H=(x,z)=>Hw(x,wz(z)),cx=z=>cxw(wz(z));
 
  for(let i=0;i<24;i++){const z=15+R()*125,x=(R()<.5?-1:1)*(17+R()*13);at(stock,x,.3,z,.6+R(),.4+R()*.4,.7+R(),i%3?C.box:C.roof,[R()*.2,R()*3,R()*.25]);}
  // CAMPUS: real wall thickness, recessed bays, separate yards, roof breaks.
- const campuses=[[-1,218,63,65,98,12], [1,296,78,79,123,14],[-1,406,80,82,110,15], [1,472,104,105,127,17],[-1,720,116,90,120,13], [1,1340,150,95,140,17]];
+ const campuses=[[-1,218,92,65,98,12], [1,296,78,79,123,14],[-1,406,80,82,110,15], [1,472,104,105,127,17],[-1,720,116,90,120,13], [1,1340,150,95,140,17]];
  campuses.forEach(([s,z,off,w,l,h],idx)=>{
   const b=make('warehouse-'+idx),gl=make('warehouse-lamps-'+idx,'emissive');
   const xx=cx(z)+s*off,yy=base(z)-.4,front=xx-s*w/2,back=xx+s*w/2;
@@ -11206,9 +11206,10 @@ g.userData.taken=false;
 g.visible=true;
 }
 }
-function takePallet(kind){
- stackKinds[P.pallets]=kind;P.pallets++;P.palMax=Math.max(P.palMax||0,P.pallets);setStack(P.pallets);sfx('pallet');
-}
+
+function takePallet(kind){ if(P.pallets>=LM_STACK_MAX){ return false; } stackKinds[P.pallets]=kind; P.pallets++; P.palMax=Math.max( P.palMax||0, P.pallets ); setStack(P.pallets); // 현재 적재 단수를 넘겨야 // 쌓일수록 높아지는 음계가 정상 재생된다. sfx( 'pallet', P.pallets ); return true; }
+
+     
 function poolPickup(){
   if(!activeField)return;
 
