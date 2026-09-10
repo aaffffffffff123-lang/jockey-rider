@@ -9176,41 +9176,285 @@ function triPrism(mat,w,h,d,px,py,pz){
 }
 
 
+/* 차량 모델
+   부품을 "도색 덩어리"와 "나머지 덩어리"로 합쳐 한 대당 드로우콜 2~4번으로 그린다.
+   차종 4가지(세단·해치백·승합차·1톤 트럭) × 상태(멀쩡·문 열림·불탐)를 한 차에 모두 넣어 두고,
+   배치할 때 코스 거리에 따라 하나만 켠다. 뒤에서 다가가며 보게 되므로 뒷면(후미등·번호판·범퍼)을 가장 또렷하게 만든다. */
+const carVC=hex=>{const c=new THREE.Color(hex).convertSRGBToLinear();return[c.r,c.g,c.b];};
+class CarKit{
+  constructor(){this.p=[];this.c=[];this.m=new THREE.Matrix4();this.v=new THREE.Vector3();}
+  at(m){this.m=m||new THREE.Matrix4();return this;}
+  T(p){const v=this.v.set(p[0],p[1],p[2]).applyMatrix4(this.m);return[v.x,v.y,v.z];}
+  // cen이 있으면 삼각형이 그 중심 바깥쪽을 향하게 뒤집어 준다(한쪽 면만 그리는 재질에서도 구멍이 안 나게).
+  tri(a,b,c,col){
+    if(this.cen){const e=this.cen,u=[b[0]-a[0],b[1]-a[1],b[2]-a[2]],w=[c[0]-a[0],c[1]-a[1],c[2]-a[2]],n=[u[1]*w[2]-u[2]*w[1],u[2]*w[0]-u[0]*w[2],u[0]*w[1]-u[1]*w[0]];
+     if(n[0]*((a[0]+b[0]+c[0])/3-e[0])+n[1]*((a[1]+b[1]+c[1])/3-e[1])+n[2]*((a[2]+b[2]+c[2])/3-e[2])<0){const t=b;b=c;c=t;}}
+    for(const q of[a,b,c]){const v=this.T(q);this.p.push(v[0],v[1],v[2]);this.c.push(col[0],col[1],col[2]);}
+  }
+  quad(a,b,c,d,col){this.tri(a,b,c,col);this.tri(a,c,d,col);}
+  col(hex,k=1){return carVC(hex).map(v=>v*k);}
+  box(x,y,z,sx,sy,sz,hex,k=1){
+    const col=this.col(hex,k),a=sx/2,b=sy/2,c=sz/2;
+    const P=[[x-a,y-b,z-c],[x+a,y-b,z-c],[x+a,y+b,z-c],[x-a,y+b,z-c],[x-a,y-b,z+c],[x+a,y-b,z+c],[x+a,y+b,z+c],[x-a,y+b,z+c]];
+    for(const f of[[0,3,2,1],[4,5,6,7],[0,4,7,3],[1,2,6,5],[3,7,6,2],[0,1,5,4]])this.quad(P[f[0]],P[f[1]],P[f[2]],P[f[3]],col);
+  }
+  // 옆모습 (z,y) 다각형을 x0~x1 폭으로 뽑아낸다. band가 있으면 그 높이 아래 옆면을 어둡게 칠한다.
+  prism(pts,x0,x1,hex,k=1,band=null){
+    const col=this.col(hex,k),low=this.col(hex,k*.8);
+    this.cen=[(x0+x1)/2,pts.reduce((q,v)=>q+v[1],0)/pts.length,pts.reduce((q,v)=>q+v[0],0)/pts.length];
+    const tris=THREE.ShapeUtils.triangulateShape(pts.map(([z,y])=>new THREE.Vector2(z,y)),[]);
+    for(const[i,j,l]of tris){
+      const a=pts[i],b=pts[j],c=pts[l];
+      this.tri([x0,a[1],a[0]],[x0,b[1],b[0]],[x0,c[1],c[0]],col);
+      this.tri([x1,a[1],a[0]],[x1,b[1],b[0]],[x1,c[1],c[0]],col);
+    }
+    for(let i=0;i<pts.length;i++){
+      const a=pts[i],b=pts[(i+1)%pts.length],cc=band!=null&&Math.max(a[1],b[1])<=band?low:col;
+      this.quad([x0,a[1],a[0]],[x1,a[1],a[0]],[x1,b[1],b[0]],[x0,b[1],b[0]],cc);
+    }
+    this.cen=null;
+  }
+  // 옆면 위에 붙는 얇은 판(유리·문짝 틈 등). x 위치에 (z,y) 다각형을 칠한다.
+  side(pts,x,hex,k=1){
+    const col=this.col(hex,k);
+    const tris=THREE.ShapeUtils.triangulateShape(pts.map(([z,y])=>new THREE.Vector2(z,y)),[]);
+    for(const[i,j,l]of tris)this.tri([x,pts[i][1],pts[i][0]],[x,pts[j][1],pts[j][0]],[x,pts[l][1],pts[l][0]],col);
+  }
+  // 경사면(앞유리·뒷유리) 위의 사다리꼴: 두 (z,y) 점 사이, 폭 w, 면에서 off만큼 띄운다.
+  slope(z1,y1,z2,y2,w,hex,k=1,off=.012,inset=.05){
+    const col=this.col(hex,k),dz=z2-z1,dy=y2-y1,L=Math.hypot(dz,dy),tz=dz/L,ty=dy/L;
+    let nz=ty,ny=-tz;if(ny<0){nz=-nz;ny=-ny;}
+    const a=[z1+tz*inset+nz*off,y1+ty*inset+ny*off],b=[z2-tz*inset+nz*off,y2-ty*inset+ny*off],h=w/2;
+    this.quad([-h,a[1],a[0]],[h,a[1],a[0]],[h*.9,b[1],b[0]],[-h*.9,b[1],b[0]],col);
+  }
+  wheel(x,y,z,r,w,tire=0x1d1b1a,rim=0x8b9095,flat=false){
+    const S=12,tc=this.col(tire),rc=this.col(rim),hub=this.col(0x55595d),ry=flat?r*.78:r;
+    const pt=(i,rr,xx)=>{const a=i/S*Math.PI*2;return[xx,y+Math.sin(a)*rr*(Math.sin(a)<0?ry/r:1),z+Math.cos(a)*rr];};
+    this.cen=[x,y,z];
+    for(let i=0;i<S;i++){
+      const j=i+1;
+      this.quad(pt(i,r,x-w/2),pt(j,r,x-w/2),pt(j,r,x+w/2),pt(i,r,x+w/2),tc);
+      for(const s of[-1,1]){
+        const xx=x+s*w/2;
+        this.quad(pt(i,r,xx),pt(i,r*.64,xx),pt(j,r*.64,xx),pt(j,r,xx),tc);
+        if(rim!==null){this.tri(pt(i,r*.64,xx+s*.004),pt(j,r*.64,xx+s*.004),[xx+s*.004,y,z],(i%3)?rc:hub);}
+      }
+    }
+    this.cen=null;
+  }
+  geo(){
+    const g=new THREE.BufferGeometry();
+    g.setAttribute('position',new THREE.Float32BufferAttribute(this.p,3));
+    g.setAttribute('color',new THREE.Float32BufferAttribute(this.c,3));
+    g.computeVertexNormals();g.computeBoundingSphere();return g;
+  }
+}
+const carPaintHex=[0xE4E1DA,0xE4E1DA,0xA6ACB1,0xA6ACB1,0x2C2F34,0x6B7075,0xC4553F,0x4F7FB0,0x7C8B62,0xC9A34A,0xD98B45,0x6E5F8C];
+const truckPaintHex=[0x3F67A3,0x3F67A3,0xE4E1DA,0xA6ACB1];
+const busPaintHex=[0x3A70B0,0x4C9A55,0xD8D3C5];
+const carPaintVC=new Map();
+function carPaintMat(hex){if(!carPaintVC.has(hex))carPaintVC.set(hex,new THREE.MeshLambertMaterial({color:new THREE.Color(hex).convertSRGBToLinear(),vertexColors:true,side:THREE.DoubleSide}));return carPaintVC.get(hex);}
+// 박살 파편은 색 정보 없는 상자라, 꼭짓점 색을 쓰지 않는 도색 재질을 따로 둔다(안 그러면 파편이 검게 나온다).
+const carShardMats=new Map();
+function carShardMat(hex){if(!carShardMats.has(hex))carShardMats.set(hex,M(hex));return carShardMats.get(hex);}
+const mCarDetail=new THREE.MeshLambertMaterial({vertexColors:true,side:THREE.DoubleSide});
+const mCarBurnt=new THREE.MeshLambertMaterial({color:new THREE.Color(0x3b322d).convertSRGBToLinear(),vertexColors:true,side:THREE.DoubleSide});
+const mHazard=new THREE.MeshBasicMaterial({color:0xffa11c});
+const carShards=[mGlass,mTire,mRust,M(0x2d2f31)];
+for(const h of carPaintHex.concat(truckPaintHex,busPaintHex))carPaintMat(h);
 
-/* 승용차 */
+// 차종 치수. prof=차체 아랫부분 옆모습, cab=캐빈(유리 달린 윗부분) 옆모습. z+가 앞.
+const CAR_TYPES={
+  sedan:{W:1.80,Wc:1.54,wz:[1.40,-1.36],r:.33,h:1.55,hits:[{x:0,z:1.1,r:1.35},{x:0,z:-1.1,r:1.35}],
+    prof:[[-2.28,.30],[2.24,.30],[2.30,.50],[2.22,.72],[1.95,.81],[.98,.92],[-1.48,.94],[-2.16,.92],[-2.31,.74],[-2.33,.50]],
+    cab:[[1.0,.90],[.32,1.40],[-.80,1.42],[-1.50,.90]],
+    win:[[.86,.97],[.33,1.33],[-.77,1.35],[-1.35,.97]],pillars:[-.17],seams:[.92,-.16,-1.28],mirror:[.9,1.0],rear:-2.33,front:2.30,trunk:[-1.48,-2.16]},
+  hatch:{W:1.72,Wc:1.50,wz:[1.24,-1.22],r:.31,h:1.5,hits:[{x:0,z:1.0,r:1.32},{x:0,z:-1.0,r:1.32}],
+    prof:[[-1.96,.30],[1.92,.30],[1.98,.50],[1.90,.72],[1.66,.80],[.90,.91],[-1.80,.94],[-1.99,.86],[-2.01,.50]],
+    cab:[[.95,.89],[.30,1.41],[-1.52,1.40],[-1.86,.92]],
+    win:[[.82,.96],[.31,1.34],[-1.35,1.33],[-1.62,.97]],pillars:[-.32],seams:[.86,-.30],mirror:[.85,1.0],rear:-2.01,front:1.98,trunk:null},
+  van:{W:1.90,Wc:1.84,wz:[1.62,-1.58],r:.34,h:2.05,hits:[{x:0,z:1.5,r:1.3},{x:0,z:0,r:1.3},{x:0,z:-1.5,r:1.3}],
+    prof:[[-2.50,.32],[2.46,.32],[2.52,.52],[2.46,.80],[2.20,.96],[1.72,1.02],[-2.48,1.03],[-2.53,.52]],
+    cab:[[1.74,1.00],[1.12,1.86],[-2.42,1.92],[-2.50,1.00]],
+    win:[[1.55,1.08],[1.12,1.76],[-2.28,1.80],[-2.36,1.08]],pillars:[.70,-.55,-1.45],seams:[1.62,.66,-.62],mirror:[1.62,1.12],rear:-2.53,front:2.52,trunk:null},
+  truck:{W:1.74,Wc:1.74,wz:[1.78,-1.52],r:.31,h:1.95,hits:[{x:0,z:1.5,r:1.28},{x:0,z:0,r:1.28},{x:0,z:-1.5,r:1.28}],
+    prof:[[1.12,.38],[2.50,.38],[2.53,.62],[2.50,1.02],[1.12,1.02]],
+    cab:[[1.12,1.00],[2.50,1.00],[2.40,1.72],[2.12,1.95],[1.12,1.95]],
+    win:[[1.30,1.10],[2.05,1.10],[2.05,1.80],[1.30,1.80]],pillars:[],seams:[2.22,1.2],mirror:[2.3,1.35],rear:-2.5,front:2.53,trunk:null,bed:[-2.5,1.05]}
+};
+
+function buildCarType(name){
+  const t=CAR_TYPES[name],W=t.W,Wc=t.Wc,paint=new CarKit(),det=new CarKit(),burnt=new CarKit(),openP=new CarKit(),openD=new CarKit();
+  // 도색: 차체 + 캐빈. 문턱 아래는 조금 어둡게.
+  paint.prism(t.prof,-W/2,W/2,0xffffff,1,.55);
+  paint.prism(t.cab,-Wc/2,Wc/2,0xffffff,1);
+  for(const pz of t.pillars){ for(const s of[-1,1])paint.box(s*(Wc/2+.008),1.16,pz,.02,.52,.12,0xffffff,.92); }
+  for(const s of[-1,1])paint.box(s*(W/2+.1),t.mirror[1],t.mirror[0],.16,.12,.08,0xffffff,.9); // 사이드미러
+  // 공통 디테일을 두 벌(멀쩡·불탐) 만든다.
+  for(const[d,burn]of[[det,false],[burnt,true]]){
+    const glass=burn?0x0c0b0b:0x223039,glassHi=burn?0x100e0d:0x4d6270,dark=burn?0x1b1715:0x2b2d30;
+    // 옆유리(두 톤) + 앞·뒤 유리
+    for(const s of[-1,1]){
+      const x=s*(Wc/2+.006);
+      d.side(t.win,x,glass);
+      if(!burn)d.side(t.win.map(([z,y],i)=>i===0||i===t.win.length-1?[z,Math.min(y+.2,t.win[1][1])]:[z,y]),x+s*.002,glassHi);
+    }
+    if(name!=='truck'){
+      d.slope(t.cab[0][0],t.cab[0][1],t.cab[1][0],t.cab[1][1],Wc*.92,glass);
+      const n=t.cab.length;d.slope(t.cab[n-1][0],t.cab[n-1][1],t.cab[n-2][0],t.cab[n-2][1],Wc*.9,glass);
+    }else{
+      d.box(0,1.42,2.46,Wc*.9,.62,.02,glass);
+    }
+    // 문 틈과 손잡이
+    for(const s of[-1,1])for(const sz of t.seams){
+      d.box(s*(W/2+.004),.66,sz,.01,.62,.025,0x151617);
+      d.box(s*(W/2+.012),.84,sz-.28,.02,.04,.14,dark);
+    }
+    // 휠하우스 그림자 + 바퀴
+    for(const wz of t.wz)for(const s of[-1,1]){
+      d.box(s*(W/2+.003),.42,wz,.01,.34,t.r*2.5,0x0f0f10);
+      d.wheel(s*(W/2-.12),t.r,wz,t.r,.22,burn?0x141312:0x1d1b1a,burn?0x3a3431:0x8b9095,false);
+    }
+    // 뒷면: 범퍼·후미등·번호판·트렁크 선
+    const R=t.rear;
+    d.box(0,.42,R-.03,W*.98,.2,.12,dark);
+    for(const s of[-1,1]){
+      d.box(s*(W/2-.2),.80,R-.005,.34,.14,.03,burn?0x2a1512:0xb5241d);
+      d.box(s*(W/2-.4),.80,R-.006,.08,.12,.03,burn?0x241a14:0xd9d3c6);
+    }
+    d.box(0,.62,R-.012,.52,.12,.02,burn?0x2b2622:0xe8e4da);
+    d.box(0,.62,R-.018,.34,.04,.02,0x3a3d40);
+    if(t.trunk)d.box(0,.93,t.trunk[1]+.01,W*.8,.012,.02,0x151617);
+    // 앞면: 범퍼·전조등·그릴·번호판
+    const F=t.front;
+    d.box(0,.44,F+.03,W*.98,.2,.12,dark);
+    for(const s of[-1,1])d.box(s*(W/2-.26),.72,F-.02,.36,.12,.05,burn?0x2e2a26:0xe6e0c6);
+    d.box(0,.66,F-.01,W*.42,.14,.05,0x1a1c1d);
+    // 차 밑 그림자판
+    d.box(0,.18,0,W*.9,.06,Math.abs(F-R)*.9,0x0d0d0d);
+    if(burn){
+      // 그을음과 녹: 불탄 차를 멀리서도 구분되게.
+      for(const s of[-1,1])d.box(s*(W/2+.006),.62,(F+R)/2,.01,.3,Math.abs(F-R)*.6,0x5a3321);
+      d.box(0,1.0,(F+R)/2,Wc*.8,.02,1.2,0x2a1d17);
+    }
+  }
+  // 1톤 트럭 적재함: 은색 측판 + 바닥 + 앞 보호대
+  if(t.bed){
+    const [b0,b1]=t.bed,L=b1-b0,mid=(b0+b1)/2;
+    for(const d of[det,burnt]){
+      const al=d===burnt?0x2d2926:0x9ea3a7;
+      d.box(0,.78,mid,W,.08,L,d===burnt?0x231e1b:0x55595d);
+      for(const s of[-1,1])d.box(s*(W/2-.03),1.02,mid,.05,.44,L,al);
+      d.box(0,1.02,b0+.03,W,.44,.05,al);
+      d.box(0,1.32,b1-.02,W,.9,.05,d===burnt?0x1c1816:0x3a3d40);
+      d.box(0,.52,mid,.3,.28,L,0x1b1c1d); // 섀시
+    }
+  }
+  // 문 열림 상태: 운전석 문과 트렁크(해치)가 열리고, 열린 자리는 어둡게.
+  {
+    const s=1,sz=t.seams[0],len=Math.min(1.05,Math.abs(t.seams[0]-(t.seams[1]??(t.seams[0]-1.0)))),hz=sz;
+    const m=new THREE.Matrix4().makeTranslation(s*W/2,0,hz).multiply(new THREE.Matrix4().makeRotationY(-1.05)).multiply(new THREE.Matrix4().makeTranslation(0,0,-len/2));
+    openP.at(m).box(.03,.72,0,.05,.78,len,0xffffff,.95);
+    openD.at(m).box(-.01,1.05,0,.02,.3,len*.8,0x223039);
+    openD.at(null).box(s*(W/2+.012),.72,sz-len/2,.02,.7,len*.94,0x0e0e0f);
+    if(t.trunk){
+      const lid=new THREE.Matrix4().makeTranslation(0,.94,t.trunk[0]).multiply(new THREE.Matrix4().makeRotationX(1.1)).multiply(new THREE.Matrix4().makeTranslation(0,0,-(t.trunk[0]-t.trunk[1])/2));
+      openP.at(lid).box(0,.02,0,W*.8,.05,Math.abs(t.trunk[0]-t.trunk[1]),0xffffff,.95);
+      openD.at(null).box(0,.935,(t.trunk[0]+t.trunk[1])/2,W*.76,.02,Math.abs(t.trunk[0]-t.trunk[1])*.9,0x0e0e0f);
+    }
+  }
+  // 1톤 트럭 짐: 파렛트 위 박스 더미 (일부 차에만 켠다)
+  let cargo=null;
+  if(t.bed){
+    cargo=new CarKit();const [b0,b1]=t.bed;
+    cargo.box(0,.9,(b0+b1)/2,1.1,.14,1.1,0x7d8f3c);
+    for(const[x,y,z,c]of[[-.25,1.2,-.1,0x987a52],[.28,1.2,-.05,0x8f7048],[0,1.58,-.08,0xa08058],[-.2,1.2,-1.2,0x987a52],[.25,1.2,-1.15,0x8a6c46]])
+      cargo.box(x,y,(b0+b1)/2+z+.4,.52,.42,.52,c);
+  }
+  // 비상등 위치 (앞뒤 모서리)
+  const haz=new CarKit();
+  for(const s of[-1,1]){haz.box(s*(W/2-.2),.80,t.rear-.03,.14,.1,.04,0xffffff);haz.box(s*(W/2-.1),.72,t.front+.02,.12,.08,.04,0xffffff);}
+  return{paint:paint.geo(),det:det.geo(),burnt:burnt.geo(),openP:openP.geo(),openD:openD.geo(),cargo:cargo&&cargo.geo(),haz:haz.geo(),t};
+}
+const CAR_GEO={};
+for(const n of Object.keys(CAR_TYPES))CAR_GEO[n]=buildCarType(n);
+
+/* 승용차(모든 차종·상태를 담은 한 대) */
 function makeCar(){
-  const g=new THREE.Group();
-  const paint=carPaints[0];
-  const body=mesh(boxG,paint,1.85,0.62,4.3,0,0.62,0); g.add(body);
-  const cab =mesh(boxG,paint,1.55,0.58,2.1,0,1.18,-0.2); g.add(cab);
-  const glassF=mesh(boxG,mGlass,1.45,0.42,0.12,0,1.22,0.86); g.add(glassF);
-  const glassB=mesh(boxG,mGlass,1.45,0.40,0.12,0,1.22,-1.26); g.add(glassB);
-  const glassL=mesh(boxG,mGlass,0.10,0.38,1.7,-0.79,1.22,-0.2); g.add(glassL);
-  const glassR=mesh(boxG,mGlass,0.10,0.38,1.7, 0.79,1.22,-0.2); g.add(glassR);
-  const rust=mesh(boxG,mRust,0.9,0.3,1.2,0.5,0.62,1.2); g.add(rust);
-  for(const s of[-1,1])for(const z of[1.4,-1.4]){
-    const w=mesh(cylG,mWheel,0.36,0.24,0.36,s*0.95,0.36,z); w.rotation.z=Math.PI/2; g.add(w);
+  const g=new THREE.Group(),v={};
+  for(const n of Object.keys(CAR_GEO)){
+    const G=CAR_GEO[n],pose=new THREE.Group();pose.visible=false;g.add(pose);
+    const paint=new THREE.Mesh(G.paint,carPaintMat(carPaintHex[0])),det=new THREE.Mesh(G.det,mCarDetail),burnt=new THREE.Mesh(G.burnt,mCarDetail);
+    const openP=new THREE.Mesh(G.openP,carPaintMat(carPaintHex[0])),openD=new THREE.Mesh(G.openD,mCarDetail),haz=new THREE.Mesh(G.haz,mHazard);
+    pose.add(paint,det,burnt,openP,openD,haz);
+    let cargo=null;if(G.cargo){cargo=new THREE.Mesh(G.cargo,mCarDetail);pose.add(cargo);}
+    v[n]={pose,paint,det,burnt,openP,openD,haz,cargo,t:G.t};
   }
-  g.userData.paint=[body,cab]; g.userData.rust=rust;
-  g.userData.hits=[{x:0,z:1.1,r:1.35},{x:0,z:-1.1,r:1.35}]; g.userData.h=1.55;
+  g.userData.variants=v;g.userData.paint=[];g.userData.rust={visible:false};
+  g.userData.hits=CAR_TYPES.sedan.hits;g.userData.h=1.55;g.userData.shardMaterials=carShards;
   return g;
 }
-/* 버스 / 트럭 */
+// 코스 거리에 따라 차의 상태를 정한다: 초반엔 먼지 쌓인 채 서 있고, 갈수록 열리고 깨지고 불타고 뒤집힌다.
+function dressCar(o,z,r1,r2,u=0){
+  const h=k=>{const v=Math.sin(Math.floor(z)*12.9898+u*7.31+k*78.233+SEED*3.713)*43758.5453;return v-Math.floor(v);};
+  const stage=z<2600?0:z<6200?1:2;
+  const typeRoll=h(1),name=typeRoll<.38?'sedan':typeRoll<.6?'hatch':typeRoll<.8?'van':'truck';
+  const sr=h(2),state=stage===0?(sr<.8?'ok':'open'):stage===1?(sr<.45?'ok':sr<.8?'open':'burnt'):(sr<.25?'ok':sr<.55?'open':'burnt');
+  const flip=state==='burnt'&&stage===2&&h(3)<.3,flat=!flip&&stage>0&&h(4)<.3;
+  const V=o.userData.variants;
+  for(const n in V)V[n].pose.visible=n===name;
+  const c=V[name],hexes=name==='truck'?truckPaintHex:carPaintHex,hex=hexes[Math.floor(r1*hexes.length)],paint=carPaintMat(hex);
+  c.paint.material=state==='burnt'?mCarBurnt:paint;c.openP.material=c.paint.material;
+  c.det.visible=state!=='burnt';c.burnt.visible=state==='burnt';
+  c.openP.visible=c.openD.visible=state==='open'||(state==='burnt'&&h(5)<.5);
+  c.haz.visible=state!=='burnt'&&stage>0&&h(6)<.14;
+  if(c.cargo)c.cargo.visible=state!=='burnt'&&r2<.7;
+  c.pose.position.set(0,0,0);c.pose.rotation.set(0,0,0);
+  if(flip){c.pose.rotation.z=Math.PI;c.pose.position.y=c.t.h-.08;}
+  else if(flat){const s=h(7)<.5?-1:1;c.pose.rotation.z=s*.06;c.pose.position.y=-.04;}
+  o.userData.hits=c.t.hits;o.userData.h=flip?1.35:c.t.h;
+  o.userData.shardMaterials=[carShardMat(state==='burnt'?0x3b322d:hex),mGlass,mTire,mRust];
+}
+/* 버스 */
 function makeBus(){
-  const g=new THREE.Group();
-  const paint=carPaints[2];
-  const body=mesh(boxG,paint,2.6,2.5,10.5,0,1.7,0); g.add(body);
-  const band=mesh(boxG,carPaints[0],2.64,0.5,10.52,0,1.25,0); g.add(band);
-  for(let i=0;i<5;i++){ g.add(mesh(boxG,mGlass,2.66,0.9,1.4,0,2.25,-4.0+i*2.0)); }
-  g.add(mesh(boxG,mGlass,2.2,1.1,0.12,0,2.2,5.24));
-  const rust=mesh(boxG,mRust,1.2,0.9,2.2,1.05,0.9,-2.5); g.add(rust);
-  for(const s of[-1,1])for(const z of[3.4,-3.2]){
-    const w=mesh(cylG,mWheel,0.55,0.4,0.55,s*1.25,0.55,z); w.rotation.z=Math.PI/2; g.add(w);
+  const g=new THREE.Group(),L=10.6,W=2.5,Hb=3.12,F=L/2,R=-L/2,paint=new CarKit(),d=new CarKit();
+  // 차체: 앞 끝을 살짝 기울인 상자
+  paint.prism([[R,.42],[F-.1,.42],[F,.7],[F,2.8],[F-.18,3.12],[R+.1,3.12],[R,2.95]],-W/2,W/2,0xffffff,1,.9);
+  paint.box(0,3.3,-.8,1.5,.36,2.8,0xffffff,.86); // 지붕 에어컨
+  // 창 띠: 옆창 + 기둥
+  for(const s of[-1,1]){
+    const x=s*(W/2+.006);
+    d.side([[-4.9,1.62],[4.0,1.62],[4.0,2.62],[-4.9,2.62]],x,0x1f2b33);
+    d.side([[-4.9,2.28],[4.0,2.28],[4.0,2.62],[-4.9,2.62]],x+s*.002,0x4b5f6c);
+    for(let z=-4.9;z<=4.01;z+=1.48)paint.box(s*(W/2+.012),2.12,z,.02,1.02,.12,0xffffff,.9);
+    d.box(s*(W/2+.004),.72,0,.01,.5,L*.96,0x2c3033); // 치마 띠
   }
-  g.userData.paint=[body]; g.userData.rust=rust;
-  g.userData.hits=[{x:0,z:3.6,r:1.9},{x:0,z:0,r:1.9},{x:0,z:-3.6,r:1.9}]; g.userData.h=3.1;
+  // 오른쪽(차 기준, -x) 출입문 두 개
+  for(const dz of[4.35,.6]){d.side([[dz-.55,.5],[dz+.55,.5],[dz+.55,2.7],[dz-.55,2.7]],-(W/2+.009),0x1a2329);d.box(-(W/2+.012),1.6,dz,.02,2.2,.03,0x0f1112);}
+  // 앞: 큰 앞유리·행선판·범퍼·전조등·미러
+  d.box(0,2.0,F+.012,W*.92,1.45,.02,0x1f2b33);
+  d.box(0,2.92,F-.03,W*.8,.28,.02,0x151515);d.box(0,2.92,F-.02,W*.5,.1,.02,0xe0a030);
+  d.box(0,.62,F+.05,W*.98,.3,.12,0x2b2d30);
+  for(const s of[-1,1]){d.box(s*(W/2-.3),.95,F+.01,.4,.16,.05,0xe6e0c6);d.box(s*(W/2+.25),2.35,F+.3,.06,.06,.7,0x222426);d.box(s*(W/2+.3),2.1,F+.62,.1,.42,.14,0x222426);}
+  // 뒤: 뒷유리·엔진 그릴·후미등·번호판·범퍼
+  d.box(0,2.55,R-.012,W*.7,.6,.02,0x1f2b33);
+  d.box(0,1.25,R-.02,W*.8,.9,.03,0x3a3d40);
+  for(let y=.9;y<1.65;y+=.14)d.box(0,y,R-.04,W*.74,.05,.02,0x1a1b1c);
+  for(const s of[-1,1])d.box(s*(W/2-.12),1.4,R-.01,.16,1.1,.03,0xb5241d);
+  d.box(0,.62,R-.02,.6,.14,.02,0xe8e4da);d.box(0,.45,R-.05,W*.98,.26,.12,0x2b2d30);
+  // 바퀴와 휠하우스
+  for(const wz of[3.35,-2.95])for(const s of[-1,1]){d.box(s*(W/2+.003),.62,wz,.01,.6,1.3,0x0f0f10);d.wheel(s*(W/2-.18),.52,wz,.52,.32);}
+  d.box(0,.3,0,W*.9,.1,L*.9,0x0d0d0d);
+  const mesh=new THREE.Mesh(paint.geo(),carPaintMat(busPaintHex[0])),det=new THREE.Mesh(d.geo(),mCarDetail);
+  const pose=new THREE.Group();pose.add(mesh,det);g.add(pose);
+  g.userData.paint=[mesh];g.userData.rust={visible:false};g.userData.pose=pose;g.userData.isBus=true;
+  g.userData.hits=[{x:0,z:4.3,r:1.75},{x:0,z:1.45,r:1.75},{x:0,z:-1.45,r:1.75},{x:0,z:-4.3,r:1.75}];g.userData.h=3.1;
+  g.userData.shardMaterials=[carShardMat(busPaintHex[0]),mGlass,mTire,M(0x2d2f31)];
   return g;
 }
+
+
+
 /* 타이어 더미 / 드럼통 */
 function makeDebris(){
   const g=new THREE.Group();
@@ -9742,6 +9986,17 @@ put('skid',214,-8.6,{role:'dock-edge'});
       }
     }
 
+      // 중반 이후 가끔: 버스가 한쪽 차로를 비스듬히 막고 서 있다. 반대 차로는 항상 비워 둔다.
+    const busPick=Math.sin(k*91.7+SEED*1.3)*43758.5453;
+    if(start>=2400&&busPick-Math.floor(busPick)<.75&&coursePressureAt(start+428)>=.3){
+      const bu=side*6.6;
+      // 도약대와 겹치면 앞뒤로 조금 옮겨 본다.
+      const bz=[428,446,410].map(dz=>start+dz).find(z=>![-5,0,5].some(dz=>nearKicker(bu,z+dz)));
+      const bw=bz&&JockeyWorldData.weatherAt(bz);
+      if(bz&&!(bw.dust>.35||bw.rain>.75)&&!JockeyWorldData.insertAt(bz))
+        put('bus',bz,bu,{role:'bus-block',yaw:side*.26});
+    }
+
     const weavePressure=
       coursePressureAt(start+480);
 
@@ -10062,9 +10317,23 @@ function fillObjects(c,z0){
       o.userData.kind=kind;o.userData.kinds.aj.visible=kind==='aj';o.userData.kinds.kpp.visible=kind==='kpp';
     }else if(e.kind==='baton')o=c.baton;
     else if(e.kind==='helmet')o=c.helmet;
-    else if(e.kind==='car'){
-      const pool=c.carsList.filter(x=>x.userData.h<2.5);o=pool[carIndex++];
-      if(o){const p=carPaints[Math.floor(rnd()*carPaints.length)];for(const m of o.userData.paint)m.material=p;o.userData.rust.visible=rnd()<.72;}
+ 
+ 
+     else if(e.kind==='car'){
+      // 난수 두 개(도색·짐)를 예전과 같은 순서로 쓰므로 뒤따르는 풍경 배치는 바뀌지 않는다.
+      const pool=c.carsList.filter(x=>!x.userData.isBus);o=pool[carIndex++];
+      if(o)dressCar(o,e.z,rnd(),rnd(),e.u);
+    }else if(e.kind==='bus'){
+      o=c.carsList.find(x=>x.userData.isBus&&!x.visible);
+      if(o){
+        const hex=busPaintHex[Math.floor(ihash(Math.floor(e.z)*7+SEED)*busPaintHex.length)];
+        o.userData.paint[0].material=carPaintMat(hex);o.userData.shardMaterials[0]=carShardMat(hex);
+        o.userData.pose.rotation.z=(ihash(Math.floor(e.z)*11+SEED)<.5?-1:1)*.035;
+      }
+
+
+
+
     }else if(e.kind==='debris'||e.kind==='rubble')o=c.deco.find(x=>x.userData.propKind===e.kind&&!x.visible);
     else o=c.props.find(x=>x.userData.propKind===e.kind&&!x.visible);
     if(!o)throw new Error('Course object capacity exceeded: '+e.kind+' at '+e.z);
@@ -10215,49 +10484,70 @@ const mJack=M(0xF26B1D), mJackDark=M(0xB84A10), mSteel=M(0xA9AEB5),
 
 
 
-/* 자키: 앞(+z)에 유압부와 핸들, 뒤로 포크 두 개 */
-const jack = new THREE.Group();
-tilt.add(jack);
 
 (function(){
-  // 포크
-  for (const s of [-1, 1]) {
-    jack.add(mesh(boxG, mJack,     0.16, 0.075, 1.15, s*0.22, 0.15, -0.28));
-    jack.add(mesh(boxG, mJackDark, 0.10, 0.045, 0.12, s*0.22, 0.15, -0.82)); // 포크 끝 마감
-    const fw = mesh(cylG, mWheel,  0.07, 0.13, 0.07, s*0.22, 0.07, -0.68);
-    fw.rotation.z = Math.PI / 2;
-    jack.add(fw);
+  // 실물 핸드자키 구조: 포크 뿌리 위의 경사 몸통이 뒤를 막고, 펌프·조향 바퀴·핸들은 그 앞으로 조금 튀어나와 있다.
+  // 뒤(게임 카메라 쪽)에서 보면 몸통이 핸들 기둥 밑동을 가려서 킥보드처럼 보이지 않는다.
+  // 캐릭터와 같은 단색·덩어리 결로 만들고, 재질별로 한 덩어리씩 합쳐 엔딩 들판 드로우콜을 늘리지 않는다.
+  // 포크 윗면 높이·위치는 예전과 같아서 파렛트가 꽂히는 자리는 그대로다.
+  const body=new CarKit(),dark=new CarKit(),steel=new CarKit(),wheels=new CarKit(),W=0xffffff;
+  for(const s of[-1,1]){
+    const x=s*0.22;
+    // 포크: 윗판 + 양옆으로 내려온 날개 (뒤에서 보면 ㄷ자 채널)
+    body.box(x,.17,-.28,.16,.035,1.15,W);
+    for(const e of[-1,1])body.box(x+e*.07,.13,-.28,.02,.08,1.15,W);
+    // 포크 끝: 비스듬히 깎인 코
+    body.prism([[-.855,.095],[-.855,.1875],[-.95,.125],[-.95,.095]],x-.08,x+.08,W);
+    // 포크 끝 윗면의 네모 창 (롤러 브래킷이 올라오는 구멍)
+    dark.box(x,.189,-.70,.07,.004,.13,W);
+    // 채널 안 밀대, 로드 롤러, 끝의 진입 롤러
+    dark.box(x,.105,-.26,.04,.03,1.02,W);
+    wheels.wheel(x,.07,-.68,.07,.1,0x2b2a28,0x8b9095,false,8);
+    wheels.wheel(x,.04,-.905,.035,.07,0x2b2a28,0x8b9095,false,6);
+    steel.box(x,.07,-.68,.135,.02,.02,W);
+    steel.box(x,.04,-.905,.1,.015,.015,W);
+    // 포크 뿌리 옆면의 핀 볼트
+    steel.wheel(x+s*.09,.14,.22,.028,.02,0,0,false,6);
   }
-
   // 포크 뿌리 판
-  jack.add(mesh(boxG, mJack, 0.62, 0.06, 0.40, 0, 0.16, 0.20));
-
-  // 앞 하우징: 네모 대신 삼각형 펌프 몸통
-  jack.add(triPrism(mJack, 0.56, 0.54, 0.38, 0, 0.16, 0.50));
-
-  // 하우징 상단 캡
-  jack.add(mesh(boxG, mJackDark, 0.22, 0.08, 0.30, 0, 0.66, 0.50));
-
-  // 조향 바퀴
-  for (const s of [-1, 1]) {
-    const w = mesh(cylG, mWheel, 0.18, 0.10, 0.18, s*0.15, 0.18, 0.60);
-    w.rotation.z = Math.PI / 2;
-    jack.add(w);
+  body.box(0,.16,.20,.62,.06,.40,W);
+  // 경사 몸통: 아래는 넓고 위로 좁아지며, 뒤쪽 면이 비스듬히 누워 있다.
+  {
+    const B=[[-.28,.19,.02],[.28,.19,.02],[.28,.19,.47],[-.28,.19,.47]],T=[[-.15,.67,.37],[.15,.67,.37],[.15,.67,.47],[-.15,.67,.47]];
+    body.cen=[0,.40,.30];
+    body.quad(B[0],B[1],B[2],B[3],body.col(W));
+    body.quad(T[0],T[1],T[2],T[3],body.col(W));
+    for(let i=0;i<4;i++){const j=(i+1)%4;body.quad(B[i],B[j],T[j],T[i],body.col(W));}
+    body.cen=null;
   }
-
-  // 힌지/펌프 디테일만 은색
-  const pivot = mesh(cylG, mSteel, 0.06, 0.14, 0.06, 0, 0.34, 0.59);
-  pivot.rotation.z = Math.PI / 2;
-  jack.add(pivot);
-
-  const linkL = mesh(boxG, mSteel, 0.04, 0.16, 0.03, -0.10, 0.29, 0.57);
-  linkL.rotation.z = -0.35;
-  jack.add(linkL);
-
-  const linkR = mesh(boxG, mSteel, 0.04, 0.16, 0.03,  0.10, 0.29, 0.57);
-  linkR.rotation.z = 0.35;
-  jack.add(linkR);
+  // 펌프: 몸통 앞에 선 주황 실린더 하우징과 링, 옆의 은색 리턴 스프링
+  body.box(0,.43,.555,.16,.30,.16,W);
+  dark.box(0,.28,.555,.20,.04,.20,W);
+  dark.box(0,.59,.555,.19,.04,.19,W);
+  body.box(0,.65,.53,.22,.08,.24,W);          // 핸들이 꽂히는 윗머리
+  for(let i=0;i<5;i++)steel.box(.125,.40+i*.032,.63,.07,.016,.07,W);
+  steel.box(.125,.39,.63,.02,.18,.02,W);
+  // 펌프 페달 (발로 밟는 판)
+  dark.box(.27,.30,.66,.14,.03,.10,W);
+  // 조향 바퀴: 빨간 우레탄 + 은색 허브
+  for(const s of[-1,1]){
+    wheels.wheel(s*.15,.18,.62,.18,.10,0xa3272a,0x4a1d1d);
+    steel.wheel(s*.15+s*.052,.18,.62,.05,.012,0,0,false,6);
+  }
+  // 조향 바퀴를 붙든 요크 옆판 (몸통 앞 아래)
+  for(const s of[-1,1])dark.box(s*.215,.26,.60,.03,.18,.20,W);
+  // 힌지와 링크 (은색)
+  steel.wheel(0,.34,.59,.06,.14,0,0,false,8);
+  for(const s of[-1,1])steel.at(new THREE.Matrix4().makeTranslation(s*.10,.29,.57).multiply(new THREE.Matrix4().makeRotationZ(s*.35))).box(0,0,0,.04,.16,.03,W);
+  steel.at(null);
+  for(const[k,mat]of[[body,mJack],[dark,mJackDark],[steel,mSteel]]){
+    const g=k.geo();g.deleteAttribute('color');jack.add(new THREE.Mesh(g,mat));
+  }
+  // 바퀴는 색이 여러 개라 꼭짓점 색으로 한 덩어리
+  jack.add(new THREE.Mesh(wheels.geo(),new THREE.MeshLambertMaterial({vertexColors:true})));
 })();
+
+
 
 /* 핸들(틸러) */
 const tiller = new THREE.Group();
@@ -10272,34 +10562,23 @@ tiller.add(tBar);
 const tHead = new THREE.Group();
 tiller.add(tHead);
 
-// 위 가로 그립
+
+
+
+// 물방울 고리 손잡이: 위는 둥글고 넓게, 아래로 좁아져 기둥으로 이어진다.
 const tGrip = mesh(
   boxG,
   mJackDark,
-  0.44, 0.06, 0.06,
-  0, 0.22, 0
+  0.34, 0.06, 0.06,
+  0, 0.25, 0
 );
 tHead.add(tGrip);
+for (const s of [-1, 1]) {
+  barXY(tHead, mJackDark, s*0.17, 0.25, s*0.225, 0.20, 0.05, 0);  // 위 모서리 둥글림
+  barXY(tHead, mJackDark, s*0.225, 0.20, s*0.19, 0.08, 0.05, 0);  // 옆선
+  barXY(tHead, mJackDark, s*0.19, 0.08, 0.00, -0.03, 0.05, 0);    // 아래로 모여 기둥에 붙음
+}
 
-// 왼쪽 사선
-barXY(
-  tHead,
-  mJackDark,
-  -0.19, 0.19,
-   0.00, 0.00,
-  0.05,
-  0
-);
-
-// 오른쪽 사선
-barXY(
-  tHead,
-  mJackDark,
-   0.19, 0.19,
-   0.00, 0.00,
-  0.05,
-  0
-);
 
 // 핵심:
 // 기둥이 삼각형 아래에서 끝나는 게 아니라
@@ -10325,8 +10604,9 @@ tHead.add(tLever);
 
 function setTiller(h){
   const bx = 0, by = 0, bz = 0.0;
-  const ty = 0.68 + h;
-  const tz = -0.30;
+  // 손잡이가 캐릭터 쪽으로 눕지 않게 거의 수직(살짝 앞)으로 세우고, 그립을 손 높이(약 1.28m)에 맞춘다.
+  const ty = 0.40 + h;
+  const tz = 0.04;
 
   const dy = ty - by;
   const dz = tz - bz;
@@ -11317,7 +11597,8 @@ function applyPose(dt){
   // 캐릭터 기준 왼쪽(+X)으로 몸을 빼서
   // 오른손이 중앙 손잡이에 자연스럽게 닿게 한다.
   body.position.x = lerp(body.position.x, 0.18 * t, k);
-  body.position.z = lerp(body.position.z, -0.10 * t, k);
+    // 핸들이 수직으로 서서 예전보다 앞에 있으므로 몸을 앞으로 당겨 손이 닿게 한다.
+  body.position.z = lerp(body.position.z, 0.10 * t, k);
   body.position.y = lerp(
     body.position.y,
     -0.02 * t + stackH * (1 - t),
@@ -11419,14 +11700,10 @@ function applyPose(dt){
     );
 
 
-    // ─────────────────────────────
-    // 오른팔 arms[0]
-    // 손잡이 위에 손을 얹는다.
-    // 이전 -1.1 정도가 아니라 거의 -1.85까지 들어야 한다.
-    // ─────────────────────────────
+
     arms[0].rotation.x = lerp(
       arms[0].rotation.x,
-      -1.85 * t + (-1.45) * (1 - t),
+      -1.57 * t + (-1.45) * (1 - t),
       k
     );
 
@@ -12215,7 +12492,7 @@ resize();
 
 let worldInspectPaused=false;
 const world3D=JockeyWorld3D.create({scene:scene,camera:camera,P:P,H:H,cx:cx,seed:SEED,
- getAudio:()=>actx,getMaster:()=>master,isRunning:()=>running&&!gamePaused,materials:carPaints});
+ getAudio:()=>actx,getMaster:()=>master,isRunning:()=>running&&!gamePaused,materials:carPaints.concat([...carPaintVC.values(),mCarDetail,mCarBurnt,mHazard])});
 function inspectWorldAt(z){
  if(!WORLD_TOUR)return;
  start();worldInspectPaused=true;P.z=z;P.dist=z;P.x=cx(z)+5.5;P.y=H(P.x,z);P.vz=17;P.vx=0;P.inv=0;
@@ -12277,7 +12554,10 @@ function frame(now){
     if(P.crouchT>.5)P.hold=Math.min(.6,P.hold+dt);
     runStep(dt);
   }
-  stepPieces(animDt);
+    stepPieces(animDt);
+  mHazard.visible=(performance.now()%1000)<520; // 버려진 차 비상등 깜빡임
+  // 엔딩 자키 들판은 화면 밖 판정을 끈 채 항상 그려지고 있었다. 들판 400m 전부터만 켠다.
+  endingJackField.visible=P.z>END_FIELD-400;
   const sp=Math.hypot(P.vx,P.vz);
   stepParticles(dust,animDt); stepParticles(sparks,animDt);
     revealIntroItems();
