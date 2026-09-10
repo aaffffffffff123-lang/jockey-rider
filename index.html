@@ -9902,9 +9902,14 @@ function guardrailSuppressed(z){
 
   return(
     roadFurnitureSuppressed(z)||
+    L<250||
     (
       L>3478&&
       L<3552
+    )||
+    (
+      L>3108&&
+      L<3144
     )||
     (
       L>3108&&
@@ -9952,7 +9957,7 @@ function fillDecal(c,z0){
            [c2+u,y2+high,z2],[c2+u,y2+low,z2],color);
     }
   };
-  const zA=Math.max(z0,188), zB=z0+CH_LEN;
+  const zA=Math.max(z0,250), zB=z0+CH_LEN;
   // 바깥 실선(흰), 안쪽 실선(노랑)
   strip( RAIL-0.55, RAIL-0.35, CLR.white, zA,zB,3,0.03);
   strip(-RAIL+0.35,-RAIL+0.55, CLR.white, zA,zB,3,0.03);
