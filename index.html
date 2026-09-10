@@ -11207,8 +11207,7 @@ g.visible=true;
 }
 }
 
-function takePallet(kind){ if(P.pallets>=LM_STACK_MAX){ return false; } stackKinds[P.pallets]=kind; P.pallets++; P.palMax=Math.max( P.palMax||0, P.pallets ); setStack(P.pallets); // 현재 적재 단수를 넘겨야 // 쌓일수록 높아지는 음계가 정상 재생된다. sfx( 'pallet', P.pallets ); return true; }
-
+function takePallet(kind){if(P.pallets>=LM_STACK_MAX)return false;stackKinds[P.pallets]=kind;P.pallets++;P.palMax=Math.max(P.palMax||0,P.pallets);setStack(P.pallets);sfx('pallet',P.pallets);return true;}
      
 function poolPickup(){
   if(!activeField)return;
