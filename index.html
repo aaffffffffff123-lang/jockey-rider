@@ -9227,8 +9227,8 @@ class CarKit{
     const a=[z1+tz*inset+nz*off,y1+ty*inset+ny*off],b=[z2-tz*inset+nz*off,y2-ty*inset+ny*off],h=w/2;
     this.quad([-h,a[1],a[0]],[h,a[1],a[0]],[h*.9,b[1],b[0]],[-h*.9,b[1],b[0]],col);
   }
-  wheel(x,y,z,r,w,tire=0x1d1b1a,rim=0x8b9095,flat=false){
-    const S=12,tc=this.col(tire),rc=this.col(rim),hub=this.col(0x55595d),ry=flat?r*.78:r;
+  wheel(x,y,z,r,w,tire=0x1d1b1a,rim=0x8b9095,flat=false,S=12){
+    const tc=this.col(tire),rc=this.col(rim),hub=this.col(0x55595d),ry=flat?r*.78:r;
     const pt=(i,rr,xx)=>{const a=i/S*Math.PI*2;return[xx,y+Math.sin(a)*rr*(Math.sin(a)<0?ry/r:1),z+Math.cos(a)*rr];};
     this.cen=[x,y,z];
     for(let i=0;i<S;i++){
@@ -10483,7 +10483,9 @@ const mJack=M(0xF26B1D), mJackDark=M(0xB84A10), mSteel=M(0xA9AEB5),
       mPant=M(0x3A3F4A), mSkin=M(0xF0C097), mGlove=M(0xF4F1EA), mCuff=M(0xD9472B), mBoot=M(0x2E2A26);
 
 
-
+/* 자키: 앞(+z)에 유압부와 핸들, 뒤로 포크 두 개 */
+const jack = new THREE.Group();
+tilt.add(jack);
 
 (function(){
   // 실물 핸드자키 구조: 포크 뿌리 위의 경사 몸통이 뒤를 막고, 펌프·조향 바퀴·핸들은 그 앞으로 조금 튀어나와 있다.
