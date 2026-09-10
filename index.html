@@ -2076,21 +2076,227 @@ for(const side of[-1,1]){
   overpassLight.box([x-12,y+2.2,z-2],[4.6,1.2,.08],0xc5d7bc);
  }
 
- // 4.38–4.62 km: a concrete tunnel genuinely buried in a mountain.
- const tb=make('mountain-tunnel-shell'),tl=make('mountain-tunnel-lamps','emissive'),mountain=make('tunnel-mountain');
- const ts=TUNNEL_START,te=TUNNEL_END,arc=24;
- function section(z,a,outer=0){const t=a*Math.PI/arc,x=cx(z)+(14.15+outer)*Math.cos(t);return[x,base(z)+.1+(10.7+outer)*Math.sin(t),z];}
- for(let z=ts;z<te;z+=3){const zz=Math.min(te,z+3);for(let a=0;a<arc;a++){
-  const col=rgb(C.concrete,(a===0||a===arc-1)?.57:.71);tb.quad(section(z,a),section(z,a+1),section(zz,a+1),section(zz,a),col);
-  tb.quad(section(z,a,1),section(zz,a,1),section(zz,a+1,1),section(z,a+1,1),rgb(C.concrete,.73));
- }}
- for(const z of[ts,te])for(let a=0;a<arc;a++)tb.quad(section(z,a),section(z,a,1),section(z,a+1,1),section(z,a+1),rgb(C.concrete));
- for(let z=ts;z<=te;z+=12){
-  for(let a=0;a<arc;a++)tb.beam(section(z,a),section(z,a+1),.13,.17,0x424c48);
-  if(Math.round((z-ts)/12)%4!==2)tl.box([cx(z),base(z)+10.35,z],[.35,.08,1.8],0xc7b98e);
-  if(Math.round((z-ts)/12)%4===0)tl.box([cx(z)-13.4,base(z)+2.7,z],[.12,.13,.36],0xb44636);
-  for(const side of[-1,1])tb.beam([cx(z)+side*13.4,base(z)+1.1,z],[cx(z+12)+side*13.4,base(z+12)+1.1,z+12],.09,.10,C.dark);
- }
+
+
+
+// 4.38–4.62 km: a concrete tunnel genuinely buried in a mountain.
+const tunnelShell=
+  make(
+    'mountain-tunnel-shell'
+  );
+
+const tl=
+  make(
+    'mountain-tunnel-lamps',
+    'emissive'
+  );
+
+const mountain=
+  make(
+    'tunnel-mountain'
+  );
+
+const ts=
+  TUNNEL_START;
+
+const te=
+  TUNNEL_END;
+
+const arc=
+  24;
+
+
+function section(
+  z,
+  a,
+  outer=0
+){
+  const t=
+    a*
+    Math.PI/
+    arc;
+
+  const x=
+    cx(z)+
+    (
+      14.15+
+      outer
+    )*
+    Math.cos(t);
+
+  return[
+    x,
+    base(z)+
+    .1+
+    (
+      10.7+
+      outer
+    )*
+    Math.sin(t),
+    z
+  ];
+}
+
+
+for(
+  let z=ts;
+  z<te;
+  z+=3
+){
+  const zz=
+    Math.min(
+      te,
+      z+3
+    );
+
+  for(
+    let a=0;
+    a<arc;
+    a++
+  ){
+    const col=
+      rgb(
+        C.concrete,
+        (
+          a===0||
+          a===arc-1
+        )
+          ? .57
+          : .71
+      );
+
+    tunnelShell.quad(
+      section(z,a),
+      section(z,a+1),
+      section(zz,a+1),
+      section(zz,a),
+      col
+    );
+
+    tunnelShell.quad(
+      section(z,a,1),
+      section(zz,a,1),
+      section(zz,a+1,1),
+      section(z,a+1,1),
+      rgb(
+        C.concrete,
+        .73
+      )
+    );
+  }
+}
+
+
+for(const z of[ts,te]){
+  for(
+    let a=0;
+    a<arc;
+    a++
+  ){
+    tunnelShell.quad(
+      section(z,a),
+      section(z,a,1),
+      section(z,a+1,1),
+      section(z,a+1),
+      rgb(
+        C.concrete
+      )
+    );
+  }
+}
+
+
+for(
+  let z=ts;
+  z<=te;
+  z+=12
+){
+  for(
+    let a=0;
+    a<arc;
+    a++
+  ){
+    tunnelShell.beam(
+      section(z,a),
+      section(z,a+1),
+      .13,
+      .17,
+      0x424c48
+    );
+  }
+
+  if(
+    Math.round(
+      (
+        z-
+        ts
+      )/12
+    )%4!==2
+  ){
+    tl.box(
+      [
+        cx(z),
+        base(z)+10.35,
+        z
+      ],
+      [
+        .35,
+        .08,
+        1.8
+      ],
+      0xc7b98e
+    );
+  }
+
+  if(
+    Math.round(
+      (
+        z-
+        ts
+      )/12
+    )%4===0
+  ){
+    tl.box(
+      [
+        cx(z)-13.4,
+        base(z)+2.7,
+        z
+      ],
+      [
+        .12,
+        .13,
+        .36
+      ],
+      0xb44636
+    );
+  }
+
+  for(const side of[-1,1]){
+    tunnelShell.beam(
+      [
+        cx(z)+
+        side*13.4,
+        base(z)+1.1,
+        z
+      ],
+      [
+        cx(z+12)+
+        side*13.4,
+        base(z+12)+1.1,
+        z+12
+      ],
+      .09,
+      .10,
+      C.dark
+    );
+  }
+}
+
+
+
+
+
+
  // Massive side slopes and an overhead crown hide the manufactured tube from outside.
  for(let z=ts-150,i=0;z<=te+150;z+=18,i++){
   const k=smooth(ts-150,ts+28,z)*(1-smooth(te-28,te+150,z)),by=base(z),cc=cx(z);
