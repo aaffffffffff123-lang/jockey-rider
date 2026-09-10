@@ -62,7 +62,8 @@ The original copyright header is also retained in the embedded script.
     background:repeating-linear-gradient(135deg,var(--haz) 0 9px,#2A2118 9px 18px)}
   .spd{font-size:58px;line-height:.9;font-weight:900;letter-spacing:-.05em;font-variant-numeric:tabular-nums}
   .spd small{font-size:14px;font-weight:800;letter-spacing:0;color:var(--ink-soft);margin-left:4px}
-  .tip{margin-top:9px;height:10px;width:160px;background:rgba(59,42,28,.12);position:relative;overflow:hidden}
+    .mlab{margin-top:8px;font-size:9px;font-weight:900;letter-spacing:.12em;color:var(--ink-soft);line-height:1}
+  .tip{margin-top:3px;height:10px;width:160px;background:rgba(59,42,28,.12);position:relative;overflow:hidden}
   .tip i{position:absolute;left:0;top:0;bottom:0;width:0%;
     background:repeating-linear-gradient(135deg,var(--haz) 0 8px,#2A2118 8px 16px);transition:width .06s linear}
   .tip.danger i{background:repeating-linear-gradient(135deg,var(--hot) 0 8px,#2A2118 8px 16px)}
@@ -286,6 +287,7 @@ The original copyright header is also retained in the embedded script.
 <div id="hud">
   <div class="speedbox">
     <div class="spd"><span id="spd">0</span><small>km/h</small></div>
+        <div class="mlab">전복</div>
     <div class="tip" id="tip"><i></i></div>
     <div class="pow" id="pow"><i></i></div>
   </div>
@@ -398,18 +400,23 @@ const DEEP_SPIRAL_START=7350,DEEP_SPIRAL_FULL=7720,DEEP_SPIRAL_RELAX=8820,DEEP_S
 // The last unique night landmark ends near 10.2 km. One short quiet run remains,
 // then the second act begins instead of repeating empty modules for another four kilometres.
 const SINK_WARN=10980,SINK_START=11180,UNDER_START=11480;
-const CAVERN_START=12620,GLIDE_START=13340,GLIDE_END=13820;
+const CAVERN_START=12620,GLIDE_START=13500,GLIDE_END=13820;
 const PIPE_START=13740,PIPE_RIDE_START=13830,PIPE_END=15120;
 const UNDER_EXIT_START=15020,UNDER_END=15360;
 const DAY_RETURN_FULL=15640,END_QUIET_START=17020,END_ROAD_FADE=17260,END_FIELD=17920,ENDING_AT=18640;
 const PIPE_RADIUS=9.4,PIPE_RIDE_RADIUS=9.0;
 function storyDepthAt(z){
- const down=smoother(SINK_START,UNDER_START,z),up=smoother(PIPE_END-70,UNDER_END,z);
+ const down=smoother(SINK_START,UNDER_START,z),up=smoother(PIPE_END-820,PIPE_END+60,z);
  return 35*down*(1-up);
 }
-function undergroundAt(z){return windowAt(z,SINK_START+90,UNDER_END+20,150);}
+
+function undergroundAt(z){return windowAt(z,SINK_START+90,PIPE_END+30,150);}
+
+
 function cavernAt(z){return windowAt(z,CAVERN_START-100,PIPE_START+80,160);}
 function glideAt(z){return windowAt(z,GLIDE_START,GLIDE_END,85);}
+const PIPE_DROP=95;
+function pipeDropAt(z){return PIPE_DROP*smooth(GLIDE_START,PIPE_START,z)*(1-smooth(PIPE_END-520,PIPE_END-120,z));}
 function pipeAt(z){return smooth(PIPE_START,PIPE_RIDE_START,z)*(1-smooth(PIPE_END-110,PIPE_END,z));}
 function wastelandBump(z){
  if(z<END_ROAD_FADE+70||z>END_FIELD-90)return 0;
@@ -588,7 +595,7 @@ function buildWorld(Hw,cxw,seed=0){const H=(x,z)=>Hw(x,wz(z)),cx=z=>cxw(wz(z));
   shell.beam([-34,by+12.7,z],[0,by+13.8,z],.24,.3,C.steel);
   shell.beam([0,by+13.8,z],[34,by+12.7,z],.24,.3,C.steel);
   for(let x=-30;x<=30;x+=10){
-   if((i===8&&x>-10)||(i===13&&x<0)||(i===10&&x===20))continue;
+     if(i===13&&x<0)continue;
    shell.box([x,base(z+6)+13.25,z+6],[9.85,.16,12],C.roof,[Math.atan(.075),0,(i===12&&x===20)?-.16:0]);
   }
   if(i%3!==1)for(const x of[-8,8])lamps.box([x,base(z+5)+10.5,z+5],[.18,.06,3.5],C.light);
@@ -2353,12 +2360,12 @@ const shipGlow=make(
   const z0=5960;
 
 const origin=[
-  cx(z0)+44,
+  cx(z0)+78,
   base(z0)-4.2,
   z0
 ];
 
-  const yaw=.18;
+  const yaw=.45;
   const roll=.035;
 
   const m=basisYXZ(
@@ -4173,14 +4180,14 @@ for(
 
  // 12.6–13.35 km: the man-made tunnel ruptures into a cavern whose scale is impossible to mistake.
  const cavernRock=make('vast-natural-cavern'),cavernWater=make('black-underground-lake','water'),cavernGlow=make('cavern-work-lights','emissive'),cavernSheen=make('cavern-water-sheen','moon-glint');
- const cavernFloor=z=>base(z)-11.8;
+ const cavernFloor=z=>base(z)-11.8-pipeDropAt(z)*1.3;
  // A black lake far below the surviving road and glide route.
  gradedStrip(cavernWater,-92,92,CAVERN_START-40,GLIDE_END+80,z=>cavernFloor(z)+.18,0x15343a,.018,12);
  for(let z=CAVERN_START-60,i=0;z<GLIDE_END+85;z+=31,i++){
   const cc=cx(z),roadY=base(z),floor=cavernFloor(z),width=39+8*Math.sin(i*.39)+R()*9;
   // Broken, irregular walls. Their lower masses begin at the lake, not at road level.
   for(const side of[-1,1]){
-   const x=cc+side*(width+R()*8),h=24+R()*19;
+   const x=cc+side*(width+R()*8),h=24+R()*19+Math.max(0,roadY-floor-11.8)*1.06;
    cavernRock.box([x,floor+h*.48,z],[17+R()*15,h,35],i%3?0x303833:0x40443a,[R()*.24,R()*2.7,side*(.14+R()*.30)]);
    cavernRock.box([x+side*(10+R()*9),floor+h*.72,z+5],[18+R()*18,h*.72,40],0x252d29,[R()*.25,R()*2.4,side*.27]);
    if(i%3===0)cavernRock.beam([cc+side*(12+R()*15),roadY+19+R()*10,z-9],[cc+side*(18+R()*24),floor+2+R()*6,z+8],.30+R()*.32,.30+R()*.32,i%6===0?0x584936:0x303833);
@@ -4345,7 +4352,7 @@ cavernRock.box(
 
  // 13.34–13.82 km: the rider leaves the road and glides across the open cavern toward a giant pipe mouth.
  const pipeMouth=make('giant-storm-pipe-mouth'),pipePortalGlow=make('storm-pipe-mouth-lights','emissive'),pipeShell=make('giant-storm-pipe-interior'),pipeMarks=make('storm-pipe-seams'),pipeWet=make('storm-pipe-wet-bottom','water');
- const pipeBottom=z=>base(z)+18*glideAt(z),
+ const pipeBottom=z=>base(z)+18*glideAt(z)-pipeDropAt(z),
       pipeCenterY=z=>pipeBottom(z)+PIPE_RADIUS;
  // Massive concrete mouth, deliberately irregular and partly buried in rock.
  {const z=PIPE_START,cc=cx(z),cy=pipeCenterY(z);for(let i=0;i<32;i++){const a=i*Math.PI*2/32,b=(i+1)*Math.PI*2/32,ra=PIPE_RADIUS+1.0+.45*Math.sin(i*1.7),rb=PIPE_RADIUS+1.0+.45*Math.sin((i+1)*1.7);const p1=[cc+Math.sin(a)*ra,cy-Math.cos(a)*ra,z-1.6],p2=[cc+Math.sin(b)*rb,cy-Math.cos(b)*rb,z-1.6],p3=[cc+Math.sin(b)*(rb+1.7),cy-Math.cos(b)*(rb+1.7),z+1.3],p4=[cc+Math.sin(a)*(ra+1.7),cy-Math.cos(a)*(ra+1.7),z+1.3];pipeMouth.quad(p1,p2,p3,p4,rgb(i%3?0x6b6c65:0x85837a));if(i%4!==2){const rg=PIPE_RADIUS-.10;pipePortalGlow.quad([cc+Math.sin(a)*rg,cy-Math.cos(a)*rg,z-1.78],[cc+Math.sin(b)*rg,cy-Math.cos(b)*rg,z-1.78],[cc+Math.sin(b)*(rg-.22),cy-Math.cos(b)*(rg-.22),z-1.72],[cc+Math.sin(a)*(rg-.22),cy-Math.cos(a)*(rg-.22),z-1.72],rgb(i%3?0x8bd0c9:0xe3c27a));}}for(const side of[-1,1])pipeMouth.box([cc+side*(15+R()*5),cy-1,z],[11+R()*8,19+R()*8,20],0x343a35,[R()*.18,R()*2.3,side*.28]);}
@@ -7342,7 +7349,7 @@ function makeExports(base,legacy){
  wrap('driveBounds',f=>z=>f(lz(z)));
  wrap('roofed',f=>(x,z,cxw)=>insertAt(z)?false:f(x,lz(z),q=>cxw(wz(q))));
  wrap('twistField',f=>z=>insertAt(z)?0:f(lz(z)));
- for(const name of['storyDepthAt','undergroundAt','cavernAt','glideAt','pipeAt','wastelandBump'])wrap(name,f=>z=>f(lz(z)));
+ for(const name of['storyDepthAt','undergroundAt','cavernAt','glideAt','pipeAt','pipeDropAt','wastelandBump'])wrap(name,f=>z=>f(lz(z)));
  Object.assign(W,{
   wz,lz,insertAt,INSERTS,rotorPivots,buildInsertedWorld,remapBatches,
   basisYXZ,mbox,shade,drawContainer,drawPalletDecor,drawTractor,drawTrailer,drawStrap,CONT,CONT_LIST,CONT_W,CONT_H,CONT_40,CONT_20,
@@ -7357,7 +7364,7 @@ function makeExports(base,legacy){
 
 
 function weatherAt(z,t=0){
- const underground=undergroundAt(z),cavern=cavernAt(z),glide=glideAt(z),pipe=pipeAt(z),day2=smooth(PIPE_END-190,PIPE_END+95,z),sink=windowAt(z,SINK_WARN,UNDER_START+120,100);
+ const underground=undergroundAt(z),cavern=cavernAt(z),glide=glideAt(z),pipe=pipeAt(z),day2=smooth(PIPE_END-220,PIPE_END+80,z),sink=windowAt(z,SINK_WARN,UNDER_START+120,100);
  const first=windowAt(z,270,455,60);
  const rainRaw=Math.max(first,windowAt(z,2080,2480,90),windowAt(z,4860,5310,100),windowAt(z,6480,6880,90),z>10000?windowAt((z-10000)%2700,760,1260,110):0);
  const dustRaw=Math.max(windowAt(z,3240,3520,75),windowAt(z,6120,6420,85),z>10400?windowAt((z-10400)%3100,1900,2320,100):0);
@@ -7408,10 +7415,8 @@ Math.abs(x-cx(z))<41.5
     const i=Math.floor((z+40)/12);
     const p=Math.round(x/10)*10;
 
-    return !(
-      (i===8&&p>-10) ||
-      (i===13&&p<0) ||
-      (i===10&&p===20)
+      return !(
+      (i===13&&p<0)
     );
   }
 
@@ -7491,9 +7496,9 @@ function buildMoon(){
  }
  b.min=[-90,-90,-90];b.max=[100,100,100];return b;
 }
-global.JockeyWorldData={Batch,buildWorld,buildMoon,driveBounds,weatherAt,roofed,warp,warpGLSL,rgb,rng,smooth,smoother,spiralExit,twistField,storyDepthAt,undergroundAt,cavernAt,glideAt,pipeAt,wastelandBump,TUNNEL_START,TUNNEL_END,DEEP_SPIRAL_START,DEEP_SPIRAL_END,SINK_WARN,SINK_START,UNDER_START,CAVERN_START,GLIDE_START,GLIDE_END,PIPE_START,PIPE_RIDE_START,PIPE_END,PIPE_RADIUS,PIPE_RIDE_RADIUS,UNDER_EXIT_START,UNDER_END,DAY_RETURN_FULL,END_QUIET_START,END_ROAD_FADE,END_FIELD,ENDING_AT,clamp,mix};
+global.JockeyWorldData={Batch,buildWorld,buildMoon,driveBounds,weatherAt,roofed,warp,warpGLSL,rgb,rng,smooth,smoother,spiralExit,twistField,storyDepthAt,undergroundAt,cavernAt,glideAt,pipeAt,pipeDropAt,wastelandBump,TUNNEL_START,TUNNEL_END,DEEP_SPIRAL_START,DEEP_SPIRAL_END,SINK_WARN,SINK_START,UNDER_START,CAVERN_START,GLIDE_START,GLIDE_END,PIPE_START,PIPE_RIDE_START,PIPE_END,PIPE_RADIUS,PIPE_RIDE_RADIUS,UNDER_EXIT_START,UNDER_END,DAY_RETURN_FULL,END_QUIET_START,END_ROAD_FADE,END_FIELD,ENDING_AT,clamp,mix};
 
-global.JockeyWorldData=makeExports(global.JockeyWorldData,{weatherAt,driveBounds,roofed,twistField,storyDepthAt,glideAt,wastelandBump,undergroundAt:typeof undergroundAt==='function'?undergroundAt:null,cavernAt:typeof cavernAt==='function'?cavernAt:null,pipeAt:typeof pipeAt==='function'?pipeAt:null});
+global.JockeyWorldData=makeExports(global.JockeyWorldData,{weatherAt,driveBounds,roofed,twistField,storyDepthAt,glideAt,wastelandBump,undergroundAt:typeof undergroundAt==='function'?undergroundAt:null,cavernAt:typeof cavernAt==='function'?cavernAt:null,pipeAt:typeof pipeAt==='function'?pipeAt:null,pipeDropAt:typeof pipeDropAt==='function'?pipeDropAt:null});
 
 
 })(typeof window!=='undefined'?window:globalThis);
@@ -9869,7 +9874,7 @@ function fillGround(c,z0){
     dr=lerp(dr,.45+n1*.09,farm);dg=lerp(dg,.43+n1*.12,farm);db=lerp(db,.25+n1*.04,farm);
     const urban=smooth((L-3250)/220)*(1-smooth((L-4300)/180));
     dr=lerp(dr,.43+n1*.05,urban);dg=lerp(dg,.43+n1*.05,urban);db=lerp(db,.42+n1*.05,urban);
-    const day2=smooth((z-UNDER_END)/(DAY_RETURN_FULL-UNDER_END));
+    const day2=smooth((z-(PIPE_END-220))/300);
     const nightWild=smooth((L-4620)/300)*(1-day2);dr=lerp(dr,.27+n1*.05,nightWild*.42);dg=lerp(dg,.31+n1*.06,nightWild*.42);db=lerp(db,.29+n1*.05,nightWild*.42);
     const under=smooth((z-(SINK_START+120))/180)*(1-smooth((z-(UNDER_END-160))/200));
     ar=lerp(ar,.20+n1*.04,under);ag=lerp(ag,.22+n1*.04,under);ab=lerp(ab,.23+n1*.04,under);
@@ -10475,7 +10480,7 @@ function updateMoonShadow(len,opacity,width){
    8. 상태 / 물리
    ================================================================== */
 const P={x:0,z:0,y:0,vx:0,vz:0,vy:0,ground:true,air:0,
-  steer:0,steerT:0,crouch:0,crouchT:0,hold:0,tipMeter:0,boost:0,kickAnim:0,spin:0,
+    steer:0,steerT:0,crouch:0,crouchT:0,hold:0,tipMeter:0,boost:0,kickAnim:0,spin:0,exitBoost:0,
   hits:0,maxLives:LIVES,inv:0,top:0,shake:0,alive:false,dist:0,scrape:0,power:0,pallets:0,palMax:0,t0:0,
   glideMode:false,glideOffset:0,pipeMode:false,pipeAngle:0,bumpIndex:-1};
 const courseRun={time:0,pallets:0,batons:0,helmets:0,smashes:0,door:false,doorTime:0,doorSpeed:0};
@@ -10494,7 +10499,7 @@ P.pipeExitFrom=null;
   world3D.resetDock();
   P.onRail=false;P.jump=false;P.jumpImpulse=0;P.glideMode=false;P.glideOffset=0;P.pipeMode=false;P.pipeAngle=0;P.bumpIndex=-1;P.maxLives=LIVES;
   P.x=cx(0)+ (steepLane(0)?-1:1)*5.5; P.z=0; P.vx=0; P.vz=8; P.vy=0; P.ground=true; P.air=0;
-  P.steer=0;P.steerT=0;P.crouch=0;P.crouchT=0;P.hold=0;P.tipMeter=0;P.boost=0;P.kickAnim=0;P.spin=0;
+    P.steer=0;P.steerT=0;P.crouch=0;P.crouchT=0;P.hold=0;P.tipMeter=0;P.boost=0;P.kickAnim=0;P.spin=0;P.exitBoost=0;
   P.hits=0;P.maxLives=LIVES;P.inv=0;P.top=0;P.shake=0;P.dist=0;P.alive=true;P.scrape=0;P.power=0;P.pallets=0;P.palMax=0;P.t0=performance.now();
   stackKinds.length=0; setStack(0);
   for(const pc of pieces) pc.m.visible=false;
@@ -10853,7 +10858,8 @@ function glidePhysics(dt){
       18*
       JW.glideAt(
         PIPE_START
-      );
+      )-
+      JW.pipeDropAt(PIPE_START);
 
     P.glideEntryY=
       entryBottom+
@@ -10911,8 +10917,8 @@ function glidePhysics(dt){
   const descent=
     1-
     Math.pow(
-      1-t,
-      1.55
+      1-Math.pow(t,2.6),
+      2
     );
 
   // 파이프 입구를 지난 뒤
@@ -10966,7 +10972,8 @@ function glidePhysics(dt){
       z
     )+
     18*
-    JW.glideAt(z);
+    JW.glideAt(z)-
+    JW.pipeDropAt(z);
 
   // 기존의 위로 솟는 sin 아치를 제거한다.
   // 시작 높이에서 파이프 입구까지 계속 내려가며,
@@ -10976,11 +10983,6 @@ function glidePhysics(dt){
       P.glideStartY,
       P.glideEntryY,
       descent
-    )-
-    4.5*
-    Math.sin(
-      t*
-      Math.PI
     );
 
   const pipeTrackY=
@@ -11042,7 +11044,7 @@ function pipePhysics(dt){
   scriptedMove(
     dt,
     cx(z)+Math.sin(a)*r,
-    H(cx(z),z)+18*JW.glideAt(z)+PIPE_RADIUS-Math.cos(a)*r,
+    H(cx(z),z)+18*JW.glideAt(z)-JW.pipeDropAt(z)+PIPE_RADIUS-Math.cos(a)*r,
     z
   );
 }
@@ -11081,11 +11083,12 @@ function physics(dt){
     P.air=0;
     P.jump=false;
     P.jumpImpulse=0;
-    P.y=H(P.x,P.z);
+      P.y=H(P.x,P.z);
     P.vx=cxSlope(P.z)*P.vz;
+    P.exitBoost=7;
   }
   P.glideMode=false;
-
+  if(P.exitBoost>0)P.exitBoost=Math.max(0,P.exitBoost-dt);
   P.steer =lerp(P.steer ,P.steerT ,clamp(7*dt,0,1));
   P.crouch=lerp(P.crouch,P.crouchT,clamp(16*dt,0,1));
   if(P.spin>0){ P.spin=Math.max(0,P.spin-dt*1.2); }
@@ -11143,12 +11146,13 @@ const rate=
   }
   // 공기 저항 (웅크리면 크게 준다)
   sp=Math.hypot(P.vx,P.vz);
-  const air=0.0062*sp*sp*dt*(1-P.crouch*0.38)/(1+P.pallets*0.025);
+    const air=0.0062*sp*sp*dt*(1-P.crouch*0.38)*(1-0.55*(P.exitBoost/7))/(1+P.pallets*0.025);
   const fa=Math.max(0,1-air/Math.max(sp,0.01)); P.vx*=fa;P.vz*=fa;
 
   if(P.vz<0.8) P.vz=0.8;
   sp=Math.hypot(P.vx,P.vz);
-  if(sp>MAXV){const k=MAXV/sp;P.vx*=k;P.vz*=k;sp=MAXV;}
+    const spCap=MAXV+22*(P.exitBoost/7);
+  if(sp>spCap){const k=spCap/sp;P.vx*=k;P.vz*=k;sp=spCap;}
   P.top=Math.max(P.top,sp);
 // 처음 80m는 창고 풍경을 볼 수 있도록 속도를 제한한다.
 if(P.z<80){
@@ -11590,7 +11594,7 @@ const pipeCamCenter=new THREE.Vector3();
 const pipeCamLook=new THREE.Vector3();
 
 function pipeCenterAt(z,out){
-  const y=q=>H(cx(q),q)+18*JW.glideAt(q)+PIPE_RADIUS;
+  const y=q=>H(cx(q),q)+18*JW.glideAt(q)-JW.pipeDropAt(q)+PIPE_RADIUS;
   if(z<PIPE_START||z>PIPE_END)return out.set(cx(z),y(z),z);
   const a=PIPE_START+Math.floor((z-PIPE_START)/12)*12;
   const b=Math.min(PIPE_END,a+12),t=b>a?(z-a)/(b-a):0;
