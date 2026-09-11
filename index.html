@@ -11563,7 +11563,7 @@ const rate=
   }
   // 공기 저항 (웅크리면 크게 준다)
   sp=Math.hypot(P.vx,P.vz);
-    const air=0.0062*sp*sp*dt*(1-P.crouch*0.38)*(1-0.55*(P.exitBoost/7))/(1.25+P.pallets*0.025); // 빈 자키도 예전 7단만큼 저항이 적다(기본 속도감)
+    const air=0.0062*sp*sp*dt*(1-P.crouch*0.38)*(1-0.55*(P.exitBoost/7))/(1.5+P.pallets*0.025); // 빈 자키도 예전 7단만큼 저항이 적다(기본 속도감)
   const fa=Math.max(0,1-air/Math.max(sp,0.01)); P.vx*=fa;P.vz*=fa;
 
   if(P.vz<0.8) P.vz=0.8;
