@@ -10102,7 +10102,7 @@ put('skid',214,-8.6,{role:'dock-edge'});
 
 
 
-role:'weave-side', yaw:(r()-.5)*.16 } ); } } // 모듈 후반 285m 빈 구간을 약하게만 채운다. if(!nearKicker(-side*3.2,start+620)) put('pallet',start+620,-side*3.2); if(coursePressureAt(start+700)>=.5&&!nearKicker(side*7.6,start+700)) put('car',start+700,side*7.6,{role:'weave-side',yaw:-side*.10}); }
+role:'weave-side', yaw:(r()-.5)*.16 } ); } } /* 모듈 후반 285m 빈 구간을 약하게만 채운다. */ if(!nearKicker(-side*3.2,start+620)) put('pallet',start+620,-side*3.2); if(coursePressureAt(start+700)>=.5&&!nearKicker(side*7.6,start+700)) put('car',start+700,side*7.6,{role:'weave-side',yaw:-side*.10}); }
                
 
   return out.sort(
