@@ -10099,13 +10099,11 @@ put('skid',214,-8.6,{role:'dock-edge'});
           start+dz,
           u,
           {
-            role:'weave-side',
-            yaw:(r()-.5)*.16
-          }
-        );
-      }
-    }
-  }
+
+
+
+role:'weave-side', yaw:(r()-.5)*.16 } ); } } // 모듈 후반 285m 빈 구간을 약하게만 채운다. if(!nearKicker(-side*3.2,start+620)) put('pallet',start+620,-side*3.2); if(coursePressureAt(start+700)>=.5&&!nearKicker(side*7.6,start+700)) put('car',start+700,side*7.6,{role:'weave-side',yaw:-side*.10}); }
+               
 
   return out.sort(
     (x,y)=>x.z-y.z
@@ -12137,7 +12135,7 @@ rideLook.copy(rider.position)
   if(!camInit){camYaw=targetYaw;camX=P.x;camInit=true;}let dy=targetYaw-camYaw;while(dy>Math.PI)dy-=2*Math.PI;while(dy<-Math.PI)dy+=2*Math.PI;camYaw+=dy*clamp(2.2*dt,0,1);camX=lerp(camX,P.x,clamp(3*dt,0,1));
   const dist=6.6+camStack*.45,hgt=3+camStack*.7;;camTmp.set(camX-Math.sin(camYaw)*dist,P.y+hgt,P.z-Math.cos(camYaw)*dist);camera.position.lerp(camTmp,clamp(10*dt,0,1));
   const floor=H(camera.position.x,camera.position.z)+1.6;if(camera.position.y<floor)camera.position.y=floor;if(P.shake>0){const sh=P.shake*.28;camera.position.x+=(Math.random()-.5)*sh;camera.position.y+=(Math.random()-.5)*sh;}
-  camera.lookAt(camX+Math.sin(camYaw)*9,P.y+1+camStack*.75,P.z+Math.cos(camYaw)*9);const fov=66+P.boost*5;if(Math.abs(camera.fov-fov)>.05){camera.fov=lerp(camera.fov,fov,clamp(5*dt,0,1));camera.updateProjectionMatrix();}
+  camera.lookAt(camX+Math.sin(camYaw)*9,P.y+1+camStack*.75,P.z+Math.cos(camYaw)*9);const fov=66+6*clamp(Math.hypot(P.vx,P.vz)/MAXV,0,1)+P.boost*5;if(Math.abs(camera.fov-fov)>.05){camera.fov=lerp(camera.fov,fov,clamp(5*dt,0,1));camera.updateProjectionMatrix();}
   const e=new THREE.Euler().setFromQuaternion(camera.quaternion,'YXZ');bgU.uYaw.value=e.y;bgU.uPitch.value=clamp(-e.x*.55,-.3,.3);
 }
 
@@ -12645,7 +12643,7 @@ function frame(now){
     });
     if(perfTrace.frames.length>30)perfTrace.frames.shift();
   }
-  let dt=Math.max(0,Math.min(gap/1000,.05));
+  let dt=Math.max(0,Math.min(gap/1000*1.5,.05));
   last=now;
   const sp0=Math.hypot(P.vx,P.vz);
   const frozen=(worldInspectPaused||gamePaused)&&!story.ending,animDt=frozen?0:dt;
