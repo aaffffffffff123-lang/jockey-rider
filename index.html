@@ -332,9 +332,9 @@ The original copyright header is also retained in the embedded script.
   </div>
 
    <div class="pkeys">
+    <div><span>발 구르기</span><em>짧게 탭 · Space 짧게</em></div>
     <div><span>조향</span><em>좌우로 끌기 · ← →</em></div>
     <div><span>점프</span><em>아래로 당겼다 놓기 · ↓ / Space</em></div>
-    <div><span>발 구르기</span><em>짧게 탭 · Space 짧게</em></div>
   </div>
 </div>
 
@@ -11155,7 +11155,7 @@ function crash(wipe){
     ms:performance.now()-hitStarted,shield
   };
 }
-const KICK_T=0.62; const KICK_THRUST_T=0.42, KICK_THRUST=20;
+const KICK_T=0.62; const KICK_THRUST_T=0.5, KICK_THRUST=30;
 function kick(){
   const sp=Math.hypot(P.vx,P.vz);
   if(!P.ground||P.spin>0||P.kickAnim>0) return;
@@ -11163,7 +11163,7 @@ function kick(){
   const h=Math.atan2(P.vx,P.vz);
   const dir=(sp<1.5)?{x:0,z:1}:{x:Math.sin(h),z:Math.cos(h)};
   const push=sp<16.5;                                   // 느릴 때만 실제로 밀린다
-  const head=clamp(1-sp/MAXV,0,1); const gain=2.2+6.8*head;
+  const head=clamp(1-sp/MAXV,0,1); const gain=3.2+8.8*head;
   P.vx+=dir.x*gain; P.vz+=dir.z*gain; P.kickThrust=KICK_THRUST_T;
   P.kickDir=dir; P.kickPush=true;
 }
@@ -11422,6 +11422,7 @@ function pipePhysics(dt){
   if(!P.pipeMode){
     P.pipeAngle=0;
     P.pipeExitFrom=null;
+    SFX.plunge();
   }
 
   P.diveMode=false;P.pipeMode=true;P.glideMode=false;
@@ -12135,8 +12136,8 @@ rideLook.copy(rider.position)
 
   camera.up.set(0,1,0);
   const roadYaw=Math.atan2(cxSlope(P.z+12),1),heading=Math.atan2(P.vx,P.vz);let targetYaw=roadYaw*.9+heading*.1;
-  if(!camInit){camYaw=targetYaw;camX=P.x;camInit=true;}let dy=targetYaw-camYaw;while(dy>Math.PI)dy-=2*Math.PI;while(dy<-Math.PI)dy+=2*Math.PI;camYaw+=dy*clamp(2.2*dt,0,1);camX=lerp(camX,P.x,clamp(3*dt,0,1));
-  const dist=6.6+camStack*.45,hgt=3+camStack*.7;;camTmp.set(camX-Math.sin(camYaw)*dist,P.y+hgt,P.z-Math.cos(camYaw)*dist);camera.position.lerp(camTmp,clamp(10*dt,0,1));
+  if(!camInit){camYaw=targetYaw;camX=P.x;camInit=true;}let dy=targetYaw-camYaw;while(dy>Math.PI)dy-=2*Math.PI;while(dy<-Math.PI)dy+=2*Math.PI;camYaw+=dy*clamp(2.2*dt,0,1);camX=lerp(camX,P.x,clamp(12*dt,0,1));camX=clamp(camX,P.x-0.6,P.x+0.6);
+  const dist=6.6+camStack*.45,hgt=3+camStack*.7;;camTmp.set(camX-Math.sin(camYaw)*dist,P.y+hgt,P.z-Math.cos(camYaw)*dist);camera.position.x=camTmp.x;camera.position.z=camTmp.z;camera.position.y=lerp(camera.position.y,camTmp.y,clamp(10*dt,0,1));
   const floor=H(camera.position.x,camera.position.z)+1.6;if(camera.position.y<floor)camera.position.y=floor;if(P.shake>0){const sh=P.shake*.28;camera.position.x+=(Math.random()-.5)*sh;camera.position.y+=(Math.random()-.5)*sh;}
   camera.lookAt(camX+Math.sin(camYaw)*9,P.y+1+camStack*.75,P.z+Math.cos(camYaw)*9);const fov=66+6*clamp(Math.hypot(P.vx,P.vz)/MAXV,0,1)+P.boost*5;if(Math.abs(camera.fov-fov)>.05){camera.fov=lerp(camera.fov,fov,clamp(5*dt,0,1));camera.updateProjectionMatrix();}
   const e=new THREE.Euler().setFromQuaternion(camera.quaternion,'YXZ');bgU.uYaw.value=e.y;bgU.uPitch.value=clamp(-e.x*.55,-.3,.3);
@@ -12398,6 +12399,18 @@ const SFX={
     ring(t+.015,265,.85,.20,-3);ring(t+.065,415,.68,.13,8);
     for(let i=0;i<5;i++){const d=.14+i*.075;ring(t+d,580-i*63,.27,.075,0);}
   },
+  plunge:function(){ if(!this.ok())return; const t=now();
+    tone(t,"sine",70,24,0.7,1.0,0.002);
+    hiss(t,"lowpass",6000,220,0.6,0.8,0.9,0.002);
+    [0,0.09,0.17,0.28,0.4,0.55,0.72].forEach(function(d,i){ const k=1-i*0.11;
+      tone(t+d,"sine",130-i*9,34,0.3,0.75*k,0.002);
+      tone(t+d,"triangle",78-i*5,42,0.2,0.4*k,0.002);
+      hiss(t+d,"bandpass",1500+i*260,800,1,0.14,0.5*k,0.002);
+      ring(t+d+0.01,520-i*38,0.6,0.17*k,i%2?12:-6); });
+    for(let i=0;i<10;i++){ const d=0.08+Math.random()*0.8;
+      hiss(t+d,"highpass",4200+Math.random()*4200,7000,2,0.05,0.14,0.001); }
+    hiss(t+0.2,"lowpass",1400,260,0.8,1.5,0.35,0.05);
+    ring(t+0.9,196,1.4,0.1,0); },
   crash:function(){ if(!this.ok())return; const t=now();
     tone(t,"sine",85,28,0.28,0.85,0.002); hiss(t,"bandpass",900,400,1,0.2,0.6,0.002);
     tone(t+0.01,"triangle",1500,900,0.08,0.3,0.001); hiss(t+0.1,"lowpass",2500,500,1,0.3,0.3,0.01); },
@@ -12504,8 +12517,8 @@ function makeResult(done){
 }
 function fmtTime(s){s=Math.round(s);return Math.floor(s/60)+":"+String(s%60).padStart(2,"0");}
 function resultDetail(r){
-  return [r.done?"완주":(Math.round(r.dist/100)/10)+"km",r.done?"가져간 "+r.carry+"단":null,"수집 "+r.got,"박살 "+r.smash,
-    r.done?"목숨 "+r.lives:null,fmtTime(r.elapsed)].filter(Boolean).join(" · ");
+  return [r.done?"완주":(Math.round(r.dist/100)/10)+"km 주행",r.done?"끝까지 실은 파렛트 "+r.carry+"단":null,"주운 파렛트 "+r.got+"장","부순 차 "+r.smash+"대",
+    r.done?"남은 목숨 "+r.lives+"개":null,"기록 "+fmtTime(r.elapsed)].filter(Boolean).join(" · ");
 }
 function showResultCard(r){
   document.getElementById("overTitle").textContent=r.done?"완주":"기록";
