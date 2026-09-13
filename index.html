@@ -69,7 +69,13 @@ The original copyright header is also retained in the embedded script.
   .tip.danger i{background:repeating-linear-gradient(135deg,var(--hot) 0 8px,#2A2118 8px 16px)}
   .pow{margin-top:6px;height:10px;width:160px;background:rgba(59,42,28,.12);position:relative;overflow:hidden;display:none}
   .pow.on{display:block}
-  .pow i{position:absolute;left:0;top:0;bottom:0;width:100%;background:#FF3B2F;box-shadow:0 0 10px #FF3B2F;transition:width .06s linear}
+    .pow i{position:absolute;left:0;top:0;bottom:0;width:100%;background:#FF3B2F;box-shadow:0 0 10px #FF3B2F;transition:width .06s linear}
+  .pow.batt i{background:#F4C400;box-shadow:0 0 10px #F4C400}
+  #rush{position:fixed;inset:0;pointer-events:none;z-index:12;opacity:0;transition:opacity .18s linear;
+    background:repeating-conic-gradient(from 0deg at 50% 55%,rgba(255,255,255,0) 0deg 2.2deg,rgba(255,178,40,.62) 2.2deg 3deg);
+    -webkit-mask-image:radial-gradient(circle at 50% 55%,rgba(0,0,0,0) 26%,#000 64%);
+    mask-image:radial-gradient(circle at 50% 55%,rgba(0,0,0,0) 26%,#000 64%)}
+  #rush.on{opacity:.6}
 
   .distbox{position:absolute;right:calc(14px + env(safe-area-inset-right));top:calc(12px + env(safe-area-inset-top));
     text-align:right;background:var(--paper);padding:8px 14px 10px;box-shadow:0 8px 24px rgba(59,42,28,.18)}
@@ -130,7 +136,11 @@ The original copyright header is also retained in the embedded script.
   .rank input:focus{outline:2px solid var(--haz)}
   .rank button{margin-top:0;width:auto;padding:14px 20px}
   .rank button[disabled]{opacity:.5}
-  .rankmsg{margin-top:8px;font-size:13px;font-weight:700;color:var(--ink-soft);min-height:1em}
+    .rankmsg{margin-top:8px;font-size:13px;font-weight:700;color:var(--ink-soft);min-height:1em}
+  .rankBtn{margin-top:10px;padding:11px 20px;font:inherit;font-weight:800;border:0;cursor:pointer;
+    background:var(--paper);color:var(--ink);box-shadow:0 6px 18px rgba(59,42,28,.18)}
+  .sheet.boardonly .score,.sheet.boardonly .detail,.sheet.boardonly .bestline,
+  .sheet.boardonly .rank,.sheet.boardonly .rankmsg{display:none}
   .board{margin-top:6px;max-height:190px;overflow:auto}
   .board table{width:100%;border-collapse:collapse;font-size:13.5px}
   .board td{padding:6px 6px;border-bottom:1px solid var(--line)}
@@ -302,7 +312,8 @@ The original copyright header is also retained in the embedded script.
     <div class="spd"><span id="spd">0</span><small>km/h</small></div>
         <div class="mlab">전복</div>
     <div class="tip" id="tip"><i></i></div>
-    <div class="pow" id="pow"><i></i></div>
+        <div class="pow" id="pow"><i></i></div>
+    <div id="rush"></div>
   </div>
   <div class="distbox">
     <div class="dist"><span id="dist">0</span><small>m</small></div>
@@ -329,6 +340,7 @@ The original copyright header is also retained in the embedded script.
   <div class="heroBottom">
     <button id="go" class="startBtn" type="button" disabled>장면 준비 중…</button>
     <div class="startHint">터치 · 클릭 · Enter · Space</div>
+    <button id="rankBtn" class="rankBtn" type="button">랭킹 보기</button>
   </div>
 
    <div class="pkeys">
@@ -8841,7 +8853,7 @@ try{
 }
 try{const ce0=courseEvents;
  // 안전모·잔해(rubble)는 특정 풍경에 박아 둔 것이라 원래 좌표를 wz()로 옮겨 붙이고, 나머지(차·버스·파렛트 모듈)는 월드 좌표 그대로 이어간다
- const ANCHORED=e=>e&&(e.kind==='helmet'||e.kind==='rubble');
+ const ANCHORED=e=>e&&(e.kind==='helmet'||e.kind==='rubble'||e.kind==='batt');
  courseEvents=function(a,b){
   let ev=ce0(a,b);if(!Array.isArray(ev))return ev;
   ev=ev.filter(e=>!(e&&typeof e.z==='number'&&(insertAt(e.z)||ANCHORED(e))));
@@ -9611,6 +9623,21 @@ function makeHelmet(){
   g.add(mesh(boxG,mHelmetBand,.055,.24,.39,0,.27,0));
   return g;
 }
+/* 자동차 배터리: 먹으면 잠깐 미친 속도가 난다. 자키에 맞는 물건이 아니라 곧 타 버린다. */
+const mBattCase=M(0x2E3138),mBattTop=M(0x4A4F58),mBattLabel=M(0xF4C400),
+      mBattPos=M(0xC0392B),mBattNeg=M(0x2C6FB5),mBattMetal=M(0xD9DDE2);
+function makeBattery(){
+  const g=new THREE.Group();g.userData.itemKind='batt';
+  g.add(mesh(boxG,mBattCase,.46,.30,.26,0,.15,0));
+  g.add(mesh(boxG,mBattTop,.48,.05,.28,0,.32,0));
+  g.add(mesh(boxG,mBattLabel,.34,.14,.01,0,.16,.135));
+  g.add(mesh(boxG,mBattLabel,.34,.14,.01,0,.16,-.135));
+  g.add(mesh(cylG,mBattPos,.055,.07,.055,-.14,.38,0));
+  g.add(mesh(cylG,mBattNeg,.055,.07,.055,.14,.38,0));
+  g.add(mesh(cylG,mBattMetal,.03,.04,.03,-.14,.43,0));
+  g.add(mesh(cylG,mBattMetal,.03,.04,.03,.14,.43,0));
+  return g;
+}
 const beamMat=new THREE.MeshBasicMaterial({color:new THREE.Color(0xFF3B2F).convertSRGBToLinear(),transparent:true,opacity:0.22,depthWrite:false});
 const haloMat=new THREE.SpriteMaterial({map:null,color:new THREE.Color(0xFF3B2F).convertSRGBToLinear(),transparent:true,opacity:0.55,depthWrite:false});
 /* 파렛트: 「지게차 연수원」의 플라스틱 파렛트 두 종 (아주렌탈 연두 / KPP 적갈색) — 1100×1100×150 사방차입.
@@ -9941,6 +9968,17 @@ put('skid',214,-8.6,{role:'dock-edge'});
     });
   }
 
+  // 방치된 전동자키에서 뽑아낸 자동차 배터리. 경광봉보다 드물다.
+  for(const [z,u] of [
+    [4200,5.5],
+    [8600,-5.5],
+    [13800,5.5]
+  ]){
+    storyPut('batt',z,u,{
+      role:'rare-speed'
+    });
+  }
+
   // 지하 구간의 고정 붕괴 장애물.
   for(const [z,u,push] of [
     [11740,-5.8,1],
@@ -10203,6 +10241,9 @@ function makeChunk(){
   const hm=makeHelmet();hm.visible=false;holder.add(hm);c.helmet=hm;
   const hh=new THREE.Sprite(haloMat.clone());hh.material.map=dotTex;hh.material.color.setHex(0xffd83d);hh.scale.set(2.0,2.0,1);hm.add(hh);hm.userData.halo=hh;
   const hb=new THREE.Mesh(cylG,beamMat2.clone());hb.material.color.setHex(0xffd84a);hb.scale.set(.40,7,.40);hb.position.y=2.9;hm.add(hb);hm.userData.beam=hb;
+  const bt2=makeBattery();bt2.visible=false;bt2.scale.setScalar(1.5);holder.add(bt2);c.batt=bt2;
+  const bh=new THREE.Sprite(haloMat.clone());bh.material.map=dotTex;bh.material.color.setHex(0x4AD0FF);bh.scale.set(2.2,2.2,1);bt2.add(bh);bt2.userData.halo=bh;
+  const bb=new THREE.Mesh(cylG,beamMat2.clone());bb.material.color.setHex(0x4AD0FF);bb.scale.set(.42,7,.42);bb.position.y=2.9;bt2.add(bb);bt2.userData.beam=bb;
   c.boulders=[];
   const mBoulder=M(0xA8927A,true);
   for(let k=0;k<BOULDERS;k++){ const o=new THREE.Mesh(new THREE.DodecahedronGeometry(1,0),mBoulder); holder.add(o); c.boulders.push(o); }
@@ -10369,7 +10410,8 @@ function fillObjects(c,z0){
   for(const o of c.obs){o.visible=false;o.userData.role='';o.userData.deflect=false;o.userData.deflectSide=0;o.scale.setScalar(1);}
   c.pallet.visible=false;c.pallet.userData.taken=false;c.pallet.userData.role='';
   c.baton.visible=false;c.baton.userData.taken=false;c.baton.userData.role='';
-  c.helmet.visible=false;c.helmet.userData.taken=false;c.helmet.userData.role='';
+    c.helmet.visible=false;c.helmet.userData.taken=false;c.helmet.userData.role='';
+  c.batt.visible=false;c.batt.userData.taken=false;c.batt.userData.role='';
   let carIndex=0;
   for(const e of events){
     let o;
@@ -10377,7 +10419,8 @@ function fillObjects(c,z0){
       o=c.pallet;const kind=e.kindName||(ihash(Math.floor(e.z)*31+SEED*7)<.5?'aj':'kpp');
       o.userData.kind=kind;o.userData.kinds.aj.visible=kind==='aj';o.userData.kinds.kpp.visible=kind==='kpp';
     }else if(e.kind==='baton')o=c.baton;
-    else if(e.kind==='helmet')o=c.helmet;
+        else if(e.kind==='helmet')o=c.helmet;
+    else if(e.kind==='batt')o=c.batt;
  
  
      else if(e.kind==='car'){
@@ -10398,7 +10441,7 @@ function fillObjects(c,z0){
     }else if(e.kind==='debris'||e.kind==='rubble')o=c.deco.find(x=>x.userData.propKind===e.kind&&!x.visible);
     else o=c.props.find(x=>x.userData.propKind===e.kind&&!x.visible);
     if(!o)throw new Error('Course object capacity exceeded: '+e.kind+' at '+e.z);
-    const x=cx(e.z)+e.u,extraY=e.kind==='baton'?1.25:e.kind==='helmet'?1.05:e.kind==='pallet'?.01:0;o.position.set(x,H(x,e.z)+extraY,e.z);
+    const x=cx(e.z)+e.u,extraY=e.kind==='baton'?1.25:e.kind==='helmet'?1.05:e.kind==='batt'?1.05:e.kind==='pallet'?.01:0;o.position.set(x,H(x,e.z)+extraY,e.z);
     o.rotation.set(0,(e.kind==='car'?carYaw(e):e.yaw)||0,0);o.scale.setScalar(e.scale||1);o.visible=true;o.userData.role=e.role||'edge-prop';o.userData.courseId=e.id;o.userData.deflect=!!e.deflect;o.userData.deflectSide=e.deflectSide||0;
   }
   // Familiar roadside scenery remains, but never occupies an authored escape lane.
@@ -10446,7 +10489,7 @@ function fillChunk(c,z0){
       o.position.z<188||shoreClear(o.position.z,o.position.x-cx(o.position.z))
     ))o.visible=false;
   }
-  for(const o of [c.pallet,c.baton,c.helmet])if(o.visible&&o.position.z>105&&o.position.z<188){
+  for(const o of [c.pallet,c.baton,c.helmet,c.batt])if(o.visible&&o.position.z>105&&o.position.z<188){
     const z=o.position.z,cc=cx(z),b=JockeyWorldData.driveBounds(z),lift=o===c.baton?1.25:.01;
     o.position.x=clamp(o.position.x,cc+b[0]+.8,cc+b[1]-.8);
     o.position.y=H(o.position.x,z)+lift;
@@ -10909,7 +10952,7 @@ P.pipeExitFrom=null;
   P.onRail=false;P.jump=false;P.jumpImpulse=0;P.glideMode=false;P.glideOffset=0;P.pipeMode=false;P.pipeAngle=0;P.bumpIndex=-1;P.maxLives=LIVES;
   P.x=cx(0)+ (steepLane(0)?-1:1)*5.5; P.z=0; P.vx=0; P.vz=8; P.vy=0; P.ground=true; P.air=0;
     P.steer=0;P.steerT=0;P.crouch=0;P.crouchT=0;P.hold=0;P.tipMeter=0;P.boost=0;P.kickAnim=0;P.spin=0;P.exitBoost=0;P.kickThrust=0;
-  P.hits=0;P.maxLives=LIVES;P.inv=0;P.top=0;P.shake=0;P.dist=0;P.alive=true;P.scrape=0;P.power=0;P.pallets=0;P.palMax=0;P.palGot=0;P.carSmash=0;P.t0=performance.now();
+  P.hits=0;P.maxLives=LIVES;P.inv=0;P.top=0;P.shake=0;P.dist=0;P.alive=true;P.scrape=0;P.power=0;P.batt=0;P.pallets=0;P.palMax=0;P.palGot=0;P.carSmash=0;P.t0=performance.now();
   stackKinds.length=0; setStack(0);
   for(const pc of pieces) pc.m.visible=false;
   P.y=H(P.x,P.z);
@@ -11017,6 +11060,8 @@ function pickupTest(){
     if(pl.visible&&!pl.userData.taken&&hit(pl,lift<1.5)){take(pl);stackKinds[P.pallets]=pl.userData.kind||'aj';P.pallets++;courseRun.pallets++;P.palGot++;P.palMax=Math.max(P.palMax,P.pallets);setStack(P.pallets);SFX.pallet(P.pallets);P.shake=Math.max(P.shake,.25);emit(dust,P.x,P.y+.3,P.z,0,2,0,3,8,.6);if(navigator.vibrate)try{navigator.vibrate(12);}catch(e){}}
     const b=c.baton;
     if(b.visible&&!b.userData.taken&&hit(b,lift<=2.6)){take(b);P.power=8;courseRun.batons++;SFX.baton();boostFx(.6);emit(sparks,P.x,P.y+1,P.z,0,5,0,6,16,.5);if(navigator.vibrate)try{navigator.vibrate(15);}catch(e){}}
+    const bt2=c.batt;
+    if(bt2.visible&&!bt2.userData.taken&&hit(bt2,lift<=2.6)){take(bt2);P.batt=BATT_T;SFX.batt();boostFx(.75);emit(sparks,P.x,P.y+1.1,P.z,0,5,0,6,20,.55);P.shake=Math.max(P.shake,.30);if(navigator.vibrate)try{navigator.vibrate([12,18,26]);}catch(e){}}
     const hm=c.helmet;
     if(hm.visible&&!hm.userData.taken&&hit(hm,lift<=2.6)){take(hm);P.maxLives=Math.min(9,P.maxLives+1);courseRun.helmets++;updateLives();SFX.helmet();boostFx(.42);emit(sparks,P.x,P.y+1.1,P.z,0,4,0,5,14,.55);if(navigator.vibrate)try{navigator.vibrate([12,18,12]);}catch(e){}}
   }
@@ -11156,9 +11201,10 @@ function crash(wipe){
   };
 }
 const KICK_T=0.62; const KICK_THRUST_T=0.5, KICK_THRUST=30;
+const BATT_T=4.5, BATT_CAP=110;                       // 자동차 배터리: 지속 시간, 속도 상한
 function kick(){
   const sp=Math.hypot(P.vx,P.vz);
-  if(!P.ground||P.spin>0||P.kickAnim>0) return;
+  if(!P.ground||P.spin>0||P.kickAnim>0||P.batt>0) return;
   P.kickAnim=KICK_T;
   const h=Math.atan2(P.vx,P.vz);
   const dir=(sp<1.5)?{x:0,z:1}:{x:Math.sin(h),z:Math.cos(h)};
@@ -11171,6 +11217,13 @@ function kickContact(){                               // 발이 바닥을 차는
   const d=P.kickDir||{x:0,z:1};
   emit(dust,P.x-0.45,P.y+0.05,P.z-0.3,-d.x*3,1.2,-d.z*3,2.5,P.kickPush?9:5,0.6);
   SFX.kick(P.kickPush);
+}
+function battBurnOut(){                               // 과부하로 타 버리고 튕겨 나간다
+  emit(dust,P.x,P.y+0.9,P.z-0.6,-P.vx*0.08,2.4,-P.vz*0.08,3,18,0.85);
+  emit(sparks,P.x,P.y+0.7,P.z-0.7,0,3.5,0,5,14,0.5);
+  P.shake=Math.max(P.shake,0.45);
+  SFX.battOut();
+  if(navigator.vibrate)try{navigator.vibrate([20,40,30]);}catch(e){}
 }
 
 
@@ -11570,7 +11623,18 @@ const rate=
 
   if(P.vz<0.8) P.vz=0.8;
   sp=Math.hypot(P.vx,P.vz);
-    const spCap=MAXV+22*(P.exitBoost/7);
+    // 자동차 배터리: 상한을 열고 그 상한까지 밀어 올린다.
+    if(P.batt>0){
+      P.batt=Math.max(0,P.batt-dt);
+      P.tipMeter=0;
+      if(sp>0.01){
+        const a=clamp((BATT_CAP-sp)/BATT_CAP,0,1)*70*dt/sp;
+        P.vx+=P.vx*a; P.vz+=P.vz*a;
+        sp=Math.hypot(P.vx,P.vz);
+      }
+      if(P.batt===0) battBurnOut();
+    }
+    const spCap=(P.batt>0?BATT_CAP:MAXV)+22*(P.exitBoost/7);
   if(sp>spCap){const k=spCap/sp;P.vx*=k;P.vz*=k;sp=spCap;}
   P.top=Math.max(P.top,sp);
 // 처음 80m는 창고 풍경을 볼 수 있도록 속도를 제한한다.
@@ -12029,6 +12093,28 @@ if(P.kickAnim > 0){
   }
   for(const c of chunks){const b=c.baton;if(b.visible){b.rotation.y=tnow*2.2;b.rotation.z=0;b.position.y=H(b.position.x,b.position.z)+1.25+Math.sin(tnow*3+b.position.z)*.12;b.userData.beam.material.opacity=.16+.08*Math.sin(tnow*4+b.position.z);b.userData.halo.material.opacity=.35+.25*Math.sin(tnow*6+b.position.z);}const hm=c.helmet;if(hm.visible){hm.rotation.y=tnow*1.45;hm.rotation.z=.10*Math.sin(tnow*2+hm.position.z);hm.position.y=H(hm.position.x,hm.position.z)+1.05+.10*Math.sin(tnow*2.4+hm.position.z);hm.userData.beam.material.opacity=.14+.04*Math.sin(tnow*2.1);hm.userData.halo.material.opacity=.42+.10*Math.sin(tnow*2.1);}}
 
+  // 배터리: 손만 그립에 남고 몸이 수평으로 들린다.
+  // 어깨를 그립 바로 뒤에 두려고 몸 전체를 뒤로 물린다.
+  const bk = P.batt>0
+    ? smooth(Math.min(1,(BATT_T-P.batt)/0.22)) * smooth(Math.min(1,P.batt/0.30))
+    : 0;
+  if(bk>0){
+    body.rotation.x  = lerp(body.rotation.x, 1.45, bk);
+    body.position.y  = lerp(body.position.y, stackH+0.60, bk);
+    body.position.z  = lerp(body.position.z, -1.30, bk);
+    arms[0].rotation.x = lerp(arms[0].rotation.x,-2.95, bk);
+    arms[1].rotation.x = lerp(arms[1].rotation.x,-2.95, bk);
+    arms[0].rotation.z = lerp(arms[0].rotation.z, 0.12, bk);
+    arms[1].rotation.z = lerp(arms[1].rotation.z,-0.12, bk);
+    legs[0].rotation.x = lerp(legs[0].rotation.x, 0.05, bk);
+    legs[1].rotation.x = lerp(legs[1].rotation.x, 0.05, bk);
+    legs[0].rotation.z = lerp(legs[0].rotation.z,-0.16, bk);
+    legs[1].rotation.z = lerp(legs[1].rotation.z, 0.16, bk);
+    knees[0].rotation.x = lerp(knees[0].rotation.x, 0.10, bk);
+    knees[1].rotation.x = lerp(knees[1].rotation.x, 0.10, bk);
+  }
+  for(const c of chunks){const o=c.batt;if(o.visible){o.rotation.y=tnow*1.6;o.position.y=H(o.position.x,o.position.z)+1.05+Math.sin(tnow*2.6+o.position.z)*.10;}}
+
   // 그림자
   const gh=H(P.x,P.z),lift=clamp(P.y-gh,0,6),specialAir=P.glideMode||P.pipeMode;
   shadow.position.set(P.x,gh+.06,P.z);
@@ -12174,7 +12260,7 @@ rideLook.copy(rider.position)
   if(!camInit){camYaw=targetYaw;camX=P.x;camInit=true;}let dy=targetYaw-camYaw;while(dy>Math.PI)dy-=2*Math.PI;while(dy<-Math.PI)dy+=2*Math.PI;camYaw+=dy*clamp(2.2*dt,0,1);camX=lerp(camX,P.x,clamp(12*dt,0,1));camX=clamp(camX,P.x-0.6,P.x+0.6);
   const dist=6.6+camStack*.45,hgt=3+camStack*.7;;camTmp.set(camX-Math.sin(camYaw)*dist,P.y+hgt,P.z-Math.cos(camYaw)*dist);camera.position.x=camTmp.x;camera.position.z=camTmp.z;camera.position.y=lerp(camera.position.y,camTmp.y,clamp(10*dt,0,1));
   const floor=H(camera.position.x,camera.position.z)+1.6;if(camera.position.y<floor)camera.position.y=floor;if(P.shake>0){const sh=P.shake*.28;camera.position.x+=(Math.random()-.5)*sh;camera.position.y+=(Math.random()-.5)*sh;}
-  camera.lookAt(camX+Math.sin(camYaw)*9,P.y+1+camStack*.75,P.z+Math.cos(camYaw)*9);const fov=66+6*clamp(Math.hypot(P.vx,P.vz)/MAXV,0,1)+P.boost*5;if(Math.abs(camera.fov-fov)>.05){camera.fov=lerp(camera.fov,fov,clamp(5*dt,0,1));camera.updateProjectionMatrix();}
+  camera.lookAt(camX+Math.sin(camYaw)*9,P.y+1+camStack*.75,P.z+Math.cos(camYaw)*9);const fov=66+6*clamp(Math.hypot(P.vx,P.vz)/MAXV,0,1)+P.boost*5+(P.batt>0?9:0);if(Math.abs(camera.fov-fov)>.05){camera.fov=lerp(camera.fov,fov,clamp(5*dt,0,1));camera.updateProjectionMatrix();}
   const e=new THREE.Euler().setFromQuaternion(camera.quaternion,'YXZ');bgU.uYaw.value=e.y;bgU.uPitch.value=clamp(-e.x*.55,-.3,.3);
 }
 
@@ -12189,6 +12275,7 @@ const tipBar=tipEl.firstElementChild;
 const powEl=document.getElementById("pow");
 const palEl=document.getElementById("pal");
 const powBar=powEl.firstElementChild;
+const rushEl=document.getElementById("rush");
 const livesEl=document.getElementById("lives");
 const flashEl=document.getElementById("flash");
 const boostEl=document.getElementById("boostfx");
@@ -12206,8 +12293,14 @@ function updateHud(dt,sp){
   palEl.textContent=P.pallets;
   tipBar.style.width=(P.tipMeter*100).toFixed(0)+"%";
   tipEl.className=P.tipMeter>0.7?"tip danger":"tip";
-  powEl.className=P.power>0?"pow on":"pow";
-  if(P.power>0) powBar.style.width=(P.power/8*100).toFixed(0)+"%";
+  if(P.batt>0){
+    powEl.className="pow on batt";
+    powBar.style.width=(P.batt/BATT_T*100).toFixed(0)+"%";
+  }else{
+    powEl.className=P.power>0?"pow on":"pow";
+    if(P.power>0) powBar.style.width=(P.power/8*100).toFixed(0)+"%";
+  }
+  rushEl.className=P.batt>0?"on":"";
 }
 
 /* ==================================================================
@@ -12259,7 +12352,7 @@ function stickEnd(){
 
 
 function releaseCrouch(){
-  if(P.crouch>0.45&&P.ground){ P.jump=true; P.jumpImpulse=4.2+P.hold*6.5+P.crouch*2.2; }
+  if(P.crouch>0.45&&P.ground&&P.batt<=0){ P.jump=true; P.jumpImpulse=4.2+P.hold*6.5+P.crouch*2.2; }
   P.hold=0;
 }
 addEventListener("touchstart",function(e){
@@ -12418,6 +12511,13 @@ const SFX={
   baton:function(){ if(!this.ok())return; const t=now();
     [880,1108.7,1318.5,1760].forEach((f,i)=>{ tone(t+i*0.07,"sine",f,f,0.35,0.34,0.003); tone(t+i*0.07,"triangle",f*2,f*2,0.18,0.08,0.003); });
     hiss(t,"highpass",6000,9000,1,0.4,0.12,0.02); },
+  batt:function(){ if(!this.ok())return; const t=now();
+    tone(t,"square",120,60,0.18,0.16,0.002);
+    [392,523,659,880].forEach((f,i)=>{ tone(t+0.04+i*0.055,"sawtooth",f,f*1.5,0.22,0.16,0.003); });
+    hiss(t,"highpass",3000,7000,1,0.30,0.16,0.01); },
+  battOut:function(){ if(!this.ok())return; const t=now();
+    tone(t,"sawtooth",520,70,0.55,0.22,0.004);
+    hiss(t,"bandpass",2600,600,4,0.35,0.50,0.002); },
   tick:function(fast){ if(!this.ok())return; const t=now(); tone(t,"square",fast?1900:1500,fast?1900:1500,0.035,0.06,0.001); },
   smash:function(big){ if(!this.ok())return; const t=now(); const k=big?1.3:1;
     tone(t,"sine",120*k,32,0.45,1.0,0.002);                                // 붐
@@ -12483,7 +12583,7 @@ const SFX={
 function audioUpdate(sp,dt){
   if(!actx||muted)return;
   const n=clamp(sp/MAXV,0,1),wv=world3D.getState(),worldQuiet=1-wv.silence*.94;
-  rumble.g.gain.value=(P.ground?1:0.12)*(0.02+n*0.10)*(running?1:0)*worldQuiet;
+  rumble.g.gain.value=(P.ground?1:0.12)*(0.02+n*0.10)*(running?1:0)*worldQuiet*(P.batt>0?2.4:1);
   rumble.f.frequency.value=90+n*280;
   wind.g.gain.value=(0.004+n*n*0.07)*(running?1:0)*worldQuiet;
   wind.f.frequency.value=500+n*1500;
@@ -12623,7 +12723,29 @@ function renderBoard(d){
 }
 nickEl.addEventListener("keydown",function(e){ e.stopPropagation(); if(e.key==="Enter") submitBtn.click(); });
 goBtn.addEventListener("click",start);
-document.getElementById("again").addEventListener("click",()=>{story.ending=false;start();});
+const rankBtn=document.getElementById("rankBtn"), againBtn=document.getElementById("again"),
+      overTitleEl=document.getElementById("overTitle");
+let boardOnly=false;
+if(!RANK_URL||WORLD_TOUR) rankBtn.style.display="none";
+rankBtn.addEventListener("click",()=>{
+  boardOnly=true;
+  overEl.classList.add("boardonly");
+  overEl.classList.remove("hide");
+  overTitleEl.textContent="랭킹";
+  againBtn.textContent="닫기";
+  loadBoard();
+});
+againBtn.addEventListener("click",()=>{
+  if(boardOnly){
+    boardOnly=false;
+    overEl.classList.add("hide");
+    overEl.classList.remove("boardonly");
+    overTitleEl.textContent="기록";
+    againBtn.textContent="다시";
+    return;
+  }
+  story.ending=false;start();
+});
 document.getElementById("endRank").addEventListener("click",()=>{ if(!lastResult) return; showResultCard(lastResult); overEl.classList.remove("hide"); });
 endAgainBtn.addEventListener("click",()=>{story.ending=false;start();});
 
