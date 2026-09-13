@@ -8876,7 +8876,7 @@ const CHUNKS    = 9;
 const ROAD_HALF = 12.5;   // 아스팔트 반폭
 const RAIL      = 12.0;   // 가드레일(단단한 벽) 위치
 const MED       = 1.3;    // 중앙분리대 반폭
-const G         = 36;     // 중력 가속 계수
+const G         = 54;     // 중력 가속 계수
 /* 랭킹: 「지게차 연수원」과 같은 앱스스크립트 웹앱.
    등록 POST(text/plain JSON) = {game:'jockey', kind:'run', name, score, dist, top, pallets, elapsed, seed, date}
    조회 JSONP = ?game=jockey&callback=fn  (응답에서 배열을 찾아 상위 10명을 보여준다) */
@@ -8906,7 +8906,7 @@ const OBS_GAP_HARD = 11;
 
 const TIP_RATE = 0.8;
 const LIVES    = 5;
-const MAXV     = 52;
+const MAXV     = 78;
 
 const JW=JockeyWorldData;
 const SINK_WARN=JW.SINK_WARN,SINK_START=JW.SINK_START,UNDER_START=JW.UNDER_START,CAVERN_START=JW.CAVERN_START;
@@ -11162,7 +11162,7 @@ function kick(){
   P.kickAnim=KICK_T;
   const h=Math.atan2(P.vx,P.vz);
   const dir=(sp<1.5)?{x:0,z:1}:{x:Math.sin(h),z:Math.cos(h)};
-  const push=sp<11;                                   // 느릴 때만 실제로 밀린다
+  const push=sp<16.5;                                   // 느릴 때만 실제로 밀린다
   if(push){ P.vx+=dir.x*3.4; P.vz+=dir.z*3.4; }
   P.kickDir=dir; P.kickPush=push;
 }
@@ -11538,7 +11538,7 @@ const rate=
     // 전복 게이지: 빠를 때 세게 꺾으면 찬다
     const risk=
   st*
-  clamp((sp-13)/30,0,1)*
+  clamp((sp-19.5)/45,0,1)*
   (1+P.pallets*0.09)*
   difficultyAt(P.z);
     if(risk>0.2) P.tipMeter=Math.min(1,P.tipMeter+dt*risk*TIP_RATE);
@@ -11561,7 +11561,7 @@ const rate=
   }
   // 공기 저항 (웅크리면 크게 준다)
   sp=Math.hypot(P.vx,P.vz);
-    const air=0.0062*sp*sp*dt*(1-P.crouch*0.38)*(1-0.55*(P.exitBoost/7))/(2.00+P.pallets*0.025); // 빈 자키도 예전 7단만큼 저항이 적다(기본 속도감)
+    const air=0.0062*sp*sp*dt*(1-P.crouch*0.38)*(1-0.55*(P.exitBoost/7))/(3.00+P.pallets*0.0375); // 빈 자키도 예전 7단만큼 저항이 적다(기본 속도감)
   const fa=Math.max(0,1-air/Math.max(sp,0.01)); P.vx*=fa;P.vz*=fa;
 
   if(P.vz<0.8) P.vz=0.8;
@@ -11571,7 +11571,7 @@ const rate=
   P.top=Math.max(P.top,sp);
 // 처음 80m는 창고 풍경을 볼 수 있도록 속도를 제한한다.
 if(P.z<80){
-  const limit=lerp(8,11,smooth(P.z/80));
+  const limit=lerp(12,16.5,smooth(P.z/80));
   const k=Math.min(1,limit/Math.max(P.vz,.01));
   P.vx*=k;
   P.vz*=k;
@@ -12456,7 +12456,7 @@ const introEl=document.getElementById("intro");
 const overEl=document.getElementById("over");
 const goBtn=document.getElementById("go");
 const endingEl=document.getElementById("ending"),endAgainBtn=document.getElementById("endAgain"),pauseBtn=document.getElementById('pause');
-const SPEED_DISPLAY = 2.0;
+const SPEED_DISPLAY = 1.33;
 let introRenderedFrames=0,introReadyStarted=false,introCanStart=false;
 function markIntroFrameReady(){
   if(introReadyStarted||introEl.classList.contains("hide"))return;if(++introRenderedFrames<3)return;
@@ -12643,7 +12643,7 @@ function frame(now){
     });
     if(perfTrace.frames.length>30)perfTrace.frames.shift();
   }
-  let dt=Math.max(0,Math.min(gap/1000*1.5,.05));
+  let dt=Math.max(0,Math.min(gap/1000,.05));
   last=now;
   const sp0=Math.hypot(P.vx,P.vz);
   const frozen=(worldInspectPaused||gamePaused)&&!story.ending,animDt=frozen?0:dt;
