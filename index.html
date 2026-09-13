@@ -11165,11 +11165,11 @@ function kick(){
   const push=sp<16.5;                                   // 느릴 때만 실제로 밀린다
   const head=clamp(1-sp/MAXV,0,1); const gain=3.2+8.8*head;
   P.vx+=dir.x*gain; P.vz+=dir.z*gain; P.kickThrust=KICK_THRUST_T;
-  P.kickDir=dir; P.kickPush=true;
+  P.kickDir=dir; P.kickPush=push;
 }
 function kickContact(){                               // 발이 바닥을 차는 순간 (애니메이션 중간)
   const d=P.kickDir||{x:0,z:1};
-  emit(dust,P.x-0.3,P.y+0.05,P.z-0.2,-d.x*3,1.2,-d.z*3,2.5,P.kickPush?9:5,0.6);
+  emit(dust,P.x-0.45,P.y+0.05,P.z-0.3,-d.x*3,1.2,-d.z*3,2.5,P.kickPush?9:5,0.6);
   SFX.kick(P.kickPush);
 }
 
@@ -11575,7 +11575,8 @@ const rate=
   P.top=Math.max(P.top,sp);
 // 처음 80m는 창고 풍경을 볼 수 있도록 속도를 제한한다.
 if(P.z<80){
-  const limit=lerp(12,16.5,smooth(P.z/80));
+  const limit=lerp(12,16.5,smooth(P.z/80))
+            + 9*(P.kickThrust/KICK_THRUST_T);
   const k=Math.min(1,limit/Math.max(P.vz,.01));
   P.vx*=k;
   P.vz*=k;
@@ -11645,10 +11646,10 @@ if(P.kickAnim>0){
   const before=P.kickAnim;
   P.kickAnim-=dt;
 
-  // 애니메이션 약 58% 지점 = 발이 바닥을 찍는 순간
+  // 애니메이션 약 30% 지점 = 발이 바닥에 닿는 순간
   if(
-    before > KICK_T * 0.42 &&
-    P.kickAnim <= KICK_T * 0.42
+    before > KICK_T * 0.70 &&
+    P.kickAnim <= KICK_T * 0.70
   ){
     kickContact();
   }
@@ -11923,54 +11924,88 @@ legs[1].position.z = lerp(legs[1].position.z,-0.40, legK);
 // ----------------------------------------------------
 // 발 구르기
 //
-// 오른발 = 자키/파렛트 위에 계속 고정
-// 왼발 = 무릎을 들어올림 → 뒤로 내리찍음 → 복귀
+
+
+// legs[1] = 딛는 발. 무릎을 굽혀 몸을 낮춘다.
+// legs[0] = 구르는 발. 접어 올리며 자키 바깥으로 벌림 →
+//           포크 옆 바닥을 딛음 → 뒤로 밀기 → 접어 회수
 // ----------------------------------------------------
 if(P.kickAnim > 0){
 
-  // 0 → 1
   const p = 1 - P.kickAnim / KICK_T;
 
   let hipX = baseLegX;
- let kneeX = baseKneeX;
+  let kneeX = baseKneeX;
 
-  if(p < 0.32){
+  if(p < 0.16){
+    // 1단계 : 무릎을 앞으로 접어 올린다
+    const q = smooth(p / 0.16);
+    hipX  = lerp(baseLegX, -0.45, q);
+    kneeX = lerp(baseKneeX, 1.25, q);
 
-    // 1단계 : 왼쪽 무릎을 들어올린다.
-    const q = smooth(p / 0.32);
+  }else if(p < 0.30){
+    // 2단계 : 펴면서 포크 옆 바닥에 발을 딛는다
+    const q = smooth((p - 0.16) / 0.14);
+    hipX  = lerp(-0.45, -0.25, q);
+    kneeX = lerp( 1.25,  0.30, q);
 
-    hipX  = lerp(baseLegX, 0.18, q);
-    kneeX = lerp(0, 1.15, q);
+  }else if(p < 0.62){
+    // 3단계 : 발이 바닥에 붙은 채 뒤로 밀어낸다 (추진)
+    const q = smooth((p - 0.30) / 0.32);
+    hipX  = lerp(-0.25, 0.60, q);
+    kneeX = lerp( 0.30, 0.06, q);
 
-  }else if(p < 0.58){
-
-    // 2단계 : 발을 뒤쪽 아래로 빠르게 내리찍는다.
-    const q = smooth((p - 0.32) / 0.26);
-
-    hipX  = lerp(0.18, 0.52, q);
-    kneeX = lerp(1.15, 0.10, q);
+  }else if(p < 0.80){
+    // 4단계 : 뒤로 뻗은 다리를 접어 올린다
+    const q = smooth((p - 0.62) / 0.18);
+    hipX  = lerp(0.60, 0.18, q);
+    kneeX = lerp(0.06, 0.80, q);
 
   }else{
-
-    // 3단계 : 찍은 발을 다시 자키 위로 회수
-    const q = smooth((p - 0.58) / 0.42);
-
-    hipX  = lerp(0.52, baseLegX, q);
-    kneeX = lerp(0.10, 0, q);
+    // 5단계 : 자키 위 기본 자세로 복귀
+    const q = smooth((p - 0.80) / 0.20);
+    hipX  = lerp(0.18, baseLegX, q);
+    kneeX = lerp(0.80, baseKneeX, q);
   }
 
-  // 왼발만 움직인다.
-  legs[0].rotation.x = hipX;
+  // 다리를 자키 바깥으로 벌린다.
+  // 포크 바깥날이 x=0.30, 고관절이 0.20이라
+  // 이만큼 벌리지 않으면 발이 포크 위에서만 움직인다.
+  const swing =
+    p < 0.20 ? smooth(p / 0.20) :
+    p < 0.66 ? 1 :
+               1 - smooth((p - 0.66) / 0.24);
+
+  legs[0].rotation.x  = hipX;
+  legs[0].rotation.z  = -0.38 * swing;
   knees[0].rotation.x = kneeX;
 
-  // 땅 찍는 순간 몸이 아주 살짝 내려앉는다.
-  // 점프가 아니라 체중이 왼발에 실리는 느낌.
-  const stomp =
-    Math.max(0, 1 - Math.abs(p - 0.58) / 0.12);
+  // 딛는 다리를 굽혀 몸을 내린다.
+  // 발판이 지면보다 높아서, 이만큼 내려앉아야 반대발이 바닥에 닿는다.
+  const dip =
+    p < 0.16 ? 0 :
+    p < 0.30 ? smooth((p - 0.16) / 0.14) :
+    p < 0.55 ? 1 :
+    p < 0.72 ? 1 - smooth((p - 0.55) / 0.17) : 0;
 
-  body.position.y -= stomp * 0.045;
+  legs[1].rotation.x  = baseLegX  - 0.88 * dip;
+  knees[1].rotation.x = baseKneeX + 1.55 * dip;
+
+  body.position.y = lerp(
+    body.position.y,
+    stackH - cr * 0.26 - dip * 0.20,
+    legK
+  );
+
+  body.rotation.x = lerp(
+    body.rotation.x,
+    0.16 + cr * 0.12 + airLean + dip * 0.07,
+    clamp(12 * dt, 0, 1)
+  );
+
+  // 체중이 딛는 발 쪽으로 넘어간다
+  body.rotation.z = -0.07 * dip;
 }
-
 
 
 
