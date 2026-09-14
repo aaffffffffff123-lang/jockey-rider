@@ -348,6 +348,8 @@ The original copyright header is also retained in the embedded script.
   /* ---------- 커리어: 로그인 · 설비실 · 인트로 정보 ---------- */
   #login,#shop{z-index:45}
   #login .card{width:min(380px,100%)}
+  .loginRow #loginPin{flex:0 0 96px}
+  .who .off{color:#B35A00}
   .recent{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
   .chip{pointer-events:auto;width:auto;margin:0;padding:8px 12px;font-size:13px;border-radius:999px;background:rgba(255,255,255,.75);color:var(--ink);box-shadow:inset 0 0 0 1px var(--line)}
   .who{margin:0 auto 10px;font-size:13.5px;font-weight:800;color:var(--ink);display:flex;flex-wrap:wrap;justify-content:center;gap:2px 10px;background:rgba(255,250,242,.86);padding:8px 14px;border-radius:12px;width:max-content;max-width:92vw;box-shadow:0 6px 18px rgba(59,42,28,.14)}
@@ -487,8 +489,9 @@ The original copyright header is also retained in the embedded script.
 <div class="sheet hide" id="login">
   <div class="card">
     <div class="title">출근</div>
-    <div class="sub">이름을 적고 들어오세요. 돈·부품·기록이 이 이름으로 이 기기에 저장됩니다.</div>
-    <div class="rank on" style="margin-top:16px"><input id="loginName" maxlength="12" placeholder="이름" autocomplete="off"><button id="loginBtn" type="button">입장</button></div>
+    <div class="sub">이름과 숫자 4자리 비밀번호. 처음 정한 비밀번호로 어느 기기에서든 이어서 합니다.</div>
+    <div class="rank on loginRow" style="margin-top:16px"><input id="loginName" maxlength="12" placeholder="이름" autocomplete="off"><input id="loginPin" maxlength="4" inputmode="numeric" pattern="[0-9]*" placeholder="비밀번호" autocomplete="off"><button id="loginBtn" type="button">입장</button></div>
+    <div class="rankmsg" id="loginMsg"></div>
     <div class="recent" id="recentNames"></div>
   </div>
 </div>
@@ -16093,8 +16096,8 @@ const COS={
   hat:[{id:'helm',n:'안전모',need:-1},{id:'cone',n:'러버콘',need:0},{id:'hair',n:'맨머리',need:1},{id:'white',n:'흰 안전모',need:3}]   // need: 이 단계를 이겨야 풀린다 (-1 = 기본)
 };
 const SAVE_KEY='jockey_race_profiles_v1';
-const career={profile:null,tier:0,store:{list:{},last:''}};
-function loadStore(){try{const d=JSON.parse(localStorage.getItem(SAVE_KEY)||'null');if(d&&d.list)career.store=d;}catch(e){}}
+const career={profile:null,tier:0,pin:'',online:false,store:{list:{},pins:{},last:''}};
+function loadStore(){try{const d=JSON.parse(localStorage.getItem(SAVE_KEY)||'null');if(d&&d.list){career.store=d;if(!career.store.pins)career.store.pins={};}}catch(e){}}
 function saveStore(){try{localStorage.setItem(SAVE_KEY,JSON.stringify(career.store));}catch(e){}}
 function newProfile(name){
   return {name,money:0,parts:{wheel:0,frame:0,handle:0,fork:0},tier:0,wins:[0,0,0,0,0],races:0,best:{},
@@ -16102,10 +16105,20 @@ function newProfile(name){
 }
 function tierUnlocked(i){const p=career.profile;if(!p)return i===0;if(i===0)return true;return (p.wins[i-1]||0)>0;}
 function maxTier(){let m=0;for(let i=1;i<TIERS.length;i++)if(tierUnlocked(i))m=i;return m;}
-function saveProfile(){if(!career.profile)return;career.store.list[career.profile.name]=career.profile;career.store.last=career.profile.name;saveStore();}
-function login(name){
+function saveProfile(){if(!career.profile)return;career.store.list[career.profile.name]=career.profile;career.store.last=career.profile.name;if(career.pin)career.store.pins[career.profile.name]=career.pin;saveStore();serverSaveSoon();}
+function normalizeProfile(p,name){
+  if(!p||typeof p!=='object')p=newProfile(name);
+  p.name=name;if(typeof p.money!=='number')p.money=0;if(!p.parts)p.parts={};
+  for(const k of PART_KEYS)if(typeof p.parts[k]!=='number')p.parts[k]=0;
+  if(!Array.isArray(p.wins))p.wins=[];while(p.wins.length<TIERS.length)p.wins.push(0);
+  if(!p.cos)p.cos={vest:'lime',jack:'orange',hat:'helm',owned:{vest:['lime'],jack:['orange']}};
+  if(!p.cos.owned)p.cos.owned={vest:['lime'],jack:['orange']};
+  if(!p.best)p.best={};if(typeof p.races!=='number')p.races=0;if(typeof p.tier!=='number')p.tier=0;
+  return p;
+}
+function login(name,fromServer){
   name=String(name||'').trim().slice(0,12);if(!name)return false;
-  const p=career.store.list[name]||newProfile(name);
+  const p=normalizeProfile(fromServer||career.store.list[name],name);
   // 옛 저장본에 빠진 칸 채우기
   for(const k of PART_KEYS)if(typeof p.parts[k]!=='number')p.parts[k]=0;
   while(p.wins.length<TIERS.length)p.wins.push(0);
@@ -16115,6 +16128,26 @@ function login(name){
   dressPlayer();refreshIntro();
   return true;
 }
+
+/* ---- 서버 저장 (앱스스크립트) : 이름 + 4자리 비밀번호로 어느 기기에서든 이어서 ---- */
+function pinOk(v){return /^\d{4}$/.test(String(v||''));}
+function serverLoad(name,pin,cb){
+  if(!RANK_URL||WORLD_TOUR){cb(null);return;}
+  const fn='jrLoad'+Date.now().toString(36),sc=document.createElement('script');let done=false;
+  const cleanup=()=>{try{delete window[fn];}catch(e){window[fn]=undefined;}if(sc.parentNode)sc.parentNode.removeChild(sc);};
+  window[fn]=d=>{if(done)return;done=true;cleanup();cb(d);};
+  sc.onerror=()=>{if(done)return;done=true;cleanup();cb(null);};
+  sc.src=RANK_URL+(RANK_URL.indexOf('?')>=0?'&':'?')+'game='+RANK_GAME+'&kind=load&name='+encodeURIComponent(name)+'&pin='+encodeURIComponent(pin)+'&callback='+fn+'&t='+Date.now();
+  document.head.appendChild(sc);
+  setTimeout(()=>{if(!done){done=true;cleanup();cb(null);}},8000);
+}
+function serverSave(){
+  if(!RANK_URL||WORLD_TOUR||!career.profile||!career.pin)return;
+  try{fetch(RANK_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({game:RANK_GAME,kind:'save',name:career.profile.name,pin:career.pin,profile:career.profile}),keepalive:true}).catch(()=>{});}catch(e){}
+}
+let saveTimer=0;
+function serverSaveSoon(){clearTimeout(saveTimer);saveTimer=setTimeout(serverSave,1200);}
+document.addEventListener('visibilitychange',()=>{if(document.hidden&&saveTimer){clearTimeout(saveTimer);saveTimer=0;serverSave();}});
 
 /* ---- 플레이어 외형 ---- */
 const playerLook={mj:M(0xF26B1D),mjd:M(0xB84A10),mv:M(0xC8FF2E),mh:M(0xF5C400),hats:null};
@@ -16181,7 +16214,7 @@ function refreshIntro(){
   const p=career.profile;
   if(!p){whoEl.innerHTML='';tierRow.innerHTML='';return;}
   const t=TIERS[career.tier];
-  whoEl.innerHTML='<b>'+esc(p.name)+'</b><span>'+p.money.toLocaleString()+'원</span><span>'+(career.tier+1)+'단계 '+t.name+'</span><em>이번 상대 · '+t.riders.map(x=>x.name).join(' · ')+'</em>';
+  whoEl.innerHTML='<b>'+esc(p.name)+'</b><span>'+p.money.toLocaleString()+'원</span><span>'+(career.tier+1)+'단계 '+t.name+'</span>'+(career.online?'':'<span class="off">이 기기 저장</span>')+'<em>이번 상대 · '+t.riders.map(x=>x.name).join(' · ')+'</em>';
   tierRow.innerHTML='';
   TIERS.forEach((tt,i)=>{
     const b=document.createElement('button');b.type='button';b.textContent=(i+1)+'. '+tt.name;
@@ -16194,17 +16227,35 @@ function esc(t){return String(t).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",
 
 /* ---- 로그인 ---- */
 const loginEl=document.getElementById('login'),loginName=document.getElementById('loginName'),loginBtn=document.getElementById('loginBtn'),recentEl=document.getElementById('recentNames');
+const loginPin=document.getElementById('loginPin'),loginMsg=document.getElementById('loginMsg');
 function openLogin(){
-  loginEl.classList.remove('hide');
-  loginName.value=career.store.last||'';
+  loginEl.classList.remove('hide');loginMsg.textContent='';loginBtn.disabled=false;
+  loginName.value=career.store.last||'';loginPin.value=career.store.pins[loginName.value]||'';
   const names=Object.keys(career.store.list).sort((a,b)=>(career.store.list[b].races||0)-(career.store.list[a].races||0)).slice(0,8);
   recentEl.innerHTML='';
-  for(const n of names){const c=document.createElement('button');c.type='button';c.className='chip';const pr=career.store.list[n];c.textContent=n+' · '+(pr.money||0).toLocaleString()+'원';c.addEventListener('click',e=>{e.stopPropagation();doLogin(n);});recentEl.appendChild(c);}
-  setTimeout(()=>{try{loginName.focus();}catch(e){}},50);
+  for(const n of names){const c=document.createElement('button');c.type='button';c.className='chip';const pr=career.store.list[n];c.textContent=n+' · '+(pr.money||0).toLocaleString()+'원';c.addEventListener('click',e=>{e.stopPropagation();loginName.value=n;loginPin.value=career.store.pins[n]||'';doLogin(n,loginPin.value);});recentEl.appendChild(c);}
+  setTimeout(()=>{try{(loginName.value?loginPin:loginName).focus();}catch(e){}},50);
 }
-function doLogin(name){if(login(name)){loginEl.classList.add('hide');}else{loginName.focus();}}
-loginBtn.addEventListener('click',e=>{e.stopPropagation();doLogin(loginName.value);});
-loginName.addEventListener('keydown',e=>{e.stopPropagation();if(e.key==='Enter')doLogin(loginName.value);});
+function doLogin(name,pin){
+  name=String(name||'').trim().slice(0,12);pin=String(pin||'').trim();
+  if(!name){loginName.focus();return;}
+  if(!pinOk(pin)){loginMsg.textContent='비밀번호는 숫자 4자리입니다';loginPin.focus();return;}
+  loginBtn.disabled=true;loginMsg.textContent='확인 중…';
+  serverLoad(name,pin,d=>{
+    loginBtn.disabled=false;
+    if(d&&d.ok&&d.profile){career.pin=pin;career.online=true;login(name,d.profile);loginMsg.textContent='';loginEl.classList.add('hide');return;}
+    if(d&&d.ok===false&&d.reason==='pin'){career.online=true;loginMsg.textContent='비밀번호가 다릅니다';loginPin.focus();return;}
+    if(d&&d.ok===false&&d.reason==='none'){
+      // 서버에 없는 이름: 이 기기 기록이 있으면 그걸 올리고, 없으면 새로 만든다
+      career.pin=pin;career.online=true;login(name);serverSave();loginMsg.textContent='';loginEl.classList.add('hide');return;
+    }
+    // 서버 응답 없음: 이 기기 저장으로 진행
+    career.pin=pin;career.online=false;login(name);loginEl.classList.add('hide');
+  });
+}
+loginBtn.addEventListener('click',e=>{e.stopPropagation();doLogin(loginName.value,loginPin.value);});
+loginName.addEventListener('keydown',e=>{e.stopPropagation();if(e.key==='Enter')loginPin.focus();});
+loginPin.addEventListener('keydown',e=>{e.stopPropagation();if(e.key==='Enter')doLogin(loginName.value,loginPin.value);});
 loginEl.addEventListener('touchstart',e=>e.stopPropagation(),{passive:true});
 loginEl.addEventListener('mousedown',e=>e.stopPropagation());
 document.getElementById('switchBtn').addEventListener('click',e=>{e.stopPropagation();openLogin();});
@@ -16275,7 +16326,17 @@ document.getElementById('toIntro').addEventListener('click',e=>{e.stopPropagatio
 for(const el of[shopEl]){el.addEventListener('touchstart',e=>e.stopPropagation(),{passive:true});el.addEventListener('mousedown',e=>e.stopPropagation());}
 window.__race.career=career;window.__race.TIERS=TIERS;
 loadStore();
-if(career.store.last&&career.store.list[career.store.last])login(career.store.last);else openLogin();
+{
+  const last=career.store.last,pin=last?career.store.pins[last]:'';
+  if(last&&career.store.list[last]){
+    career.pin=pin||'';login(last);
+    if(pinOk(pin))serverLoad(last,pin,d=>{
+      if(d&&d.ok&&d.profile){career.online=true;if(!running&&!(career.profile&&career.profile.name!==last)){login(last,d.profile);}}
+      else if(d&&d.ok===false&&d.reason==='none'){career.online=true;serverSave();refreshIntro();}
+      else if(d&&d.ok===false&&d.reason==='pin'){career.profile=null;refreshIntro();openLogin();loginMsg.textContent='비밀번호가 다릅니다';}
+    });
+  }else openLogin();
+}
 if(!career.profile)refreshIntro();
 
 /* ==================================================================
