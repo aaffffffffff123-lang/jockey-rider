@@ -15332,6 +15332,33 @@ const playerLook={mj:M(0xF26B1D),mjd:M(0xB84A10),mv:M(0xC8FF2E),mh:M(0xF5C400),c
   });
   try{for(const m of[playerLook.mj,playerLook.mjd,playerLook.mv,playerLook.mh,mHair,mConeHatO,mConeHatW])world3D.patchMaterial(m);}catch(e){}
 }
+/* 설비실 부품 등급 표시 (4인 경주와 같은 것): 핸들 = 틸러 전체, 프레임 = 진한 색 부품 — 철·은·금·플래티넘 광택 */
+const GRADES=[
+  {n:'기본',color:0x3B3F45,metal:.55,rough:.62},
+  {n:'철',color:0x8C939B,metal:.85,rough:.48},
+  {n:'은',color:0xE6E9ED,metal:1,rough:.20},
+  {n:'금',color:0xF5C64A,metal:1,rough:.22},
+  {n:'플래티넘',color:0xEEF2F8,metal:1,rough:.07},
+  {n:'플래티넘 광택',color:0xF6F8FC,metal:1,rough:.03,emissive:0x1C2230,intensity:1.5}
+];
+function makeGradeMat(lv,env,boost){
+  const g=GRADES[Math.max(0,Math.min(5,lv|0))];
+  const m=new THREE.MeshStandardMaterial({color:new THREE.Color(g.color).convertSRGBToLinear(),metalness:g.metal,roughness:g.rough,envMap:env,envMapIntensity:(g.intensity||1)*(boost||1)});
+  if(g.emissive)m.emissive=new THREE.Color(g.emissive).convertSRGBToLinear();
+  return m;
+}
+const GRADE_MAIN=[];
+function gradeMain(lv){lv=lv|0;if(lv<=0)return null;if(!GRADE_MAIN[lv]){const m=makeGradeMat(lv,mainEnv,.85);try{world3D.patchMaterial(m);}catch(e){}GRADE_MAIN[lv]=m;}return GRADE_MAIN[lv];}
+function markGradeMeshes(tillerNode,jackNode,darkMat){
+  tillerNode.traverse(o=>{if(o.isMesh&&o.material===darkMat)o.userData.gradeH=1;});
+  for(const o of jackNode.children)if(o.isMesh&&o.material===darkMat)o.userData.gradeF=1;
+}
+function applyGrades(root,darkMat,up,matOf){
+  const hm=(up.handle>0?matOf(up.handle):null)||darkMat,fm=(up.frame>0?matOf(up.frame):null)||darkMat;
+  root.traverse(o=>{if(!o.isMesh)return;if(o.userData.gradeH)o.material=hm;else if(o.userData.gradeF)o.material=fm;});
+}
+function applyPlayerGrades(){applyGrades(rider,playerLook.mjd,P.up||UP0,gradeMain);}
+markGradeMeshes(tiller,jack,playerLook.mjd);
 function dressPlayer(){
   const p=career.profile,cos=p?p.cos:{vest:'lime',jack:'orange',hat:'helm'};
   const v=COS.vest.find(x=>x.id===cos.vest)||COS.vest[0],j=COS.jack.find(x=>x.id===cos.jack)||COS.jack[0];
@@ -15341,6 +15368,8 @@ function dressPlayer(){
   try{if(!playerLook.bctx)playerLook.bctx=makeBodyCtx(body,vest,stripe1,stripe2);applyVest(playerLook.bctx,cos.vestStyle||'plain');}catch(e){}
   try{if(!playerLook.pctx){playerLook.pctx=makeJackCtx(jack,()=>stackH);partCtxs.push(playerLook.pctx);}applyParts(playerLook.pctx,cos.parts||[]);}catch(e){}
   try{if(!playerLook.vrig)playerLook.vrig={jack:jack,tiller:tiller,veh:{}};setVehicle(playerLook.vrig,cos.veh||'jack');}catch(e){}
+  P.up=p?p.parts:UP0;
+  try{applyPlayerGrades();}catch(e){}
 }
 
 /* ---- 로그인 ---- */

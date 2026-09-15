@@ -336,6 +336,12 @@ body.arena.game-on #arenaHud{display:flex}
   #sound{bottom:calc(14px + env(safe-area-inset-bottom))}
   #pause{bottom:calc(66px + env(safe-area-inset-bottom));display:none;font-size:17px}
   body.game-on #pause{display:flex}
+  /* 콜로세움 발 구르기 버튼 (오른쪽 아래, 경기 중에만) */
+  #arKick{position:fixed;right:calc(18px + env(safe-area-inset-right));bottom:calc(122px + env(safe-area-inset-bottom));width:92px;height:92px;margin:0;padding:0;border:0;border-radius:50%;
+    background:linear-gradient(180deg,#FFE37A,#F5C400);color:#2A2118;font:inherit;font-size:15px;font-weight:900;line-height:1.15;display:none;align-items:center;justify-content:center;text-align:center;
+    box-shadow:0 8px 22px rgba(59,42,28,.35),inset 0 -5px 0 rgba(59,42,28,.22);z-index:26;pointer-events:auto;cursor:pointer;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent}
+  body.arena.game-on #arKick{display:flex}
+  #arKick:active{transform:scale(.94);box-shadow:0 4px 12px rgba(59,42,28,.3),inset 0 -2px 0 rgba(59,42,28,.22)}
   #pause.paused{background:#2f3d38;color:#fff3c7;box-shadow:0 0 0 2px rgba(255,243,199,.25),0 6px 18px rgba(0,0,0,.28)}
 
   @media (max-width:420px){ .spd{font-size:46px} .title{font-size:44px} .tip,.pow{width:130px} }
@@ -450,6 +456,7 @@ body.arena.game-on #arenaHud{display:flex}
   .shopFoot{display:flex;gap:8px;margin-top:12px}
   .shopFoot button{margin:0;flex:1;width:auto;padding:13px}
   .shopFoot .soft{flex:0 0 auto;width:auto;padding:13px 14px;background:rgba(255,250,242,.9);color:var(--ink);box-shadow:inset 0 0 0 1px var(--line)}
+  .pnote .softBtn{display:inline-block;width:auto;margin:4px 6px 0 0;padding:8px 12px;font-size:12.5px;background:rgba(255,250,242,.95);color:var(--ink);box-shadow:inset 0 0 0 1px var(--line);border-radius:10px}
   .sheet.boardonly #toShop,.sheet.boardonly #toIntro{display:none}
   .overBtns{display:flex;gap:8px;margin-top:20px}
   .overBtns button{margin:0;width:auto;flex:1;padding:15px 6px;font-size:16px}
@@ -488,6 +495,7 @@ body.arena.game-on #arenaHud{display:flex}
 <div id="rtrack"></div>
 <div id="count"></div>
 <button id="pause" type="button" aria-label="일시정지">Ⅱ</button>
+<button id="arKick" type="button">발<br>구르기</button>
 <div id="sound">♪</div>
 
 
@@ -10809,6 +10817,36 @@ function buildIndoorSeg(seed){
   const lm=new THREE.Mesh(lamps.geo(),new THREE.MeshBasicMaterial({vertexColors:true,color:0xfff3cf}));
   const g=new THREE.Group();g.add(m);g.add(lm);g.visible=false;scene.add(g);return g;
 }
+// 통로 끝까지 한눈에: 3km 전체를 낮은 디테일로 한 번 지어 두고, 실내 구간에서만 안개를 멀리 밀어 끝의 출구가 점처럼 보이게 한다
+let farHall=null,farHallCamFar=0;
+function buildFarHall(){
+  const a=ZN_INDOOR.a-60,b=ZN_INDOOR.b+40,len=b-a,mid=(a+b)/2,kit=new CarKit();
+  kit.box(0,-.05,mid,44,.08,len,0x8b8f94);                                   // 바닥
+  kit.box(0,8.35,mid,44,.4,len,0x6b6f74);                                    // 천장
+  for(let z=a+10;z<b;z+=20)kit.box(0,7.9,z,44,.35,.35,0x556069);             // 천장 보
+  for(const s of[-1,1]){
+    const x0=s*(IN_HALF+.03),x1=s*(IN_HALF+2.63),xm=(x0+x1)/2;
+    for(let z=a;z<=b;z+=2.75){kit.box(x0,3.2,z,.12,6.4,.12,0x3f5f80);kit.box(x1,3.2,z,.12,6.4,.12,0x3f5f80);}
+    for(const y of[1.55,3.1,4.65]){kit.box(x0,y,mid,.14,.16,len,0xf08a3a);kit.box(x1,y,mid,.14,.16,len,0xf08a3a);kit.box(xm,y+.65,mid,2.2,.95,len,0xb9945f);}
+    kit.box(s*(IN_HALF+3.33),4.2,mid,.3,8.4,len,0x8f959b);                   // 뒷벽
+  }
+  kit.box(0,4.2,b,44,8.4,.4,0x7b8087);                                       // 끝 벽
+  const m=new THREE.Mesh(kit.geo(),warehousePropMaterial);m.frustumCulled=false;
+  const lamps=new CarKit();for(let z=a+7.5;z<b;z+=15)for(const x of[-6,6])lamps.box(x,7.73,z,1.6,.2,.4,0xffffff);
+  lamps.box(0,4,b-.3,12,7.6,.2,0xffffff);                                     // 끝의 출구 (밝은 문)
+  const lm=new THREE.Mesh(lamps.geo(),new THREE.MeshBasicMaterial({vertexColors:true,color:0xfff3cf}));lm.frustumCulled=false;
+  const g=new THREE.Group();g.add(m);g.add(lm);g.visible=false;scene.add(g);return g;
+}
+function zoneView(){
+  if(zoneKind(P.z)===1){
+    scene.fog.near=300;scene.fog.far=4200;
+    if(!farHallCamFar){farHallCamFar=camera.far;camera.far=4400;camera.updateProjectionMatrix();}
+    if(!farHall)farHall=buildFarHall();farHall.visible=true;
+  }else{
+    if(farHallCamFar){camera.far=farHallCamFar;farHallCamFar=0;camera.updateProjectionMatrix();}
+    if(farHall)farHall.visible=false;
+  }
+}
 let indoorSeq=0;
 function zoneFill(c,z0){
   const k=zoneKind(z0+CH_LEN*.5);
@@ -13089,6 +13127,7 @@ function frame(now){
   if(running&&!story.ending)updateHud(dt,(worldInspectPaused||gamePaused)?0:sp);
   audioUpdate(running&&!gamePaused?sp:0,dt);
   world3D.update(animDt,sp);
+  zoneView();
   renderer.clear();
   world3D.renderSky(renderer,camera);
   renderer.clearDepth();
@@ -16541,6 +16580,8 @@ function renderShop(){
         +(max?'<b class="max">최고</b>':'<button type="button" data-part="'+k+'" '+(p.money<cost?'disabled':'')+'>'+cost.toLocaleString()+'원</button>')+'</div>';
     }
     html+='<div class="pnote">상대도 같은 부품을 쓴다. '+TIERS[career.tier].name+'은 바퀴 '+TIERS[career.tier].up.wheel+' · 프레임 '+TIERS[career.tier].up.frame+' · 핸들 '+TIERS[career.tier].up.handle+' · 포크 '+TIERS[career.tier].up.fork+' · 본편에서도 그대로 적용</div>';
+    const spent=partsSpent(p);
+    if(spent>0)html+='<div class="pnote"><button type="button" class="softBtn" data-preset="1">부품 전부 초기화 · '+Math.floor(spent*PART_REFUND).toLocaleString()+'원 환불</button> <span>쓴 돈 '+spent.toLocaleString()+'원의 '+Math.round(PART_REFUND*100)+'%</span></div>';
   }else if(shopTab==='jack'){
     html+=TRY_NOTE+'<div class="cgrid">'+COS.jack.map(c=>cell('jack',c)).join('')+'</div>';
   }else if(shopTab==='vest'){
@@ -16556,6 +16597,8 @@ function renderShop(){
   shopBody.innerHTML=html;
   try{pvRefresh();thumbFill();}catch(e){console.warn('showcase',e);}
 }
+const PART_REFUND=.8;                                                            // 부품 초기화 환불 비율
+function partsSpent(p){let t=0;for(const k of PART_KEYS){const lv=p.parts[k]|0;for(let i=0;i<lv;i++)t+=PART_COST[i];}return t;}
 shopTabs.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;e.stopPropagation();shopTab=b.dataset.t;tryOn=null;renderShop();});
 shopBody.addEventListener('click',e=>{
   const row=e.target.closest('.prow');
@@ -16568,7 +16611,8 @@ shopBody.addEventListener('click',e=>{
   }
   e.stopPropagation();if(row&&row.dataset.sel)shopPart=row.dataset.sel;
   const p=career.profile;
-  if(b.dataset.part){const k=b.dataset.part,lv=p.parts[k];if(lv>=5)return;const cost=PART_COST[lv];if(p.money<cost)return;p.money-=cost;p.parts[k]=lv+1;SFX.pallet(lv+1);}
+  if(b.dataset.preset){const spent=partsSpent(p);if(spent<=0)return;const back=Math.floor(spent*PART_REFUND);if(!confirm('부품 강화를 전부 0으로 되돌리고 '+back.toLocaleString()+'원을 돌려받습니다. 진행할까요?'))return;p.money+=back;p.parts={wheel:0,frame:0,handle:0,fork:0};SFX.clean();}
+  else if(b.dataset.part){const k=b.dataset.part,lv=p.parts[k];if(lv>=5)return;const cost=PART_COST[lv];if(p.money<cost)return;p.money-=cost;p.parts[k]=lv+1;SFX.pallet(lv+1);}
   else if(b.dataset.buy){const kind=b.dataset.buy,c=itemOf(kind,b.dataset.id);if(!c||p.money<c.cost)return;p.money-=c.cost;(p.cos.owned[kind]=p.cos.owned[kind]||[]).push(c.id);if(kind==='parts'){if(p.cos.parts.length<3)p.cos.parts.push(c.id);}else p.cos[kind]=c.id;SFX.baton();}
   else if(b.dataset.gear){const id=b.dataset.id;if(b.dataset.gear==='on'){if(p.cos.parts.length<3&&!p.cos.parts.includes(id))p.cos.parts.push(id);}else p.cos.parts=p.cos.parts.filter(x=>x!==id);SFX.clean();}
   else if(b.dataset.cos){p.cos[b.dataset.cos]=b.dataset.id;SFX.clean();}
@@ -17193,21 +17237,21 @@ SFX.honk=function(){if(!this.ok())return;const t=now();tone(t,"sawtooth",392,388
 /* ==================================================================
    V. 탈것 — 전동자키 (센터장). 손자키의 펌프 자리에 배터리 하우징과 조작 헤드가 붙는다
    ================================================================== */
-const EJ={housing:M(0x1E1E22),panel:M(0x2C2C31),trim:M(0xE0B43C),grip:M(0x2A2726),knob:M(0xF0662C),wheel:M(0x33302E),
+const EJ={housing:M(0xF5C400),panel:M(0xD9A800),trim:M(0x2A2118),grip:M(0x2A2726),knob:M(0xF0662C),wheel:M(0x33302E),body:M(0xF5C400),bodyDark:M(0xB88C00),
   disp:new THREE.MeshLambertMaterial({color:new THREE.Color(0x66FF88).convertSRGBToLinear(),emissive:new THREE.Color(0x2FCC55).convertSRGBToLinear()})};
 try{for(const k in EJ)world3D.patchMaterial(EJ[k]);}catch(e){}
 function makeEJackParts(){
   const g=new THREE.Group();
   g.add(hb(EJ.housing,.62,.78,.58,0,.50,.62));                 // 배터리·모터 하우징
   g.add(hb(EJ.panel,.64,.06,.60,0,.90,.62));                   // 상판
-  g.add(hb(EJ.trim,.64,.04,.60,0,.32,.62));                    // 금색 띠
+  g.add(hb(EJ.trim,.64,.04,.60,0,.32,.62));                    // 검은 띠
   g.add(hb(EJ.trim,.10,.40,.02,.20,.55,.33));g.add(hb(EJ.trim,.10,.40,.02,-.20,.55,.33));
   g.add(hb(EJ.disp,.20,.09,.012,0,.72,.328));                  // 계기 디스플레이 (뒤쪽, 운전자 쪽)
   g.add(hb(EJ.panel,.46,.10,.30,0,.98,.60));                   // 조작 헤드 받침
-  const t=hc(EJ.housing,.035,.44,0,1.09,.50,-.55,0,0,10);g.add(t); // 조작 틸러 (운전자 쪽으로 기울어짐)
-  g.add(hb(EJ.grip,.48,.065,.065,0,1.27,.40));                 // 손잡이 가로대
-  g.add(hb(EJ.knob,.05,.05,.07,.10,1.31,.40));g.add(hb(EJ.knob,.05,.05,.07,-.10,1.31,.40));   // 엄지 스로틀
-  g.add(hb(EJ.trim,.14,.03,.03,0,1.27,.44));
+  const t=hc(EJ.grip,.035,.44,0,1.08,.50,.45,0,0,10);g.add(t);    // 조작 틸러 (검정 · 앞으로 꺾임)
+  g.add(hb(EJ.grip,.48,.065,.065,0,1.27,.60));                 // 손잡이 가로대
+  g.add(hb(EJ.knob,.05,.05,.07,.10,1.31,.60));g.add(hb(EJ.knob,.05,.05,.07,-.10,1.31,.60));   // 엄지 스로틀
+  g.add(hb(EJ.trim,.14,.03,.03,0,1.27,.64));
   const dw=hc(EJ.wheel,.17,.13,0,.17,.62,0,0,Math.PI/2,18);g.add(dw);                            // 구동 바퀴
   for(const s of[-1,1])g.add(hc(EJ.wheel,.07,.06,s*.26,.08,.86,0,0,Math.PI/2,12));               // 캐스터
   return g;
@@ -17236,7 +17280,8 @@ function motorStep(R,dt){
 
 /* ---- 플레이어가 고르는 탈것 (손자키 자리에 통째로 바꿔 탄다 · 물리는 전부 같다) ---- */
 const VH={frame:M(0x8A8F96),frameDark:M(0x5B6168),blue:M(0x2C6BD1),red:M(0xC94B31),wheel:M(0x2E2B2A),hub:M(0x9A9187),
-  wood:M(0xB8935C),seat:M(0x2A2118),fabric:M(0x3E4A5C),wire:M(0xB4B8BE),deck:M(0x14120F),green:M(0x2F7A3C),plastic:M(0xE8E4DC)};
+  wood:M(0xB8935C),seat:M(0x2A2118),fabric:M(0x3E4A5C),wire:M(0xB4B8BE),deck:M(0x14120F),green:M(0x2F7A3C),plastic:M(0xE8E4DC),
+  pp:M(0x3CB54A),ppDark:M(0x2C8F3A),alu:M(0xC9CDD2)};
 try{for(const k in VH)world3D.patchMaterial(VH[k]);}catch(e){}
 const vb=(m,w,h,d,x,y,z,rx,ry,rz)=>{const b=new THREE.Mesh(boxG,m);b.scale.set(w,h,d);b.position.set(x,y,z);b.rotation.set(rx||0,ry||0,rz||0);return b;};
 const vc=(m,r,h,x,y,z,rx,ry,rz,seg)=>{const c=new THREE.Mesh(new THREE.CylinderGeometry(r,r,h,seg||14),m);c.position.set(x,y,z);c.rotation.set(rx||0,ry||0,rz||0);return c;};
@@ -17245,10 +17290,16 @@ function casters(g,x,z,r){for(const s of[-1,1])for(const f of[-1,1]){g.add(vc(VH
 const VEHICLES=[
   {id:'jack',n:'손자키',cost:0},
   {id:'ejack',n:'전동자키',cost:6000},
-  {id:'acart',n:'A형 카트',cost:1500,build:g=>{
-    g.add(vb(VH.frame,.64,.04,1.02,0,.17,-.35));casters(g,.27,.42,.06);
-    for(const s of[-1,1]){g.add(vbar(VH.frame,s*.31,.19,-.86,0,1.10,-.72,.02));g.add(vbar(VH.frame,s*.31,.19,.16,s*.31,.62,-.20,.02));}
-    g.add(vb(VH.frame,.44,.03,.03,0,.62,-.62));g.add(vb(VH.frame,.24,.035,.035,0,1.10,-.72));g.add(vb(VH.red,.06,.03,.10,0,1.12,-.72));}},
+  {id:'acart',n:'2단 대차',cost:1500,build:g=>{
+    const G=VH.pp,Gd=VH.ppDark,AL=VH.alu;
+    g.add(vb(G,.66,.05,1.02,0,.165,-.35));                                     // 아래 선반 (발 딛는 곳)
+    for(const s of[-1,1]){g.add(vb(Gd,.03,.04,1.02,s*.315,.20,-.35));}g.add(vb(Gd,.66,.04,.03,0,.20,.15));g.add(vb(Gd,.66,.04,.03,0,.20,-.85));   // 테두리
+    g.add(vb(G,.66,.04,.34,0,.80,-.69));g.add(vb(G,.66,.04,.28,0,.80,.02));   // 위 선반 — 가운데는 사람이 서는 자리라 비워 둔다
+    for(const s of[-1,1])for(const z of[-.83,.13]){g.add(vc(AL,.015,.62,s*.30,.50,z,0,0,0,10));g.add(vc(AL,.03,.03,s*.30,.815,z,0,0,0,10));}   // 알루미늄 기둥 4개 + 캡
+    for(const s of[-1,1]){g.add(vbar(AL,s*.30,.82,.13,s*.30,1.02,.24,.015));g.add(vbar(AL,s*.30,1.02,.24,s*.30,1.10,.30,.015));}             // 손잡이 기둥 (앞으로 굽음)
+    g.add(vc(AL,.015,.60,0,1.10,.30,0,0,Math.PI/2,10));for(const s of[-1,1])g.add(vc(VH.seat,.02,.16,s*.21,1.10,.30,0,0,Math.PI/2,10));      // 가로 손잡이 + 검은 그립
+    for(const s of[-1,1])for(const z of[-.72,.02]){g.add(vc(VH.red,.065,.035,s*.24,.065,z,0,0,Math.PI/2,14));g.add(vc(AL,.028,.045,s*.24,.065,z,0,0,Math.PI/2,10));g.add(vb(AL,.03,.07,.05,s*.24,.10,z));}   // 빨간 우레탄 캐스터
+  }},
   {id:'lcart',n:'L형 카트',cost:1200,build:g=>{
     g.add(vb(VH.frame,.64,.04,1.02,0,.17,-.35));casters(g,.27,.42,.06);
     for(const s of[-1,1])g.add(vc(VH.frame,.018,.86,s*.29,.60,.14,0,0,0,8));
@@ -17294,6 +17345,11 @@ function jackBaseMeshes(jackNode){return jackNode.children.filter(o=>o.isMesh);}
     if(!rig.veh)rig.veh={};
     if(!rig.baseMeshes)rig.baseMeshes=jackBaseMeshes(rig.jack);
     sv0(rig,veh==='ejack'?'ejack':'jack');            // 손자키 부품·틸러 표시는 기존 규칙대로
+    // 전동자키는 포크·몸통까지 노랑 (도색과 무관), 내리면 원래 재질로
+    for(const m of rig.baseMeshes){
+      if(veh==='ejack'){if(m.userData.paintA){if(m.material!==EJ.body)m.userData.prevMat=m.material;m.material=EJ.body;}else if(m.userData.paintB){if(m.material!==EJ.bodyDark)m.userData.prevMat=m.material;m.material=EJ.bodyDark;}}
+      else if((m.material===EJ.body||m.material===EJ.bodyDark)&&m.userData.prevMat)m.material=m.userData.prevMat;
+    }
     const custom=veh!=='jack'&&veh!=='ejack';
     for(const m of rig.baseMeshes)m.visible=!custom;
     if(custom)rig.tiller.visible=false;
@@ -17527,13 +17583,16 @@ function arenaPhysics(R,dt,hdgT,kick){
   if(R.spin>0)R.spin=Math.max(0,R.spin-dt*1.2);
   let steerVis=0;
   if(hdgT!=null&&R.spin<=0){
-    const d=arWrap(hdgT-R.hdg),want=clamp(d*1.6,-1,1);
-    const rate=(2.3-1.0*clamp(sp/AR_MAXV,0,1))*upSteer(R)/(1+R.pallets*0.03*upFork(R));
-    const turn=want*rate*dt;R.hdg=arWrap(R.hdg+turn);steerVis=want;
-    if(sp>1.2){R.vx=sp*Math.sin(R.hdg);R.vz=sp*Math.cos(R.hdg);const scrub=Math.abs(want)*sp*.22*dt;const f=Math.max(0,1-scrub/Math.max(sp,.01));R.vx*=f;R.vz*=f;}
-    // 전복: 빠를 때 세게 꺾으면 찬다 (높이 쌓을수록 잘 넘어짐)
-    const risk=Math.abs(want)*clamp((sp-7)/10,0,1)*(1+R.pallets*.07*upFork(R));
-    if(risk>.25)R.tipMeter=Math.min(1,R.tipMeter+dt*risk*.75*upTip(R));else R.tipMeter=Math.max(0,R.tipMeter-dt*1.1);
+    // 스틱이 가리키는 화면 방향으로 바로 돈다 (조향이 아니라 방향 지정)
+    const d=arWrap(hdgT-R.hdg),want=clamp(d*2.2,-1,1);
+    const rate=(7.0-2.5*clamp(sp/AR_MAXV,0,1))*upSteer(R)/(1+R.pallets*0.02*upFork(R));
+    const turn=clamp(d,-rate*dt,rate*dt);R.hdg=arWrap(R.hdg+turn);steerVis=want;
+    if(sp>.6){const k=1-Math.exp(-9*dt);R.vx=lerp(R.vx,sp*Math.sin(R.hdg),k);R.vz=lerp(R.vz,sp*Math.cos(R.hdg),k);const scrub=Math.abs(turn)*sp*.05;const f=Math.max(0,1-scrub/Math.max(sp,.01));R.vx*=f;R.vz*=f;}
+    // 스틱을 밀고 있으면 천천히 굴러간다 (발 구르기는 그 위에 얹는 가속)
+    const cruise=5.5;if(sp<cruise){const a=2.4*dt;R.vx+=Math.sin(R.hdg)*a;R.vz+=Math.cos(R.hdg)*a;}
+    // 전복: 빠를 때 확 되돌리면 찬다 (높이 쌓을수록 잘 넘어짐)
+    const risk=Math.abs(d)/Math.PI*clamp((sp-10)/7,0,1)*(1+R.pallets*.05*upFork(R));
+    if(risk>.3)R.tipMeter=Math.min(1,R.tipMeter+dt*risk*.9*upTip(R));else R.tipMeter=Math.max(0,R.tipMeter-dt*1.1);
     if(R.tipMeter>=1&&R.inv<=0){riderCrash(R,true);const s2=Math.hypot(R.vx,R.vz)*.5;R.vx=Math.sin(R.hdg)*s2;R.vz=Math.cos(R.hdg)*s2;}
   }else R.tipMeter=Math.max(0,R.tipMeter-dt*1.1);
   R.steer=lerp(R.steer,steerVis,clamp(7*dt,0,1));R.crouch=lerp(R.crouch,0,clamp(12*dt,0,1));
@@ -17641,7 +17700,7 @@ function arenaAi(R,dt){
   if(Math.random()<D.mistake*.5*dt)A.blind=.3+Math.random()*.5;
 }
 /* --- 한 프레임 --- */
-let arKickReq=false;
+let arKickReq=false,arSpaceHeld=false;
 function arenaStep(dt){
   AR.t+=dt;AR.wave+=dt;AR.cheer=Math.max(0,AR.cheer-dt*.6);
   // 플레이어 입력: 스틱 벡터 → 화면 기준 방향, 탭 → 발 구르기
@@ -17649,8 +17708,9 @@ function arenaStep(dt){
   if(window.__race&&window.__race.auto){if(!P.ai)P.ai={pers:'speed',tDec:0,blind:0,over:0,kickT:.5,target:null};arenaAi(P,dt);}
   else{
     const sx1=P.stickX||0,sy1=P.stickY||0,kx=(keys.ArrowRight||keys.KeyD?1:0)-(keys.ArrowLeft||keys.KeyA?1:0),kz=(keys.ArrowUp||keys.KeyW?1:0)-(keys.ArrowDown||keys.KeyS?1:0);
-    if(Math.hypot(sx1,sy1)>.22)hdgT=Math.atan2(sx1,-sy1);
+    if(Math.hypot(sx1,sy1)>.18)hdgT=Math.atan2(sx1,-sy1);
     else if(kx||kz)hdgT=Math.atan2(kx,kz);
+    if(keys.Space){if(!arSpaceHeld){arKickReq=true;arSpaceHeld=true;}}else arSpaceHeld=false;   // 스페이스는 누르는 순간
     arenaPhysics(P,dt,hdgT,arKickReq);arKickReq=false;
   }
   for(const R of AI){if(!R.alive)continue;arenaAi(R,dt);if(R.power>0)R.power=Math.max(0,R.power-dt);}
@@ -17712,13 +17772,17 @@ function arenaOver(){
   camYaw=0;camX=P.x;
 };}
 // 발 구르기 요청 (탭·스페이스)
-{const rk0=riderKick;riderKick=function(R){if(AR.on){if(R===P&&(race.phase!=='go'||race.lock))return;if(R===P)arKickReq=true;return;}rk0(R);};}
+{const rk0=riderKick;riderKick=function(R){if(AR.on)return;rk0(R);};}      // 콜로세움에선 스틱 탭이 발 구르기가 아니다
+// 발 구르기 버튼: 누르는 순간 (스틱 손가락과 따로 쓴다)
+{const kb=document.getElementById('arKick');const hit=e=>{e.preventDefault();e.stopPropagation();if(AR.on&&race.phase==='go'&&!race.lock)arKickReq=true;};
+ kb.addEventListener('touchstart',hit,{passive:false});kb.addEventListener('mousedown',hit);
+ kb.addEventListener('touchend',e=>{e.preventDefault();e.stopPropagation();},{passive:false});kb.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();});}
 
 const TRACKS=[
   {id:'dock3', name:'도크 탈출',    a:0,   b:3000,note:'도크 → 터널 · 나선 램프 → 직선 고속도로 → 컨테이너 묘지 입구'},
   {id:'grave', name:'컨테이너 묘지',a:3000,b:6200,note:'묘지 → 빗속 논밭 둑길 → 강 다리 → 시내'},
   {id:'lake3', name:'검은 수면',    a:6200,b:9200,note:'고가도로 → 산악 터널 → 밤 호숫가 → 좌초선 · 유실 화물지대'},
-  {id:'long',  name:'롱 레이스',    a:0,   b:6200,note:'도크에서 강 다리까지 · 상대 없이 혼자 달린다',solo:true},
+  {id:'long',  name:'롱 레이스',    a:0,   b:6200,note:'도크에서 강 다리까지 한 번에 · 사다리 상대와 6.2km'},
   {id:'indoor',name:'물류센터 종단',a:30000,b:33000,note:'실내 평지 · 내리막 없이 발 구르기만 · 파렛트만 있음'},
   {id:'scurve',name:'S커브 고속도로',a:36000,b:39400,note:'폐허 고속도로 S자 · 굽이마다 버려진 차 · 낮에서 노을로'},
   {id:'arena', name:'파렛트 콜로세움',a:42000,b:42000,note:'랙 링 안에서 파렛트 뺏기 · 끝날 때 최다 보유자 승리 · 최대 20장',arena:true}
