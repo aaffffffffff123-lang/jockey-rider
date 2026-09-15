@@ -310,6 +310,9 @@ The original copyright header is also retained in the embedded script.
   .loginRow #loginPin{flex:0 0 96px}
   .recent{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
   .chip{pointer-events:auto;width:auto;margin:0;padding:8px 12px;font-size:13px;border-radius:999px;background:rgba(255,255,255,.75);color:var(--ink);box-shadow:inset 0 0 0 1px var(--line)}
+  .raceBig{display:block;width:max-content;margin:10px auto 0;padding:13px 38px;text-decoration:none;background:#2A2118;color:#FFE37A;box-shadow:0 8px 22px rgba(59,42,28,.35),inset 0 -4px 0 rgba(0,0,0,.35);position:relative;pointer-events:auto}
+  .raceBig::before{content:"";position:absolute;left:0;right:0;top:0;height:5px;background:repeating-linear-gradient(135deg,#F5C400 0 8px,#2A2118 8px 16px)}
+  @media (max-width:640px){ .pkeys{bottom:calc(272px + env(safe-area-inset-bottom))} }   /* 4인 경주 버튼만큼 조작 안내를 위로 */
 </style>
 </head>
 <body>
@@ -348,6 +351,7 @@ The original copyright header is also retained in the embedded script.
 
   <div class="heroBottom">
     <button id="go" class="startBtn" type="button" disabled>장면 준비 중…</button>
+    <a class="startBtn raceBig" href="race.html">4인 경주</a>
     <div class="startHint">터치 · 클릭 · Enter · Space</div>
     <button id="rankBtn" class="rankBtn" type="button">랭킹 보기</button>
     <button id="switchBtn" class="rankBtn" type="button" style="margin-left:6px">이름 변경</button>
