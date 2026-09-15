@@ -310,6 +310,12 @@ The original copyright header is also retained in the embedded script.
   .loginRow #loginPin{flex:0 0 96px}
   .recent{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
   .chip{pointer-events:auto;width:auto;margin:0;padding:8px 12px;font-size:13px;border-radius:999px;background:rgba(255,255,255,.75);color:var(--ink);box-shadow:inset 0 0 0 1px var(--line)}
+  .shopLink{text-decoration:none;border-radius:0;position:relative;overflow:hidden;padding:9px 18px;color:#2A2118;font-weight:900;
+    background:linear-gradient(180deg,#F6F6F3 0%,#C9CDD3 48%,#A7ADB6 52%,#E3E6EA 100%);border:2px solid #2A2118;box-shadow:0 6px 16px rgba(59,42,28,.3),inset 0 1px 0 #fff}
+  .shopLink::before,.shopLink::after{content:"";position:absolute;left:0;right:0;height:4px;background:repeating-linear-gradient(135deg,#F5C400 0 6px,#2A2118 6px 12px)}
+  .shopLink::before{top:0}.shopLink::after{bottom:0}
+  .heroBottom .rankBtn{vertical-align:middle}
+  body:not(.game-on) #sound{bottom:auto;top:calc(118px + env(safe-area-inset-top))}
   .raceBig{display:block;width:max-content;margin:10px auto 0;padding:13px 38px;text-decoration:none;background:#2A2118;color:#FFE37A;box-shadow:0 8px 22px rgba(59,42,28,.35),inset 0 -4px 0 rgba(0,0,0,.35);position:relative;pointer-events:auto}
   .raceBig::before{content:"";position:absolute;left:0;right:0;top:0;height:5px;background:repeating-linear-gradient(135deg,#F5C400 0 8px,#2A2118 8px 16px)}
   @media (max-width:640px){ .pkeys{bottom:calc(272px + env(safe-area-inset-bottom))} }   /* 4인 경주 버튼만큼 조작 안내를 위로 */
@@ -353,7 +359,8 @@ The original copyright header is also retained in the embedded script.
     <button id="go" class="startBtn" type="button" disabled>장면 준비 중…</button>
     <a class="startBtn raceBig" href="race.html">4인 경주</a>
     <div class="startHint">터치 · 클릭 · Enter · Space</div>
-    <button id="rankBtn" class="rankBtn" type="button">랭킹 보기</button>
+    <a class="rankBtn shopLink" href="race.html?shop=1">설비실</a>
+    <button id="rankBtn" class="rankBtn" type="button" style="margin-left:6px">랭킹 보기</button>
     <button id="switchBtn" class="rankBtn" type="button" style="margin-left:6px">이름 변경</button>
   </div>
 
@@ -384,7 +391,7 @@ The original copyright header is also retained in the embedded script.
 <div class="sheet hide" id="login">
   <div class="card">
     <div class="title">출근</div>
-    <div class="sub">이름과 숫자 4자리 비밀번호. 4인 경주와 같은 계정입니다 — 설비실에서 꾸민 옷을 입고 나옵니다.</div>
+    <div class="sub">이름과 숫자 4자리 비밀번호. 4인 경주와 같은 계정입니다 — 설비실에서 꾸민 옷과 강화한 부품을 그대로 씁니다.</div>
     <div class="rank on loginRow" style="margin-top:16px"><input id="loginName" maxlength="12" placeholder="이름" autocomplete="off"><input id="loginPin" maxlength="4" inputmode="numeric" pattern="[0-9]*" placeholder="비밀번호" autocomplete="off"><button id="loginBtn" type="button">입장</button></div>
     <div class="rankmsg" id="loginMsg"></div>
     <div class="recent" id="recentNames"></div>
@@ -11238,7 +11245,7 @@ function kick(){
   const h=Math.atan2(P.vx,P.vz);
   const dir=(sp<1.5)?{x:0,z:1}:{x:Math.sin(h),z:Math.cos(h)};
   const push=sp<16.5;                                   // 느릴 때만 실제로 밀린다
-  const head=clamp(1-sp/MAXV,0,1); const gain=3.2+8.8*head;
+  const head=clamp(1-sp/MAXV,0,1); const gain=(3.2+8.8*head)*upKick(P);
   P.vx+=dir.x*gain; P.vz+=dir.z*gain; P.kickThrust=KICK_THRUST_T;
   P.kickDir=dir; P.kickPush=push;
 }
@@ -11613,9 +11620,9 @@ function physics(dt){
 const rate=
   (1.75-0.7*clamp(sp/MAXV,0,1))*
   steerEff*
-  steerEase*
+  steerEase*upSteer(P)*
   dt/
-  (1+P.pallets*0.035);
+  (1+P.pallets*0.035*upFork(P));
       const c=Math.cos(rate),s=Math.sin(rate);
       const nx=P.vx*c-P.vz*s, nz=P.vx*s+P.vz*c; P.vx=nx;P.vz=nz;
     }
@@ -11629,14 +11636,14 @@ const rate=
     const risk=
   st*
   clamp((sp-19.5)/45,0,1)*
-  (1+P.pallets*0.09)*
+  (1+P.pallets*0.09*upFork(P))*
   difficultyAt(P.z);
     const kickRisk=P.kickAnim>0?clamp(sp/MAXV,0,1)*0.45:0;
-    if(risk+kickRisk>0.2) P.tipMeter=Math.min(1,P.tipMeter+dt*(risk+kickRisk)*TIP_RATE);
+    if(risk+kickRisk>0.2) P.tipMeter=Math.min(1,P.tipMeter+dt*(risk+kickRisk)*TIP_RATE*upTip(P));
     else P.tipMeter=Math.max(0,P.tipMeter-dt*1.1);
     if(P.tipMeter>=1&&P.inv<=0){ crash(true); }
     // 구름 저항
-    const fr=(0.55-P.crouch*0.15)*dt;
+    const fr=(0.55-P.crouch*0.15)*dt*upRR(P);
     const f2=Math.max(0,1-fr/Math.max(sp,0.01)); P.vx*=f2;P.vz*=f2;
     // 먼지: 급선회/비포장
     const u=P.x-cx(P.z);
@@ -11652,9 +11659,9 @@ const rate=
   }
   // 공기 저항 (웅크리면 크게 준다)
   sp=Math.hypot(P.vx,P.vz);
-    const air=0.0062*sp*sp*dt*(1-P.crouch*0.38)*(1-0.55*(P.exitBoost/7))/(3.00+P.pallets*0.0375); // 빈 자키도 예전 7단만큼 저항이 적다(기본 속도감)
+    const air=0.0062*upAir(P)*sp*sp*dt*(1-P.crouch*0.38)*(1-0.55*(P.exitBoost/7))/(3.00+P.pallets*0.0375); // 빈 자키도 예전 7단만큼 저항이 적다(기본 속도감)
   const fa=Math.max(0,1-air/Math.max(sp,0.01)); P.vx*=fa;P.vz*=fa;
-  if(P.kickThrust>0){ if(P.ground&&sp>0.01){ const hd=clamp(1-sp/MAXV,0,1), a=KICK_THRUST*hd*dt/sp; P.vx+=P.vx*a; P.vz+=P.vz*a; } P.kickThrust=Math.max(0,P.kickThrust-dt); }
+  if(P.kickThrust>0){ if(P.ground&&sp>0.01){ const hd=clamp(1-sp/MAXV,0,1), a=KICK_THRUST*upKick(P)*hd*dt/sp; P.vx+=P.vx*a; P.vz+=P.vz*a; } P.kickThrust=Math.max(0,P.kickThrust-dt); }
 
   if(P.vz<0.8) P.vz=0.8;
   sp=Math.hypot(P.vx,P.vz);
@@ -11669,7 +11676,7 @@ const rate=
       }
       if(P.batt===0) battBurnOut();
     }
-    const spCap=(P.batt>0?BATT_CAP:MAXV)+22*(P.exitBoost/7);
+    const spCap=(P.batt>0?BATT_CAP:MAXV)+22*(P.exitBoost/7)+upCap(P);
   if(sp>spCap){const k=spCap/sp;P.vx*=k;P.vz*=k;sp=spCap;}
   P.top=Math.max(P.top,sp);
 // 처음 80m는 창고 풍경을 볼 수 있도록 속도를 제한한다.
@@ -12681,14 +12688,14 @@ function makeResult(done){
   const d=new Date(),date=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
   const r={game:RANK_GAME,kind:"score",version:2,seed:SEED,done:done?1:0,dist:Math.round(P.dist),
     carry:done?(P.pallets||0):0,got:P.palGot||0,smash:P.carSmash||0,lives:done?Math.max(0,P.maxLives-P.hits):0,
-    top:Math.round(P.top*SPEED_DISPLAY),pallets:P.palMax,elapsed:Math.round((performance.now()-P.t0)/100)/10,date:date};
+    top:Math.round(P.top*SPEED_DISPLAY),pallets:P.palMax,elapsed:Math.round((performance.now()-P.t0)/100)/10,date:date,up:upTotal()};
   r.score=runScore(r);
   return r;
 }
 function fmtTime(s){s=Math.round(s);return Math.floor(s/60)+":"+String(s%60).padStart(2,"0");}
 function resultDetail(r){
   return [r.done?"완주":(Math.round(r.dist/100)/10)+"km 주행",r.done?"끝까지 실은 파렛트 "+r.carry+"단":null,"주운 파렛트 "+r.got+"장","부순 차 "+r.smash+"대",
-    r.done?"남은 목숨 "+r.lives+"개":null,"기록 "+fmtTime(r.elapsed)].filter(Boolean).join(" · ");
+    r.done?"남은 목숨 "+r.lives+"개":null,"기록 "+fmtTime(r.elapsed),(r.up|0)>0?"강화 "+(r.up|0):null].filter(Boolean).join(" · ");
 }
 function showResultCard(r){
   document.getElementById("overTitle").textContent=r.done?"완주":"기록";
@@ -12749,7 +12756,7 @@ function renderBoard(d){
   else if(d&&typeof d==="object"){ for(const k of["jockey","runs","run","records","list"]){ if(Array.isArray(d[k])){list=d[k];break;} } }
   if(!list||!list.length){ boardEl.innerHTML=""; return; }
   const rows=list.map(function(r){ return {name:String(r.name||"").slice(0,12),score:Number(r.score)||0,done:Number(r.done)||0,dist:Number(r.dist)||0,
-      carry:Number(r.carry)||0,got:Number(r.got)||0,smash:Number(r.smash)||0,lives:Number(r.lives)||0,elapsed:Number(r.elapsed)||0}; })
+      carry:Number(r.carry)||0,got:Number(r.got)||0,smash:Number(r.smash)||0,lives:Number(r.lives)||0,elapsed:Number(r.elapsed)||0,up:Number(r.up)||0}; })
     .filter(function(r){ return r.name; })
     .sort(function(a,b){ return b.score-a.score; }).slice(0,20);
   const esc=function(t){ return String(t).replace(/[&<>"']/g,function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); };
@@ -15254,6 +15261,16 @@ const RACE_GAME='jockey-race';
 const SAVE_KEY='jockey_race_profiles_v1';
 const PART_KEYS=['wheel','frame','handle','fork'];
 const UP0={wheel:0,frame:0,handle:0,fork:0};
+/* 설비실 부품 강화 배수 (4인 경주와 같은 수치) */
+function upOf(R){return R.up||UP0;}
+function upRR(R){return 1-0.07*upOf(R).wheel;}
+function upAir(R){return 1-0.025*upOf(R).wheel;}
+function upCap(R){return 3*upOf(R).wheel;}
+function upKick(R){return 1+0.10*upOf(R).frame;}
+function upSteer(R){return 1+0.07*upOf(R).handle;}
+function upTip(R){return 1-0.10*upOf(R).handle;}
+function upFork(R){return 1-0.12*upOf(R).fork;}
+function upTotal(){const u=career.profile?career.profile.parts:UP0;return (u.wheel|0)+(u.frame|0)+(u.handle|0)+(u.fork|0);}
 const COS={
   vest:[{id:'lime',n:'연두',hex:0xC8FF2E,cost:0},{id:'blue',n:'파랑',hex:0x2E6BFF,cost:800},{id:'orange',n:'주황',hex:0xFF7A1A,cost:800},{id:'pink',n:'분홍',hex:0xFF5FA8,cost:800},{id:'white',n:'흰색',hex:0xF4F1EA,cost:1200},{id:'black',n:'검정',hex:0x2A2118,cost:1500}],
   jack:[{id:'orange',n:'주황',hex:0xF26B1D,dark:0xB84A10,cost:0},{id:'blue',n:'파랑',hex:0x2F6FCF,dark:0x1B478F,cost:1000},{id:'red',n:'빨강',hex:0xC9302B,dark:0x861D18,cost:1000},{id:'green',n:'초록',hex:0x3E8E3A,dark:0x265A24,cost:1000},{id:'black',n:'검정',hex:0x2A2A2E,dark:0x121214,cost:1600},{id:'taxi',n:'택시 노랑',hex:0xF2C21B,dark:0x9C7A0C,cost:1200},
@@ -15280,6 +15297,7 @@ function login(name,fromServer){
   name=String(name||'').trim().slice(0,12);if(!name)return false;
   const p=normalizeProfile(fromServer||career.store.list[name],name);
   career.profile=p;saveProfile();dressPlayer();refreshWho();
+  P.up=p.parts||UP0;
   return true;
 }
 function pinOk(v){return /^\d{4}$/.test(String(v||''));}
