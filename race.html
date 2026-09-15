@@ -17708,8 +17708,8 @@ function arenaStep(dt){
   if(window.__race&&window.__race.auto){if(!P.ai)P.ai={pers:'speed',tDec:0,blind:0,over:0,kickT:.5,target:null};arenaAi(P,dt);}
   else{
     const sx1=P.stickX||0,sy1=P.stickY||0,kx=(keys.ArrowRight||keys.KeyD?1:0)-(keys.ArrowLeft||keys.KeyA?1:0),kz=(keys.ArrowUp||keys.KeyW?1:0)-(keys.ArrowDown||keys.KeyS?1:0);
-    if(Math.hypot(sx1,sy1)>.18)hdgT=Math.atan2(sx1,-sy1);
-    else if(kx||kz)hdgT=Math.atan2(kx,kz);
+    if(Math.hypot(sx1,sy1)>.18)hdgT=Math.atan2(-sx1,-sy1);      // 카메라가 +z를 보므로 화면 오른쪽 = 월드 -x
+    else if(kx||kz)hdgT=Math.atan2(-kx,kz);
     if(keys.Space){if(!arSpaceHeld){arKickReq=true;arSpaceHeld=true;}}else arSpaceHeld=false;   // 스페이스는 누르는 순간
     arenaPhysics(P,dt,hdgT,arKickReq);arKickReq=false;
   }
